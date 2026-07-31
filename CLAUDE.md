@@ -11,6 +11,25 @@ Wadi (product name: **Riksa**) — a Virtual Data Room. Two-package monorepo:
 
 `AGENTS.md` is the pre-existing agent instructions file; keep the two in sync when editing either.
 
+## Skills — invoke proactively, not on request
+
+Before starting any task, check the installed-skills list: if a skill's trigger
+description matches the task, invoke it FIRST instead of doing the work with
+manual/built-in tools. The user must never have to ask for a skill by name.
+Current examples (non-exhaustive — apply to whatever is installed):
+
+- **Codebase questions** (architecture, file relationships, where something
+  lives): the `graphify` skill — a graph exists at `graphify-out/`. Fall back to
+  Grep/Glob/Read only for code just modified in the current branch/session
+  (graph may be stale) or when exact current line numbers are needed for an
+  edit. Re-run `/graphify` after substantial changes land.
+- **Go work** on `server/` (write, review, debug, test): the matching
+  `golang-*` skill; `golang-how-to` orchestrates which ones to load.
+- **VDR feature scoping/benchmarking**: `vdr-competitor-scan`.
+- **Any chart/visualization**: `dataviz` before writing chart code.
+
+When no installed skill matches, proceed normally — do not force one.
+
 ## Commands
 
 ### Web (run inside `web/`)
@@ -120,3 +139,9 @@ How to use them:
 - Ellty targets a different tier than the other three — compare accordingly.
 
 For a full capability scan, use the `vdr-competitor-scan` skill.
+
+## Warning
+
+All the code you generate will be audited by other AI models such as DeepSeek-v4 Pro, ChatGPT, Kimi K3, and GLM.
+
+So make sure the code you generate has no flaws that these models could flag. 
