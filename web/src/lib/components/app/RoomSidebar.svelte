@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { t } from '$lib/i18n';
 	import { canManageAccess } from '$lib/access/roles';
@@ -11,6 +12,7 @@
 	const overviewHref = $derived(`/workspace/${workspace.slug}`);
 	const documentsHref = $derived(`/workspace/${workspace.slug}/document`);
 	const accessManagementHref = $derived(`/workspace/${workspace.slug}/management-access`);
+	const trashHref = $derived(resolve('/(app)/workspace/[slug]/trash', { slug: workspace.slug }));
 	const isActive = (href: string) => page.url.pathname === href;
 	// Active for the module's own route and any of its sub-routes.
 	const isSection = (href: string) =>
@@ -157,6 +159,33 @@
 				<path d="M18 13.5a6 6 0 0 1 3 5.5" />
 			</svg>
 			<span class="flex-1 text-left">{t('ws.section.access')}</span>
+		</a>
+
+		<a
+			href={trashHref}
+			class="flex items-center gap-3 rounded-field px-3 py-2 text-[0.9375rem] font-medium transition-colors {isSection(
+				trashHref
+			)
+				? 'bg-primary/10 text-primary'
+				: 'text-base-content hover:bg-base-content/5'}"
+			aria-current={isSection(trashHref) ? 'page' : undefined}
+		>
+			<svg
+				class="h-4.5 w-4.5 flex-none"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="1.6"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				aria-hidden="true"
+			>
+				<path d="M3 6h18" />
+				<path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+				<path d="M6 6v14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6" />
+				<path d="M10 11v6M14 11v6" />
+			</svg>
+			<span class="flex-1 text-left">{t('ws.section.trash')}</span>
 		</a>
 	{/if}
 </nav>

@@ -133,6 +133,7 @@ export const en: Record<keyof Dict, string> = {
 	'ws.section.documents': 'Documents',
 	'ws.section.activity': 'Activity',
 	'ws.section.access': 'Access Management',
+	'ws.section.trash': 'Trash',
 
 	// Workspace status (lifecycle)
 	'ws.status.label': 'Status',
@@ -225,7 +226,7 @@ export const en: Record<keyof Dict, string> = {
 	'doc.renamed': 'Folder renamed.',
 	'doc.moved': 'Folder moved.',
 	'doc.reordered': 'Folder order updated.',
-	'doc.deleted': 'Folder deleted.',
+	'doc.deleted': 'Folder moved to Trash.',
 	'doc.reorder.before': 'Place before {name}',
 	'doc.reorder.after': 'Place after {name}',
 	'doc.reorder.into': 'Move into {name}',
@@ -255,9 +256,10 @@ export const en: Record<keyof Dict, string> = {
 	'doc.move.submit': 'Move',
 	'doc.move.submitting': 'Moving…',
 	'doc.delete.title': 'Delete folder',
-	'doc.delete.warning': 'Delete “{name}”? This cannot be undone.',
+	'doc.delete.warning':
+		'Delete “{name}”? The folder and its contents move to Trash and can be restored from there.',
 	'doc.delete.contents':
-		'Every document inside it, and inside its subfolders, is permanently deleted with it.',
+		'Every document inside it, and inside its subfolders, moves to Trash with it.',
 	'doc.delete.cascadeOne': 'Its {n} nested folder will be deleted too.',
 	'doc.delete.cascadeMany': 'Its {n} nested folders will be deleted too.',
 	'doc.delete.confirmLabel': 'Type {name} to confirm',
@@ -356,10 +358,11 @@ export const en: Record<keyof Dict, string> = {
 	'doc.docs.move.submitting': 'Moving…',
 	'doc.docs.delete': 'Delete',
 	'doc.docs.deleteOf': 'Delete {name}',
-	'doc.docs.deleted': 'Document deleted.',
+	'doc.docs.deleted': 'Document moved to Trash.',
 	'doc.docs.delete.title': 'Delete document',
-	'doc.docs.delete.warning': 'Delete “{name}”? This cannot be undone.',
-	'doc.docs.delete.versions': 'Its {n} stored versions will be deleted too.',
+	'doc.docs.delete.warning':
+		'Delete “{name}”? The document moves to Trash and can be restored from there.',
+	'doc.docs.delete.versions': 'Its {n} stored versions move with it.',
 	'doc.docs.delete.submit': 'Delete',
 	'doc.docs.delete.submitting': 'Deleting…',
 	'doc.docs.err.load': 'Could not load documents.',
@@ -431,6 +434,26 @@ export const en: Record<keyof Dict, string> = {
 	'doc.noAccess.title': 'No folders shared with you yet',
 	'doc.noAccess.body':
 		'The room owner has not given your group access to any folder. They will appear here as soon as access is granted.',
+
+	'trash.title': 'Trash',
+	'trash.desc': 'Deleted items can be restored from here until they are permanently purged.',
+	'trash.empty.title': 'Trash is empty',
+	'trash.empty.body':
+		'Deleted folders and documents move here and can be restored until they are permanently purged.',
+	'trash.section.folders': 'Folders',
+	'trash.section.documents': 'Documents',
+	'trash.deletedBy': 'Deleted by {who}',
+	'trash.deletedAtTitle': 'Deleted at {when}',
+	'trash.purgeIn': '≤ {n}h',
+	'trash.purgeInTitle': 'Permanently purged after {when}',
+	'trash.action.restore': 'Restore',
+	'trash.action.restoreOf': 'Restore {name}',
+	'trash.folderRestored': 'Folder “{name}” restored.',
+	'trash.docRestored': 'Document “{name}” restored.',
+	'trash.err.load': 'Could not load the trash.',
+	'trash.err.forbidden': 'Only the owner or an admin can restore items.',
+	'trash.err.gone': 'That item is no longer in the trash.',
+	'trash.err.nameConflict': 'A name conflict blocked the restore. Try again.',
 
 	'level.view': 'View only',
 	'level.download': 'View & download',

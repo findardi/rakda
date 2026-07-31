@@ -207,6 +207,26 @@ export interface InheritedFolderAccess extends FolderAccessData {
 	source_folder_name: string;
 }
 
+// --- trash ---
+
+export interface TrashFolder {
+	id: string;
+	name: string;
+	deleted_by_name: string;
+	deleted_at: string;
+	purge_after: string;
+}
+
+export interface TrashDocument extends TrashFolder {
+	mime: string;
+	size: number;
+}
+
+export interface TrashData {
+	folders: TrashFolder[];
+	documents: TrashDocument[];
+}
+
 export interface DirectFolderAccess extends FolderAccessData {
 	shadows: InheritedFolderAccess | null;
 }
