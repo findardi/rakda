@@ -15,9 +15,8 @@ type Querier interface {
 	CreateDocument(ctx context.Context, arg CreateDocumentParams) (Document, error)
 	CreateDocumentVersion(ctx context.Context, arg CreateDocumentVersionParams) (DocumentVersion, error)
 	CreateFolder(ctx context.Context, arg CreateFolderParams) (Folder, error)
-	DeleteDocument(ctx context.Context, id pgtype.UUID) error
-	DeleteFolder(ctx context.Context, id pgtype.UUID) error
 	GetCurrentVersion(ctx context.Context, id pgtype.UUID) (DocumentVersion, error)
+	GetDefaultFolder(ctx context.Context, workspaceID pgtype.UUID) (Folder, error)
 	GetDocumentByID(ctx context.Context, id pgtype.UUID) (Document, error)
 	GetDocumentByNameInFolder(ctx context.Context, arg GetDocumentByNameInFolderParams) (Document, error)
 	GetFolderByID(ctx context.Context, id pgtype.UUID) (Folder, error)
@@ -26,9 +25,13 @@ type Querier interface {
 	GetMaxPosition(ctx context.Context, folderID pgtype.UUID) (int32, error)
 	GetMaxPositionInParent(ctx context.Context, arg GetMaxPositionInParentParams) (int32, error)
 	GetNextVersionNo(ctx context.Context, documentID pgtype.UUID) (int32, error)
+	GetTrashedDocumentByID(ctx context.Context, id pgtype.UUID) (Document, error)
+	GetTrashedFolderByID(ctx context.Context, id pgtype.UUID) (Folder, error)
 	GetVersionByID(ctx context.Context, id pgtype.UUID) (DocumentVersion, error)
 	ListDocumentsByFolder(ctx context.Context, folderID pgtype.UUID) ([]ListDocumentsByFolderRow, error)
 	ListFolderAccess(ctx context.Context, arg ListFolderAccessParams) ([]ListFolderAccessRow, error)
+	ListTrashDocuments(ctx context.Context, workspaceID pgtype.UUID) ([]ListTrashDocumentsRow, error)
+	ListTrashFolders(ctx context.Context, workspaceID pgtype.UUID) ([]ListTrashFoldersRow, error)
 	ListVersionByDocument(ctx context.Context, documentID pgtype.UUID) ([]DocumentVersion, error)
 	// `is_current` is the served version, which restore repoints freely, so it is
 	// not necessarily the highest version_no. current_version_id is nullable.
@@ -42,9 +45,16 @@ type Querier interface {
 	RemoveFolderAccess(ctx context.Context, arg RemoveFolderAccessParams) error
 	RenameFolder(ctx context.Context, arg RenameFolderParams) (Folder, error)
 	ResolveFolderAccess(ctx context.Context, arg ResolveFolderAccessParams) (ResolveFolderAccessRow, error)
+	RestoreDocument(ctx context.Context, arg RestoreDocumentParams) error
+	RestoreDocumentsSweptBy(ctx context.Context, deletedRootFolderID pgtype.UUID) error
+	RestoreFolderRoot(ctx context.Context, arg RestoreFolderRootParams) error
+	RestoreFoldersSweptBy(ctx context.Context, deletedRootFolderID pgtype.UUID) error
 	SetCurrentVersion(ctx context.Context, arg SetCurrentVersionParams) error
 	SetFolderAccess(ctx context.Context, arg SetFolderAccessParams) (FolderAccess, error)
 	SetVersionRendition(ctx context.Context, arg SetVersionRenditionParams) error
+	SoftDeleteDocument(ctx context.Context, arg SoftDeleteDocumentParams) error
+	SoftDeleteDocumentsForFolderRoot(ctx context.Context, arg SoftDeleteDocumentsForFolderRootParams) error
+	SoftDeleteFolderSubtree(ctx context.Context, arg SoftDeleteFolderSubtreeParams) error
 }
 
 var _ Querier = (*Queries)(nil)

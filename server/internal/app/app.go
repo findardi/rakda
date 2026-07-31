@@ -54,16 +54,21 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 	}
 
 	webURL := config.GetEnv("WEB_URL", "http://localhost:5173")
+	trashRetention, err := config.GetEnvDuration("TRASH_RETENTION", 15*time.Hour)
+	if err != nil {
+		log.Printf("invalid TRASH_RETENTION, fallback to 15h: %v", err)
+		trashRetention = 15 * time.Hour
+	}
 
 	authsvc := authservice.NewAuthService(authrepo.New(pool), otpGen, jwtGen, mailer, nil)
 	accessSvc := accessservice.NewAccessService(accessrepo.New(pool), mailer, authsvc, otpGen, webURL)
-	contentSvc := contentservice.NewContentService(contentrepo.New(pool), store, viewer)
+	contentSvc := contentservice.NewContentService(contentrepo.New(pool), store, viewer, trashRetention)
 
 	authModule := auth.NewModule(pool, otpGen, jwtGen, mailer, limiter, providers, accessSvc)
 	workspaceModule := workspace.NewModule(pool, jwtGen, accessSvc, contentSvc)
 	accessModule := access.NewModule(pool, jwtGen, mailer, authsvc, otpGen, webURL)
 	invitationModule := invitation.NewModule(pool, jwtGen)
-	contentModule := content.NewModule(pool, jwtGen, store, viewer)
+	contentModule := content.NewModule(pool, jwtGen, store, viewer, trashRetention)
 
 	r := chi.NewRouter()
 	registerGlobalMiddleware(r)

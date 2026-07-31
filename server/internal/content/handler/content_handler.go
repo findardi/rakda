@@ -176,7 +176,15 @@ func (h *ContentHandler) RenameFolder(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ContentHandler) DeleteFolder(w http.ResponseWriter, r *http.Request) {
-	if err := h.svc.DeleteFolder(r.Context(), chi.URLParam(r, "folderID")); err != nil {
+	wID := chi.URLParam(r, "workspaceID")
+	fID := chi.URLParam(r, "folderID")
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	if err := h.svc.DeleteFolder(r.Context(), fID, wID, actor); err != nil {
 		switch {
 		case errors.Is(err, service.ErrFolderNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
@@ -403,7 +411,13 @@ func (h *ContentHandler) DeleteDocument(w http.ResponseWriter, r *http.Request) 
 	wID := chi.URLParam(r, "workspaceID")
 	dID := chi.URLParam(r, "documentID")
 
-	if err := h.svc.DeleteDocument(r.Context(), wID, dID); err != nil {
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	if err := h.svc.DeleteDocument(r.Context(), wID, dID, actor); err != nil {
 		switch {
 		case errors.Is(err, service.ErrDocumentNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
@@ -415,6 +429,86 @@ func (h *ContentHandler) DeleteDocument(w http.ResponseWriter, r *http.Request) 
 	}
 
 	response.Success(w, http.StatusOK, "delete document success", nil)
+}
+
+func (h *ContentHandler) ListTrash(w http.ResponseWriter, r *http.Request) {
+	wID := chi.URLParam(r, "workspaceID")
+
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	res, err := h.svc.ListTrash(r.Context(), wID, actor)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrContentForbidden):
+			response.Error(w, http.StatusForbidden, err.Error(), nil)
+		default:
+			log.Printf("list trash internal error: %v", err)
+			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
+		}
+		return
+	}
+
+	response.Success(w, http.StatusOK, "list trash success", res)
+}
+
+func (h *ContentHandler) RestoreTrashDocument(w http.ResponseWriter, r *http.Request) {
+	wID := chi.URLParam(r, "workspaceID")
+	dID := chi.URLParam(r, "documentID")
+
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	if err := h.svc.RestoreDocument(r.Context(), wID, dID, actor); err != nil {
+		switch {
+		case errors.Is(err, service.ErrContentForbidden):
+			response.Error(w, http.StatusForbidden, err.Error(), nil)
+		case errors.Is(err, service.ErrNotInTrash):
+			response.Error(w, http.StatusNotFound, err.Error(), nil)
+		case errors.Is(err, service.ErrDocumentNameTaken):
+			response.Error(w, http.StatusConflict, err.Error(), nil)
+		default:
+			log.Printf("restore document internal error: %v", err)
+			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
+		}
+		return
+	}
+
+	response.Success(w, http.StatusOK, "restore document success", nil)
+}
+
+func (h *ContentHandler) RestoreTrashFolder(w http.ResponseWriter, r *http.Request) {
+	wID := chi.URLParam(r, "workspaceID")
+	fID := chi.URLParam(r, "folderID")
+
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	if err := h.svc.RestoreFolders(r.Context(), wID, fID, actor); err != nil {
+		switch {
+		case errors.Is(err, service.ErrContentForbidden):
+			response.Error(w, http.StatusForbidden, err.Error(), nil)
+		case errors.Is(err, service.ErrNotInTrash):
+			response.Error(w, http.StatusNotFound, err.Error(), nil)
+		case errors.Is(err, service.ErrFolderNameTaken):
+			response.Error(w, http.StatusConflict, err.Error(), nil)
+		default:
+			log.Printf("restore folder internal error: %v", err)
+			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
+		}
+		return
+	}
+
+	response.Success(w, http.StatusOK, "restore folder success", nil)
 }
 
 func (h *ContentHandler) MoveDocument(w http.ResponseWriter, r *http.Request) {
