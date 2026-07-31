@@ -52,19 +52,22 @@ var (
 	ErrDocumentNameTaken    = errors.New("a document with this name already exists in the folder")
 	ErrVersionNotFound      = errors.New("version not found")
 	ErrAlreadyCurrent       = errors.New("version is already current")
+	ErrNotInTrash           = errors.New("item not found in trash")
 )
 
 type ContentService struct {
-	repo   ContentRepository
-	store  storage.Storage
-	viewer Viewer
+	repo           ContentRepository
+	store          storage.Storage
+	viewer         Viewer
+	trashRetention time.Duration
 }
 
-func NewContentService(repo ContentRepository, store storage.Storage, viewer Viewer) *ContentService {
+func NewContentService(repo ContentRepository, store storage.Storage, viewer Viewer, trashRetention time.Duration) *ContentService {
 	return &ContentService{
-		repo:   repo,
-		store:  store,
-		viewer: viewer,
+		repo:           repo,
+		store:          store,
+		viewer:         viewer,
+		trashRetention: trashRetention,
 	}
 }
 
@@ -89,11 +92,12 @@ func uuidString(u pgtype.UUID) string {
 	return s
 }
 
-func deref(s *string) string {
-	if s == nil {
-		return ""
+func deref[T any](v *T) T {
+	var zero T
+	if v == nil {
+		return zero
 	}
-	return *s
+	return *v
 }
 
 func storageKey(workspaceID, folderID string) string {
@@ -477,28 +481,49 @@ func (s *ContentService) RenameFolder(ctx context.Context, req dto.RenameFolderR
 	}, nil
 }
 
-func (s *ContentService) DeleteFolder(ctx context.Context, folderID string) error {
+func (s *ContentService) DeleteFolder(ctx context.Context, folderID, workspaceID string, actor Actor) error {
 	var fID pgtype.UUID
 	if err := fID.Scan(folderID); err != nil {
 		return fmt.Errorf("folder id parse: %w", err)
 	}
 
-	doc, err := s.repo.GetFolderByID(ctx, fID)
+	folder, err := s.repo.GetFolderByID(ctx, fID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrFolderNotFound
 	} else if err != nil {
 		return fmt.Errorf("get folder: %w", err)
 	}
 
-	if doc.IsDefault {
+	if uuidString(folder.WorkspaceID) != workspaceID {
+		return ErrFolderNotFound
+	}
+
+	if folder.IsDefault {
 		return ErrDeleteDefault
 	}
 
-	if err := s.repo.DeleteFolder(ctx, fID); err != nil {
-		return fmt.Errorf("delete folder: %w", err)
+	var uID pgtype.UUID
+	if err := uID.Scan(actor.UserID); err != nil {
+		return fmt.Errorf("user id parse: %w", err)
 	}
 
-	return nil
+	return s.repo.ExecTx(ctx, func(q *contentdb.Queries) error {
+		if err := q.SoftDeleteFolderSubtree(ctx, contentdb.SoftDeleteFolderSubtreeParams{
+			DeletedBy: uID,
+			FolderID:  fID,
+		}); err != nil {
+			return fmt.Errorf("soft delete folder tree: %w", err)
+		}
+
+		if err := q.SoftDeleteDocumentsForFolderRoot(ctx, contentdb.SoftDeleteDocumentsForFolderRootParams{
+			DeletedBy: uID,
+			FolderID:  fID,
+		}); err != nil {
+			return fmt.Errorf("soft delete documents: %w", err)
+		}
+
+		return nil
+	})
 }
 
 func (s *ContentService) ensureFolderTree(ctx context.Context, q *contentdb.Queries, wID, parentID, cID pgtype.UUID, nodes []dto.BulkFolderNode, prefix string, out *[]dto.BulkFolderResult) error {

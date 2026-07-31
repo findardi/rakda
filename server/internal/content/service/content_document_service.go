@@ -342,7 +342,7 @@ func (s *ContentService) GetDownloadURL(ctx context.Context, workspaceID, docume
 	}, nil
 }
 
-func (s *ContentService) DeleteDocument(ctx context.Context, workspaceID, documentID string) error {
+func (s *ContentService) DeleteDocument(ctx context.Context, workspaceID, documentID string, actor Actor) error {
 	var dID pgtype.UUID
 	if err := dID.Scan(documentID); err != nil {
 		return fmt.Errorf("document id parse: %w", err)
@@ -351,9 +351,7 @@ func (s *ContentService) DeleteDocument(ctx context.Context, workspaceID, docume
 	doc, err := s.repo.GetDocumentByID(ctx, dID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrDocumentNotFound
-	}
-
-	if err != nil {
+	} else if err != nil {
 		return fmt.Errorf("get document: %w", err)
 	}
 
@@ -361,17 +359,16 @@ func (s *ContentService) DeleteDocument(ctx context.Context, workspaceID, docume
 		return ErrDocumentNotFound
 	}
 
-	versions, err := s.repo.ListVersionByDocument(ctx, dID)
-	if err != nil {
-		return fmt.Errorf("list version: %w", err)
+	var uID pgtype.UUID
+	if err := uID.Scan(actor.UserID); err != nil {
+		return fmt.Errorf("user id parse: %w", err)
 	}
 
-	if err := s.repo.DeleteDocument(ctx, dID); err != nil {
-		return fmt.Errorf("delete document: %w", err)
-	}
-
-	for _, v := range versions {
-		_ = s.store.Delete(ctx, v.StorageKey)
+	if err := s.repo.SoftDeleteDocument(ctx, contentdb.SoftDeleteDocumentParams{
+		ID:        dID,
+		DeletedBy: uID,
+	}); err != nil {
+		return fmt.Errorf("soft delete document: %w", err)
 	}
 
 	return nil

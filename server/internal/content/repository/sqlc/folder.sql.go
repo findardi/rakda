@@ -16,7 +16,7 @@ insert into folders
     (workspace_id, parent_id, name, position, created_by, is_default)
 values
     ($1, null, $2, 0, $3, true)
-returning id, workspace_id, parent_id, name, position, created_by, created_at, updated_at, is_default
+returning id, workspace_id, parent_id, name, position, created_by, created_at, updated_at, is_default, deleted_at, deleted_by, deleted_root_folder_id
 `
 
 type CreateDefaultFolderParams struct {
@@ -38,6 +38,9 @@ func (q *Queries) CreateDefaultFolder(ctx context.Context, arg CreateDefaultFold
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.IsDefault,
+		&i.DeletedAt,
+		&i.DeletedBy,
+		&i.DeletedRootFolderID,
 	)
 	return i, err
 }
@@ -47,7 +50,7 @@ insert into folders
     (workspace_id, parent_id, name, position, created_by)
 values
     ($1, $2, $3, $4, $5)
-returning id, workspace_id, parent_id, name, position, created_by, created_at, updated_at, is_default
+returning id, workspace_id, parent_id, name, position, created_by, created_at, updated_at, is_default, deleted_at, deleted_by, deleted_root_folder_id
 `
 
 type CreateFolderParams struct {
@@ -77,21 +80,40 @@ func (q *Queries) CreateFolder(ctx context.Context, arg CreateFolderParams) (Fol
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.IsDefault,
+		&i.DeletedAt,
+		&i.DeletedBy,
+		&i.DeletedRootFolderID,
 	)
 	return i, err
 }
 
-const deleteFolder = `-- name: DeleteFolder :exec
-delete from folders where id = $1
+const getDefaultFolder = `-- name: GetDefaultFolder :one
+select id, workspace_id, parent_id, name, position, created_by, created_at, updated_at, is_default, deleted_at, deleted_by, deleted_root_folder_id from folders
+where workspace_id = $1 and is_default = true and deleted_at is null
 `
 
-func (q *Queries) DeleteFolder(ctx context.Context, id pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, deleteFolder, id)
-	return err
+func (q *Queries) GetDefaultFolder(ctx context.Context, workspaceID pgtype.UUID) (Folder, error) {
+	row := q.db.QueryRow(ctx, getDefaultFolder, workspaceID)
+	var i Folder
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.ParentID,
+		&i.Name,
+		&i.Position,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsDefault,
+		&i.DeletedAt,
+		&i.DeletedBy,
+		&i.DeletedRootFolderID,
+	)
+	return i, err
 }
 
 const getFolderByID = `-- name: GetFolderByID :one
-select id, workspace_id, parent_id, name, position, created_by, created_at, updated_at, is_default from folders where id = $1
+select id, workspace_id, parent_id, name, position, created_by, created_at, updated_at, is_default, deleted_at, deleted_by, deleted_root_folder_id from folders where id = $1 and deleted_at is null
 `
 
 func (q *Queries) GetFolderByID(ctx context.Context, id pgtype.UUID) (Folder, error) {
@@ -107,15 +129,19 @@ func (q *Queries) GetFolderByID(ctx context.Context, id pgtype.UUID) (Folder, er
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.IsDefault,
+		&i.DeletedAt,
+		&i.DeletedBy,
+		&i.DeletedRootFolderID,
 	)
 	return i, err
 }
 
 const getFolderByNameInParent = `-- name: GetFolderByNameInParent :one
-select id, workspace_id, parent_id, name, position, created_by, created_at, updated_at, is_default from folders
+select id, workspace_id, parent_id, name, position, created_by, created_at, updated_at, is_default, deleted_at, deleted_by, deleted_root_folder_id from folders
 where workspace_id = $1
     and parent_id is not distinct from $2
     and name = $3
+    and deleted_at is null
 `
 
 type GetFolderByNameInParentParams struct {
@@ -137,12 +163,15 @@ func (q *Queries) GetFolderByNameInParent(ctx context.Context, arg GetFolderByNa
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.IsDefault,
+		&i.DeletedAt,
+		&i.DeletedBy,
+		&i.DeletedRootFolderID,
 	)
 	return i, err
 }
 
 const getFoldersByWorkspace = `-- name: GetFoldersByWorkspace :many
-select id, workspace_id, parent_id, name, position, created_by, created_at, updated_at, is_default from folders where workspace_id = $1
+select id, workspace_id, parent_id, name, position, created_by, created_at, updated_at, is_default, deleted_at, deleted_by, deleted_root_folder_id from folders where workspace_id = $1 and deleted_at is null
 order by parent_id nulls first, position, created_at
 `
 
@@ -165,6 +194,9 @@ func (q *Queries) GetFoldersByWorkspace(ctx context.Context, workspaceID pgtype.
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.IsDefault,
+			&i.DeletedAt,
+			&i.DeletedBy,
+			&i.DeletedRootFolderID,
 		); err != nil {
 			return nil, err
 		}
@@ -180,6 +212,7 @@ const getMaxPositionInParent = `-- name: GetMaxPositionInParent :one
 select coalesce(max(position), -1)::int as max_position
 from folders
 where workspace_id = $1 and parent_id is not distinct from $2
+    and deleted_at is null
 `
 
 type GetMaxPositionInParentParams struct {
@@ -192,6 +225,73 @@ func (q *Queries) GetMaxPositionInParent(ctx context.Context, arg GetMaxPosition
 	var max_position int32
 	err := row.Scan(&max_position)
 	return max_position, err
+}
+
+const getTrashedFolderByID = `-- name: GetTrashedFolderByID :one
+select id, workspace_id, parent_id, name, position, created_by, created_at, updated_at, is_default, deleted_at, deleted_by, deleted_root_folder_id from folders where id = $1 and deleted_at is not null
+`
+
+func (q *Queries) GetTrashedFolderByID(ctx context.Context, id pgtype.UUID) (Folder, error) {
+	row := q.db.QueryRow(ctx, getTrashedFolderByID, id)
+	var i Folder
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.ParentID,
+		&i.Name,
+		&i.Position,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsDefault,
+		&i.DeletedAt,
+		&i.DeletedBy,
+		&i.DeletedRootFolderID,
+	)
+	return i, err
+}
+
+const listTrashFolders = `-- name: ListTrashFolders :many
+select f.id, f.name, f.deleted_at,
+    coalesce(u.username, u.email)::text as deleted_by_name
+from folders f
+join users u on u.id = f.deleted_by
+where f.workspace_id = $1
+    and f.deleted_at is not null
+    and f.deleted_root_folder_id is null
+order by f.deleted_at desc
+`
+
+type ListTrashFoldersRow struct {
+	ID            pgtype.UUID        `json:"id"`
+	Name          string             `json:"name"`
+	DeletedAt     pgtype.Timestamptz `json:"deleted_at"`
+	DeletedByName string             `json:"deleted_by_name"`
+}
+
+func (q *Queries) ListTrashFolders(ctx context.Context, workspaceID pgtype.UUID) ([]ListTrashFoldersRow, error) {
+	rows, err := q.db.Query(ctx, listTrashFolders, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListTrashFoldersRow
+	for rows.Next() {
+		var i ListTrashFoldersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.DeletedAt,
+			&i.DeletedByName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const lockWorkspaceStructure = `-- name: LockWorkspaceStructure :exec
@@ -233,6 +333,7 @@ with ordered as (
     from folders f
     where f.workspace_id = $2
     and f.parent_id is not distinct from $3
+    and f.deleted_at is null
 )
 update folders t 
 set position = o.rn 
@@ -252,7 +353,7 @@ func (q *Queries) ReindexFolderSiblings(ctx context.Context, arg ReindexFolderSi
 }
 
 const renameFolder = `-- name: RenameFolder :one
-update folders set name = $2, updated_at = now() where id = $1 returning id, workspace_id, parent_id, name, position, created_by, created_at, updated_at, is_default
+update folders set name = $2, updated_at = now() where id = $1 returning id, workspace_id, parent_id, name, position, created_by, created_at, updated_at, is_default, deleted_at, deleted_by, deleted_root_folder_id
 `
 
 type RenameFolderParams struct {
@@ -273,6 +374,102 @@ func (q *Queries) RenameFolder(ctx context.Context, arg RenameFolderParams) (Fol
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.IsDefault,
+		&i.DeletedAt,
+		&i.DeletedBy,
+		&i.DeletedRootFolderID,
 	)
 	return i, err
+}
+
+const restoreFolderRoot = `-- name: RestoreFolderRoot :exec
+update folders set
+    deleted_at = null,
+    deleted_by = null,
+    parent_id = $1,
+    name = $2,
+    position = $3,
+    updated_at = now()
+where id = $4
+`
+
+type RestoreFolderRootParams struct {
+	ParentID pgtype.UUID `json:"parent_id"`
+	Name     string      `json:"name"`
+	Position int32       `json:"position"`
+	ID       pgtype.UUID `json:"id"`
+}
+
+func (q *Queries) RestoreFolderRoot(ctx context.Context, arg RestoreFolderRootParams) error {
+	_, err := q.db.Exec(ctx, restoreFolderRoot,
+		arg.ParentID,
+		arg.Name,
+		arg.Position,
+		arg.ID,
+	)
+	return err
+}
+
+const restoreFoldersSweptBy = `-- name: RestoreFoldersSweptBy :exec
+update folders set  
+    deleted_at = null,
+    deleted_by = null,
+    deleted_root_folder_id = null,
+    updated_at = now()
+where deleted_root_folder_id = $1
+`
+
+func (q *Queries) RestoreFoldersSweptBy(ctx context.Context, deletedRootFolderID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, restoreFoldersSweptBy, deletedRootFolderID)
+	return err
+}
+
+const softDeleteDocumentsForFolderRoot = `-- name: SoftDeleteDocumentsForFolderRoot :exec
+update documents d
+set deleted_at = now(),
+    deleted_by = $1,
+    deleted_root_folder_id = $2
+from folders f
+where d.folder_id = f.id
+    and d.deleted_at is null
+    and (f.id = $2 or f.deleted_root_folder_id = $2)
+`
+
+type SoftDeleteDocumentsForFolderRootParams struct {
+	DeletedBy pgtype.UUID `json:"deleted_by"`
+	FolderID  pgtype.UUID `json:"folder_id"`
+}
+
+func (q *Queries) SoftDeleteDocumentsForFolderRoot(ctx context.Context, arg SoftDeleteDocumentsForFolderRootParams) error {
+	_, err := q.db.Exec(ctx, softDeleteDocumentsForFolderRoot, arg.DeletedBy, arg.FolderID)
+	return err
+}
+
+const softDeleteFolderSubtree = `-- name: SoftDeleteFolderSubtree :exec
+with recursive subtree as (
+    select id from folders
+    where id = $2 and deleted_at is null
+    union all
+    select f.id from folders f
+    join subtree s on f.parent_id = s.id
+    where f.deleted_at is null
+)
+update folders f
+set deleted_at = now(),
+    deleted_by = $1,
+    deleted_root_folder_id = case 
+        when f.id = $2 then null 
+        else $2
+    end
+from subtree s 
+where f.id = s.id
+`
+
+type SoftDeleteFolderSubtreeParams struct {
+	DeletedBy pgtype.UUID `json:"deleted_by"`
+	FolderID  pgtype.UUID `json:"folder_id"`
+}
+
+func (q *Queries) SoftDeleteFolderSubtree(ctx context.Context, arg SoftDeleteFolderSubtreeParams) error {
+	_, err := q.db.Exec(ctx, softDeleteFolderSubtree, arg.DeletedBy, arg.FolderID)
+	return err
 }

@@ -9,15 +9,18 @@ import (
 )
 
 type Document struct {
-	ID               pgtype.UUID        `json:"id"`
-	WorkspaceID      pgtype.UUID        `json:"workspace_id"`
-	FolderID         pgtype.UUID        `json:"folder_id"`
-	Name             string             `json:"name"`
-	CurrentVersionID pgtype.UUID        `json:"current_version_id"`
-	UploadedBy       pgtype.UUID        `json:"uploaded_by"`
-	CreatedAt        pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
-	Position         int32              `json:"position"`
+	ID                  pgtype.UUID        `json:"id"`
+	WorkspaceID         pgtype.UUID        `json:"workspace_id"`
+	FolderID            pgtype.UUID        `json:"folder_id"`
+	Name                string             `json:"name"`
+	CurrentVersionID    pgtype.UUID        `json:"current_version_id"`
+	UploadedBy          pgtype.UUID        `json:"uploaded_by"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	Position            int32              `json:"position"`
+	DeletedAt           pgtype.Timestamptz `json:"deleted_at"`
+	DeletedBy           pgtype.UUID        `json:"deleted_by"`
+	DeletedRootFolderID pgtype.UUID        `json:"deleted_root_folder_id"`
 }
 
 type DocumentVersion struct {
@@ -34,15 +37,18 @@ type DocumentVersion struct {
 }
 
 type Folder struct {
-	ID          pgtype.UUID        `json:"id"`
-	WorkspaceID pgtype.UUID        `json:"workspace_id"`
-	ParentID    pgtype.UUID        `json:"parent_id"`
-	Name        string             `json:"name"`
-	Position    int32              `json:"position"`
-	CreatedBy   pgtype.UUID        `json:"created_by"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
-	IsDefault   bool               `json:"is_default"`
+	ID                  pgtype.UUID        `json:"id"`
+	WorkspaceID         pgtype.UUID        `json:"workspace_id"`
+	ParentID            pgtype.UUID        `json:"parent_id"`
+	Name                string             `json:"name"`
+	Position            int32              `json:"position"`
+	CreatedBy           pgtype.UUID        `json:"created_by"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	IsDefault           bool               `json:"is_default"`
+	DeletedAt           pgtype.Timestamptz `json:"deleted_at"`
+	DeletedBy           pgtype.UUID        `json:"deleted_by"`
+	DeletedRootFolderID pgtype.UUID        `json:"deleted_root_folder_id"`
 }
 
 type FolderAccess struct {
