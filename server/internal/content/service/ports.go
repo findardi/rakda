@@ -49,5 +49,11 @@ type ContentRepository interface {
 	SoftDeleteDocumentsForFolderRoot(ctx context.Context, arg contentdb.SoftDeleteDocumentsForFolderRootParams) error
 	SoftDeleteFolderSubtree(ctx context.Context, arg contentdb.SoftDeleteFolderSubtreeParams) error
 
+	ListExpiredTrashFolders(ctx context.Context, cutoff pgtype.Timestamptz) ([]contentdb.ListExpiredTrashFoldersRow, error)
+	ListExpiredTrashDocuments(ctx context.Context, cutoff pgtype.Timestamptz) ([]contentdb.ListExpiredTrashDocumentsRow, error)
+	ListVersionsSweptByFolder(ctx context.Context, folderID pgtype.UUID) ([]contentdb.ListVersionsSweptByFolderRow, error)
+	PurgeFolder(ctx context.Context, id pgtype.UUID) error
+	PurgeDocument(ctx context.Context, id pgtype.UUID) error
+
 	ExecTx(ctx context.Context, fn func(*contentdb.Queries) error) error
 }

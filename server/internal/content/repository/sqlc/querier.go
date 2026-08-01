@@ -29,10 +29,13 @@ type Querier interface {
 	GetTrashedFolderByID(ctx context.Context, id pgtype.UUID) (Folder, error)
 	GetVersionByID(ctx context.Context, id pgtype.UUID) (DocumentVersion, error)
 	ListDocumentsByFolder(ctx context.Context, folderID pgtype.UUID) ([]ListDocumentsByFolderRow, error)
+	ListExpiredTrashDocuments(ctx context.Context, cutoff pgtype.Timestamptz) ([]ListExpiredTrashDocumentsRow, error)
+	ListExpiredTrashFolders(ctx context.Context, cutoff pgtype.Timestamptz) ([]ListExpiredTrashFoldersRow, error)
 	ListFolderAccess(ctx context.Context, arg ListFolderAccessParams) ([]ListFolderAccessRow, error)
 	ListTrashDocuments(ctx context.Context, workspaceID pgtype.UUID) ([]ListTrashDocumentsRow, error)
 	ListTrashFolders(ctx context.Context, workspaceID pgtype.UUID) ([]ListTrashFoldersRow, error)
 	ListVersionByDocument(ctx context.Context, documentID pgtype.UUID) ([]DocumentVersion, error)
+	ListVersionsSweptByFolder(ctx context.Context, folderID pgtype.UUID) ([]ListVersionsSweptByFolderRow, error)
 	// `is_current` is the served version, which restore repoints freely, so it is
 	// not necessarily the highest version_no. current_version_id is nullable.
 	ListVersionsWithUploader(ctx context.Context, documentID pgtype.UUID) ([]ListVersionsWithUploaderRow, error)
@@ -40,6 +43,8 @@ type Querier interface {
 	LockWorkspaceStructure(ctx context.Context, workspaceID pgtype.UUID) error
 	MoveDocument(ctx context.Context, arg MoveDocumentParams) error
 	MoveFolder(ctx context.Context, arg MoveFolderParams) error
+	PurgeDocument(ctx context.Context, id pgtype.UUID) error
+	PurgeFolder(ctx context.Context, id pgtype.UUID) error
 	ReindexDocumentSiblings(ctx context.Context, arg ReindexDocumentSiblingsParams) error
 	ReindexFolderSiblings(ctx context.Context, arg ReindexFolderSiblingsParams) error
 	RemoveFolderAccess(ctx context.Context, arg RemoveFolderAccessParams) error

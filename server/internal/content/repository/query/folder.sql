@@ -126,3 +126,19 @@ order by f.deleted_at desc;
 -- name: GetDefaultFolder :one
 select * from folders
 where workspace_id = $1 and is_default = true and deleted_at is null;
+
+-- name: ListExpiredTrashFolders :many
+select id, workspace_id from folders
+where deleted_at is not null 
+and deleted_root_folder_id is null
+and deleted_at < sqlc.arg(cutoff);
+
+-- name: ListVersionsSweptByFolder :many
+select v.id, v.storage_key, d.workspace_id
+from document_versions v 
+join documents d on d.id = v.document_id
+join folders f on f.id = d.folder_id
+where f.id = sqlc.arg(folder_id) or f.deleted_root_folder_id = sqlc.arg(folder_id);
+
+-- name: PurgeFolder :exec
+delete from folders where id = $1;
