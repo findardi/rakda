@@ -13,11 +13,13 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 	const workspaceId = url.searchParams.get('workspaceId');
 	const documentId = url.searchParams.get('documentId');
 	const page = url.searchParams.get('page');
+	// Absent means the current version; a non-current one is owner/admin only.
+	const version = url.searchParams.get('version') ?? undefined;
 	if (!workspaceId || !documentId || !page) error(400, t('err.generic'));
 
 	let upstream: Response;
 	try {
-		upstream = await fetchViewPage(locals.session, workspaceId, documentId, page);
+		upstream = await fetchViewPage(locals.session, workspaceId, documentId, page, version);
 	} catch {
 		error(502, t('err.network'));
 	}

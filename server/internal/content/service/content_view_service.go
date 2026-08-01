@@ -37,6 +37,10 @@ func renditionPageKey(workspaceID, versionID string, page, dpi int) string {
 	return fmt.Sprintf("%s/renditions/%s/pages/%d@%d.png", workspaceID, versionID, page, dpi)
 }
 
+func renditionPrefix(workspaceID, versionID string) string {
+	return fmt.Sprintf("%s/renditions/%s/", workspaceID, versionID)
+}
+
 func (s *ContentService) resolveViewAccess(ctx context.Context, workspaceID, folderID string, actor Actor) (viewAccess, error) {
 	if actor.bypassesContentAccess() {
 		return viewAccess{
@@ -56,6 +60,45 @@ func (s *ContentService) resolveViewAccess(ctx context.Context, workspaceID, fol
 		canDownloadOriginal: row.CanDownloadOriginal,
 		canWatermark:        row.CanWatermark,
 	}, nil
+}
+
+func (s *ContentService) resolveRequestVersion(ctx context.Context, doc contentdb.Document, versionID string, actor Actor) (contentdb.DocumentVersion, error) {
+	if versionID == "" {
+		v, err := s.repo.GetCurrentVersion(ctx, doc.ID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return contentdb.DocumentVersion{}, ErrDocumentNotFound
+		}
+
+		if err != nil {
+			return contentdb.DocumentVersion{}, fmt.Errorf("get document: %w", err)
+		}
+
+		return v, nil
+	}
+
+	var vID pgtype.UUID
+	if err := vID.Scan(versionID); err != nil {
+		return contentdb.DocumentVersion{}, ErrVersionNotFound
+	}
+
+	v, err := s.repo.GetVersionByID(ctx, vID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return contentdb.DocumentVersion{}, ErrVersionNotFound
+	}
+
+	if err != nil {
+		return contentdb.DocumentVersion{}, fmt.Errorf("get version: %w", err)
+	}
+
+	if v.DocumentID != doc.ID {
+		return contentdb.DocumentVersion{}, ErrVersionNotFound
+	}
+
+	if v.ID != doc.CurrentVersionID && !actor.bypassesContentAccess() {
+		return contentdb.DocumentVersion{}, ErrContentForbidden
+	}
+
+	return v, nil
 }
 
 func (s *ContentService) getDocumentScoped(ctx context.Context, workspaceID, documentID string) (contentdb.Document, error) {
@@ -151,7 +194,7 @@ func (s *ContentService) ensureRendition(ctx context.Context, workspaceID string
 	return renditionKey, pageCount, nil
 }
 
-func (s *ContentService) GetViewMeta(ctx context.Context, workspaceID, documentID string, actor Actor) (dto.ViewMetaResponse, error) {
+func (s *ContentService) GetViewMeta(ctx context.Context, workspaceID, documentID, versionID string, actor Actor) (dto.ViewMetaResponse, error) {
 	doc, err := s.getDocumentScoped(ctx, workspaceID, documentID)
 	if err != nil {
 		return dto.ViewMetaResponse{}, err
@@ -169,10 +212,7 @@ func (s *ContentService) GetViewMeta(ctx context.Context, workspaceID, documentI
 		return dto.ViewMetaResponse{}, ErrNotViewable
 	}
 
-	version, err := s.repo.GetCurrentVersion(ctx, doc.ID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return dto.ViewMetaResponse{}, ErrDocumentNotFound
-	}
+	version, err := s.resolveRequestVersion(ctx, doc, versionID, actor)
 	if err != nil {
 		return dto.ViewMetaResponse{}, fmt.Errorf("get current version: %w", err)
 	}
@@ -186,6 +226,8 @@ func (s *ContentService) GetViewMeta(ctx context.Context, workspaceID, documentI
 		DocumentID:          uuidString(doc.ID),
 		Name:                doc.Name,
 		Mime:                version.Mime,
+		VersionID:           uuidString(version.ID),
+		VersionNo:           version.VersionNo,
 		PageCount:           pageCount,
 		CanDownloadOriginal: access.canDownloadOriginal,
 	}, nil
@@ -209,10 +251,7 @@ func (s *ContentService) GetPageImage(ctx context.Context, req dto.ViewPageReque
 		return nil, ErrNotViewable
 	}
 
-	version, err := s.repo.GetCurrentVersion(ctx, doc.ID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrDocumentNotFound
-	}
+	version, err := s.resolveRequestVersion(ctx, doc, req.VersionID, actor)
 	if err != nil {
 		return nil, fmt.Errorf("get current version: %w", err)
 	}

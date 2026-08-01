@@ -31,6 +31,7 @@ type MoveDocumentRequest struct {
 type ViewPageRequest struct {
 	WorkspaceID   string
 	DocumentID    string
+	VersionID     string
 	Page          int
 	MarkPrimary   string
 	MarkSecondary string

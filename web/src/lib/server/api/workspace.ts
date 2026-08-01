@@ -48,6 +48,9 @@ export async function deleteWorkspace(token: string, id: string): Promise<ApiRes
 	return del<null>(`/workspaces/${id}`, token);
 }
 
-export async function getMyAccessWorkspace(token: string, id: string): Promise<ApiResult<MyAccessWorkspace>> {
-	return get<MyAccessWorkspace>(`/access/workspaces/${id}/me`, token)
+export async function getMyAccessWorkspace(
+	token: string,
+	id: string
+): Promise<ApiResult<MyAccessWorkspace>> {
+	return get<MyAccessWorkspace>(`/access/workspaces/${id}/me`, token);
 }

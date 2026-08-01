@@ -20,7 +20,7 @@ export const load: LayoutServerLoad = async ({ locals, params }) => {
 	const [workRes, myAccessRes] = await Promise.all([
 		getWorkspace(locals.session, match.id),
 		getMyAccessWorkspace(locals.session, match.id)
-	])
+	]);
 
 	if (!workRes.ok) {
 		if (workRes.status === 401) redirect(303, '/login');

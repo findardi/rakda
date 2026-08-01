@@ -59,12 +59,40 @@ export interface ViewMetaData {
 	document_id: string;
 	name: string;
 	mime: string;
+	version_id: string;
+	version_no: number;
 	page_count: number;
 	can_download_original: boolean;
 }
 
 export interface CompleteUploadPayload {
 	name: string;
+	storage_key: string;
+}
+
+// --- versions ---
+// History is owner/admin only: the server answers 403 for a guest even though
+// the route sits behind `document:view`. Rows arrive newest-first.
+//
+// `is_current` is the served version and is NOT necessarily the highest
+// version_no: restore repoints `documents.current_version_id` at an existing
+// version instead of copying it forward, so v2 can be current while v3 exists.
+// Never infer the current version from the number.
+
+export interface VersionData {
+	id: string;
+	version_no: number;
+	mime: string;
+	size: number;
+	uploaded_by: string;
+	uploaded_by_name: string;
+	is_current: boolean;
+	created_at: string;
+}
+
+// A new version keeps the document's name; only the bytes change, so the
+// completion payload carries just the storage key it was uploaded under.
+export interface CompleteVersionPayload {
 	storage_key: string;
 }
 
@@ -177,6 +205,26 @@ export interface SetFolderAccessPayload {
 export interface InheritedFolderAccess extends FolderAccessData {
 	source_folder_id: string;
 	source_folder_name: string;
+}
+
+// --- trash ---
+
+export interface TrashFolder {
+	id: string;
+	name: string;
+	deleted_by_name: string;
+	deleted_at: string;
+	purge_after: string;
+}
+
+export interface TrashDocument extends TrashFolder {
+	mime: string;
+	size: number;
+}
+
+export interface TrashData {
+	folders: TrashFolder[];
+	documents: TrashDocument[];
 }
 
 export interface DirectFolderAccess extends FolderAccessData {

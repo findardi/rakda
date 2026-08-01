@@ -18,10 +18,12 @@ type Storage interface {
 	Get(ctx context.Context, key string) (io.ReadCloser, error)
 	Delete(ctx context.Context, key string) error
 	Put(ctx context.Context, key string, r io.Reader, size int64, contentType string) error
+	DeletePrefix(ctx context.Context, prefix string) error
 
 	InitMultipart(ctx context.Context, key string) (string, error)
 	PresignPart(ctx context.Context, key, uploadID string, partNumber int, expiry time.Duration) (string, error)
 	ListParts(ctx context.Context, key, uploadID string) ([]Part, error)
-	CompleteMultiPart(ctx context.Context, key, uploadID, contentType string, parts []Part) error
+	CompleteMultipart(ctx context.Context, key, uploadID, contentType string, parts []Part) error
 	AbortMultipart(ctx context.Context, key, uploadID string) error
+	AbortIncompleteUploads(ctx context.Context, olderThan time.Duration) (int, error)
 }

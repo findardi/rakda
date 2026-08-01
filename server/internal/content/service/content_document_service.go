@@ -286,29 +286,16 @@ func (s *ContentService) ListDocuments(ctx context.Context, workspaceID, folderI
 }
 
 func (s *ContentService) ListVersions(ctx context.Context, workspaceID, documentID string, actor Actor) ([]dto.VersionResponse, error) {
-	var dID pgtype.UUID
-	if err := dID.Scan(documentID); err != nil {
-		return []dto.VersionResponse{}, nil
+	if !actor.bypassesContentAccess() {
+		return nil, ErrContentForbidden
 	}
 
-	doc, err := s.repo.GetDocumentByID(ctx, dID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return []dto.VersionResponse{}, ErrDocumentNotFound
-	}
-
+	doc, err := s.getDocumentScoped(ctx, workspaceID, documentID)
 	if err != nil {
-		return []dto.VersionResponse{}, fmt.Errorf("get document: %w", err)
+		return nil, err
 	}
 
-	if uuidString(doc.WorkspaceID) != workspaceID {
-		return []dto.VersionResponse{}, ErrDocumentNotFound
-	}
-
-	if err := s.requireFolderView(ctx, workspaceID, uuidString(doc.FolderID), actor); err != nil {
-		return []dto.VersionResponse{}, err
-	}
-
-	rows, err := s.repo.ListVersionByDocument(ctx, dID)
+	rows, err := s.repo.ListVersionsWithUploader(ctx, doc.ID)
 	if err != nil {
 		return []dto.VersionResponse{}, fmt.Errorf("list versions: %w", err)
 	}
@@ -316,51 +303,36 @@ func (s *ContentService) ListVersions(ctx context.Context, workspaceID, document
 	vers := make([]dto.VersionResponse, 0, len(rows))
 	for _, r := range rows {
 		vers = append(vers, dto.VersionResponse{
-			ID:         uuidString(r.ID),
-			VersionNo:  r.VersionNo,
-			Mime:       r.Mime,
-			Size:       r.Size,
-			UploadedBy: uuidString(r.UploadedBy),
-			CreatedAt:  r.CreatedAt.Time,
+			ID:             uuidString(r.ID),
+			VersionNo:      r.VersionNo,
+			Mime:           r.Mime,
+			Size:           r.Size,
+			UploadedBy:     uuidString(r.UploadedBy),
+			UploadedByName: r.UploadedByName,
+			IsCurrent:      r.IsCurrent,
+			CreatedAt:      r.CreatedAt.Time,
 		})
 	}
 
 	return vers, nil
 }
 
-func (s *ContentService) GetDownloadURL(ctx context.Context, workspaceID, documentID string, actor Actor) (dto.DownloadURLResponse, error) {
-	var dID pgtype.UUID
-	if err := dID.Scan(documentID); err != nil {
-		return dto.DownloadURLResponse{}, fmt.Errorf("document id parse: %w", err)
-	}
-
-	doc, err := s.repo.GetDocumentByID(ctx, dID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return dto.DownloadURLResponse{}, ErrDocumentNotFound
-	}
-
+func (s *ContentService) GetDownloadURL(ctx context.Context, workspaceID, documentID, versionID string, actor Actor) (dto.DownloadURLResponse, error) {
+	doc, err := s.getDocumentScoped(ctx, workspaceID, documentID)
 	if err != nil {
-		return dto.DownloadURLResponse{}, fmt.Errorf("get document: %w", err)
-	}
-
-	if uuidString(doc.WorkspaceID) != workspaceID {
-		return dto.DownloadURLResponse{}, ErrDocumentNotFound
+		return dto.DownloadURLResponse{}, err
 	}
 
 	if err := s.requireFolderDownloadOriginal(ctx, workspaceID, uuidString(doc.FolderID), actor); err != nil {
 		return dto.DownloadURLResponse{}, err
 	}
 
-	current, err := s.repo.GetCurrentVersion(ctx, dID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return dto.DownloadURLResponse{}, ErrDocumentNotFound
-	}
-
+	version, err := s.resolveRequestVersion(ctx, doc, versionID, actor)
 	if err != nil {
-		return dto.DownloadURLResponse{}, fmt.Errorf("get current version: %w", err)
+		return dto.DownloadURLResponse{}, err
 	}
 
-	url, err := s.store.PresignedGet(ctx, current.StorageKey, doc.Name, downloadURLTTL)
+	url, err := s.store.PresignedGet(ctx, version.StorageKey, doc.Name, downloadURLTTL)
 	if err != nil {
 		return dto.DownloadURLResponse{}, fmt.Errorf("presign get: %w", err)
 	}
@@ -370,7 +342,7 @@ func (s *ContentService) GetDownloadURL(ctx context.Context, workspaceID, docume
 	}, nil
 }
 
-func (s *ContentService) DeleteDocument(ctx context.Context, workspaceID, documentID string) error {
+func (s *ContentService) DeleteDocument(ctx context.Context, workspaceID, documentID string, actor Actor) error {
 	var dID pgtype.UUID
 	if err := dID.Scan(documentID); err != nil {
 		return fmt.Errorf("document id parse: %w", err)
@@ -379,9 +351,7 @@ func (s *ContentService) DeleteDocument(ctx context.Context, workspaceID, docume
 	doc, err := s.repo.GetDocumentByID(ctx, dID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrDocumentNotFound
-	}
-
-	if err != nil {
+	} else if err != nil {
 		return fmt.Errorf("get document: %w", err)
 	}
 
@@ -389,17 +359,16 @@ func (s *ContentService) DeleteDocument(ctx context.Context, workspaceID, docume
 		return ErrDocumentNotFound
 	}
 
-	versions, err := s.repo.ListVersionByDocument(ctx, dID)
-	if err != nil {
-		return fmt.Errorf("list version: %w", err)
+	var uID pgtype.UUID
+	if err := uID.Scan(actor.UserID); err != nil {
+		return fmt.Errorf("user id parse: %w", err)
 	}
 
-	if err := s.repo.DeleteDocument(ctx, dID); err != nil {
-		return fmt.Errorf("delete document: %w", err)
-	}
-
-	for _, v := range versions {
-		_ = s.store.Delete(ctx, v.StorageKey)
+	if err := s.repo.SoftDeleteDocument(ctx, contentdb.SoftDeleteDocumentParams{
+		ID:        dID,
+		DeletedBy: uID,
+	}); err != nil {
+		return fmt.Errorf("soft delete document: %w", err)
 	}
 
 	return nil
@@ -498,7 +467,7 @@ func (s *ContentService) CompleteMultipart(ctx context.Context, req dto.Complete
 		return parts[i].PartNumber < parts[j].PartNumber
 	})
 
-	if err := s.store.CompleteMultiPart(ctx, req.StorageKey, req.UploadID, req.ContentType, parts); err != nil {
+	if err := s.store.CompleteMultipart(ctx, req.StorageKey, req.UploadID, req.ContentType, parts); err != nil {
 		_ = s.store.AbortMultipart(ctx, req.StorageKey, req.UploadID)
 		return dto.DocumentResponse{}, fmt.Errorf("complete multipart: %w", err)
 	}
@@ -635,4 +604,84 @@ func (s *ContentService) AbortMultipart(ctx context.Context, req dto.AbortMultip
 	}
 
 	return nil
+}
+
+// RestoreVersion repoints the document at a version it already has rather than
+// copying that version forward. `current_version_id` is the switch, so a new row
+// would carry no new content — it would only spend a gotenberg conversion and a
+// full page render rebuilding a rendition the target version already has cached.
+//
+// The consequence: the current version is no longer necessarily the highest
+// version_no. `is_current` on the version list is the authority, not the number.
+//
+// `restoreBy` is validated but not stored: who restored what is an activity fact,
+// and belongs in the audit log rather than in the version list.
+func (s *ContentService) RestoreVersion(ctx context.Context, workspaceID, documentID, versionID, restoreBy string) (dto.DocumentResponse, error) {
+	doc, err := s.getDocumentScoped(ctx, workspaceID, documentID)
+	if err != nil {
+		return dto.DocumentResponse{}, err
+	}
+
+	var vID, uID pgtype.UUID
+	if err := vID.Scan(versionID); err != nil {
+		return dto.DocumentResponse{}, ErrVersionNotFound
+	}
+
+	if err := uID.Scan(restoreBy); err != nil {
+		return dto.DocumentResponse{}, fmt.Errorf("restored by parse: %w", err)
+	}
+
+	var target contentdb.DocumentVersion
+	err = s.repo.ExecTx(ctx, func(q *contentdb.Queries) error {
+		src, err := q.GetVersionByID(ctx, vID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrVersionNotFound
+		}
+
+		if err != nil {
+			return fmt.Errorf("get version: %w", err)
+		}
+
+		if src.DocumentID != doc.ID {
+			return ErrVersionNotFound
+		}
+
+		cur, err := q.GetCurrentVersion(ctx, doc.ID)
+		if err != nil {
+			return fmt.Errorf("get current version: %w", err)
+		}
+
+		if src.ID == cur.ID {
+			return ErrAlreadyCurrent
+		}
+
+		target = src
+
+		return q.SetCurrentVersion(ctx, contentdb.SetCurrentVersionParams{
+			ID:               doc.ID,
+			CurrentVersionID: src.ID,
+		})
+	})
+
+	if err != nil {
+		return dto.DocumentResponse{}, err
+	}
+
+	// SetCurrentVersion stamps updated_at; the row read before the transaction
+	// still carries the old one.
+	fresh, err := s.repo.GetDocumentByID(ctx, doc.ID)
+	if err != nil {
+		return dto.DocumentResponse{}, fmt.Errorf("get document: %w", err)
+	}
+
+	return dto.DocumentResponse{
+		ID:        uuidString(fresh.ID),
+		FolderID:  uuidString(fresh.FolderID),
+		Name:      fresh.Name,
+		VersionNo: target.VersionNo,
+		Mime:      target.Mime,
+		Size:      target.Size,
+		CreatedAt: fresh.CreatedAt.Time,
+		UpdatedAt: fresh.UpdatedAt.Time,
+	}, nil
 }

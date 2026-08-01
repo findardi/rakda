@@ -170,7 +170,7 @@ func (m *MinioStorage) ListParts(ctx context.Context, key, uploadID string) ([]P
 	return out, nil
 }
 
-func (m *MinioStorage) CompleteMultiPart(ctx context.Context, key, uploadID, contentType string, parts []Part) error {
+func (m *MinioStorage) CompleteMultipart(ctx context.Context, key, uploadID, contentType string, parts []Part) error {
 	cps := make([]minio.CompletePart, 0, len(parts))
 	for _, p := range parts {
 		cps = append(cps, minio.CompletePart{
@@ -194,4 +194,46 @@ func (m *MinioStorage) AbortMultipart(ctx context.Context, key, uploadID string)
 	}
 
 	return nil
+}
+
+func (m *MinioStorage) DeletePrefix(ctx context.Context, prefix string) error {
+	objects := m.client.ListObjects(ctx, m.bucket, minio.ListObjectsOptions{
+		Prefix:    prefix,
+		Recursive: true,
+	})
+
+	for obj := range objects {
+		if obj.Err != nil {
+			return fmt.Errorf("list objects: %w", obj.Err)
+		}
+
+		if err := m.client.RemoveObject(ctx, m.bucket, obj.Key, minio.RemoveObjectOptions{}); err != nil {
+			return fmt.Errorf("delete object %s: %w", obj.Key, err)
+		}
+	}
+
+	return nil
+}
+
+func (m *MinioStorage) AbortIncompleteUploads(ctx context.Context, olderThan time.Duration) (int, error) {
+	cutoff := time.Now().Add(-olderThan)
+	aborted := 0
+
+	for upload := range m.client.ListIncompleteUploads(ctx, m.bucket, "", true) {
+		if upload.Err != nil {
+			return aborted, fmt.Errorf("list incomplete upload: %w", upload.Err)
+		}
+
+		if upload.Initiated.After(cutoff) {
+			continue
+		}
+
+		if err := m.core.AbortMultipartUpload(ctx, m.bucket, upload.Key, upload.UploadID); err != nil {
+			return aborted, fmt.Errorf("abort multipart %s: %w", upload.Key, err)
+		}
+
+		aborted++
+	}
+
+	return aborted, nil
 }

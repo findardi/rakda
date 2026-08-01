@@ -5,6 +5,7 @@
 	import { navigating, page } from '$app/state';
 	import type { ActionResult, SubmitFunction } from '@sveltejs/kit';
 	import { normalizeRole } from '$lib/access/roles';
+	import { DocumentVersions } from '$lib/components/app';
 	import { Alert, Button, showToast } from '$lib/components/common';
 	import { DOCUMENT_MIME, filesFrom, treeFromInput } from '$lib/dnd';
 	import { formatBytes, formatDate, formatDateTime } from '$lib/format';
@@ -76,6 +77,14 @@
 	}
 	const canDelete = $derived(perms.includes('document:delete'));
 	const canEditDoc = $derived(perms.includes('document:edit'));
+	// Version history is owner/admin upstream regardless of `document:view`, so a
+	// guest never sees the disclosure rather than opening it into a 403.
+	const canSeeVersions = $derived(role === 'owner' || role === 'admin');
+
+	// One row's history open at a time: two panels of near-identical numbers
+	// invite comparing the wrong pair.
+	let openVersions = $state<string | null>(null);
+	const toggleVersions = (id: string) => (openVersions = openVersions === id ? null : id);
 
 	const ROLE_KEY = {
 		owner: 'role.sys.owner',
@@ -536,6 +545,9 @@
 	{:else}
 		<ul class="divide-y divide-base-content/6">
 			{#each documents as doc, i (doc.id)}
+				<!-- The row keeps the drag handlers: its own box is what the insertion
+				     point is measured against, and an expanded history below would
+				     skew that midpoint if it shared the element. -->
 				<li
 					draggable={canEditDoc}
 					ondragstart={(e) => docDragStart(e, doc)}
@@ -573,12 +585,44 @@
 						{doc.name}
 					</a>
 
-					<span
-						class="flex-none rounded-selector bg-base-content/5 px-1.5 py-0.5 font-mono text-[0.6875rem] text-muted"
-						title={t('doc.docs.versionTitle', { n: doc.version_no })}
-					>
-						v{doc.version_no}
-					</span>
+					<!-- The version number is the door to the history: same chip, now a
+					     disclosure. Guests keep the static badge — upstream answers 403
+					     for anyone below admin. -->
+					{#if canSeeVersions}
+						<button
+							type="button"
+							onclick={() => toggleVersions(doc.id)}
+							aria-expanded={openVersions === doc.id}
+							aria-controls="doc-versions-{doc.id}"
+							title={t('doc.ver.toggle', { name: doc.name })}
+							class="flex flex-none items-center gap-1 rounded-selector px-1.5 py-0.5 font-mono text-[0.6875rem] tabular-nums transition-colors
+								{openVersions === doc.id
+								? 'bg-primary/10 text-primary'
+								: 'bg-base-content/5 text-muted hover:bg-base-content/10 hover:text-base-content'}"
+						>
+							v{doc.version_no}
+							<svg
+								class="riksa-verchev h-3 w-3"
+								class:is-open={openVersions === doc.id}
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2.2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								aria-hidden="true"
+							>
+								<path d="m6 9 6 6 6-6" />
+							</svg>
+						</button>
+					{:else}
+						<span
+							class="flex-none rounded-selector bg-base-content/5 px-1.5 py-0.5 font-mono text-[0.6875rem] text-muted"
+							title={t('doc.docs.versionTitle', { n: doc.version_no })}
+						>
+							v{doc.version_no}
+						</span>
+					{/if}
 
 					<span
 						class="hidden w-20 flex-none text-right font-mono text-xs text-muted tabular-nums md:inline"
@@ -675,6 +719,23 @@
 						{/if}
 					</div>
 				</li>
+
+				<!-- Its own list item rather than a child of the row: the row's box has
+				     to stay the row's box for the reorder measurement above. -->
+				{#if canSeeVersions && openVersions === doc.id}
+					<li>
+						<DocumentVersions
+							workspaceId={workspace.id}
+							{slug}
+							{folderId}
+							documentId={doc.id}
+							documentName={doc.name}
+							{canDownload}
+							canRestore={canEditDoc}
+							{canUpload}
+						/>
+					</li>
+				{/if}
 			{/each}
 		</ul>
 
@@ -803,9 +864,19 @@
 			opacity: 0.45;
 		}
 	}
+	/* The only thing the chevron says is open or shut; it turns, nothing else. */
+	.riksa-verchev {
+		transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+	}
+	.riksa-verchev.is-open {
+		transform: rotate(180deg);
+	}
 	@media (prefers-reduced-motion: reduce) {
 		.riksa-skeleton {
 			animation: none;
+		}
+		.riksa-verchev {
+			transition: none;
 		}
 	}
 </style>

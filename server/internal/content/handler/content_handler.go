@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log"
@@ -175,7 +176,15 @@ func (h *ContentHandler) RenameFolder(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ContentHandler) DeleteFolder(w http.ResponseWriter, r *http.Request) {
-	if err := h.svc.DeleteFolder(r.Context(), chi.URLParam(r, "folderID")); err != nil {
+	wID := chi.URLParam(r, "workspaceID")
+	fID := chi.URLParam(r, "folderID")
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	if err := h.svc.DeleteFolder(r.Context(), fID, wID, actor); err != nil {
 		switch {
 		case errors.Is(err, service.ErrFolderNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
@@ -373,6 +382,7 @@ func (h *ContentHandler) CompletedVersionUpload(w http.ResponseWriter, r *http.R
 func (h *ContentHandler) GetDownloadURL(w http.ResponseWriter, r *http.Request) {
 	wID := chi.URLParam(r, "workspaceID")
 	dID := chi.URLParam(r, "documentID")
+	versionID := r.URL.Query().Get("version")
 
 	actor, ok := actorFromRequest(r)
 	if !ok {
@@ -380,12 +390,12 @@ func (h *ContentHandler) GetDownloadURL(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	res, err := h.svc.GetDownloadURL(r.Context(), wID, dID, actor)
+	res, err := h.svc.GetDownloadURL(r.Context(), wID, dID, versionID, actor)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrContentForbidden):
 			response.Error(w, http.StatusForbidden, err.Error(), nil)
-		case errors.Is(err, service.ErrDocumentNotFound):
+		case errors.Is(err, service.ErrDocumentNotFound), errors.Is(err, service.ErrVersionNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
 		default:
 			log.Printf("get download url internal error: %v", err)
@@ -401,7 +411,13 @@ func (h *ContentHandler) DeleteDocument(w http.ResponseWriter, r *http.Request) 
 	wID := chi.URLParam(r, "workspaceID")
 	dID := chi.URLParam(r, "documentID")
 
-	if err := h.svc.DeleteDocument(r.Context(), wID, dID); err != nil {
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	if err := h.svc.DeleteDocument(r.Context(), wID, dID, actor); err != nil {
 		switch {
 		case errors.Is(err, service.ErrDocumentNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
@@ -413,6 +429,86 @@ func (h *ContentHandler) DeleteDocument(w http.ResponseWriter, r *http.Request) 
 	}
 
 	response.Success(w, http.StatusOK, "delete document success", nil)
+}
+
+func (h *ContentHandler) ListTrash(w http.ResponseWriter, r *http.Request) {
+	wID := chi.URLParam(r, "workspaceID")
+
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	res, err := h.svc.ListTrash(r.Context(), wID, actor)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrContentForbidden):
+			response.Error(w, http.StatusForbidden, err.Error(), nil)
+		default:
+			log.Printf("list trash internal error: %v", err)
+			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
+		}
+		return
+	}
+
+	response.Success(w, http.StatusOK, "list trash success", res)
+}
+
+func (h *ContentHandler) RestoreTrashDocument(w http.ResponseWriter, r *http.Request) {
+	wID := chi.URLParam(r, "workspaceID")
+	dID := chi.URLParam(r, "documentID")
+
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	if err := h.svc.RestoreDocument(r.Context(), wID, dID, actor); err != nil {
+		switch {
+		case errors.Is(err, service.ErrContentForbidden):
+			response.Error(w, http.StatusForbidden, err.Error(), nil)
+		case errors.Is(err, service.ErrNotInTrash):
+			response.Error(w, http.StatusNotFound, err.Error(), nil)
+		case errors.Is(err, service.ErrDocumentNameTaken):
+			response.Error(w, http.StatusConflict, err.Error(), nil)
+		default:
+			log.Printf("restore document internal error: %v", err)
+			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
+		}
+		return
+	}
+
+	response.Success(w, http.StatusOK, "restore document success", nil)
+}
+
+func (h *ContentHandler) RestoreTrashFolder(w http.ResponseWriter, r *http.Request) {
+	wID := chi.URLParam(r, "workspaceID")
+	fID := chi.URLParam(r, "folderID")
+
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	if err := h.svc.RestoreFolders(r.Context(), wID, fID, actor); err != nil {
+		switch {
+		case errors.Is(err, service.ErrContentForbidden):
+			response.Error(w, http.StatusForbidden, err.Error(), nil)
+		case errors.Is(err, service.ErrNotInTrash):
+			response.Error(w, http.StatusNotFound, err.Error(), nil)
+		case errors.Is(err, service.ErrFolderNameTaken):
+			response.Error(w, http.StatusConflict, err.Error(), nil)
+		default:
+			log.Printf("restore folder internal error: %v", err)
+			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
+		}
+		return
+	}
+
+	response.Success(w, http.StatusOK, "restore folder success", nil)
 }
 
 func (h *ContentHandler) MoveDocument(w http.ResponseWriter, r *http.Request) {
@@ -505,6 +601,7 @@ func (h *ContentHandler) RemoveFolderAccess(w http.ResponseWriter, r *http.Reque
 func (h *ContentHandler) GetViewMeta(w http.ResponseWriter, r *http.Request) {
 	wID := chi.URLParam(r, "workspaceID")
 	dID := chi.URLParam(r, "documentID")
+	versionID := r.URL.Query().Get("version")
 
 	actor, ok := actorFromRequest(r)
 	if !ok {
@@ -512,12 +609,12 @@ func (h *ContentHandler) GetViewMeta(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := h.svc.GetViewMeta(r.Context(), wID, dID, actor)
+	res, err := h.svc.GetViewMeta(r.Context(), wID, dID, versionID, actor)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrContentForbidden):
 			response.Error(w, http.StatusForbidden, err.Error(), nil)
-		case errors.Is(err, service.ErrDocumentNotFound):
+		case errors.Is(err, service.ErrDocumentNotFound), errors.Is(err, service.ErrVersionNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
 		case errors.Is(err, service.ErrNotViewable):
 			response.Error(w, http.StatusUnprocessableEntity, err.Error(), nil)
@@ -534,6 +631,7 @@ func (h *ContentHandler) GetViewMeta(w http.ResponseWriter, r *http.Request) {
 func (h *ContentHandler) GetViewPage(w http.ResponseWriter, r *http.Request) {
 	wID := chi.URLParam(r, "workspaceID")
 	dID := chi.URLParam(r, "documentID")
+	versionID := r.URL.Query().Get("version")
 
 	page, err := strconv.Atoi(chi.URLParam(r, "page"))
 	if err != nil {
@@ -559,6 +657,7 @@ func (h *ContentHandler) GetViewPage(w http.ResponseWriter, r *http.Request) {
 		WorkspaceID:   wID,
 		DocumentID:    dID,
 		Page:          page,
+		VersionID:     versionID,
 		MarkPrimary:   claims.Email,
 		MarkSecondary: secondary,
 	}, actor)
@@ -566,7 +665,7 @@ func (h *ContentHandler) GetViewPage(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, service.ErrContentForbidden):
 			response.Error(w, http.StatusForbidden, err.Error(), nil)
-		case errors.Is(err, service.ErrDocumentNotFound), errors.Is(err, service.ErrPageOutOfRange):
+		case errors.Is(err, service.ErrDocumentNotFound), errors.Is(err, service.ErrPageOutOfRange), errors.Is(err, service.ErrVersionNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
 		case errors.Is(err, service.ErrNotViewable):
 			response.Error(w, http.StatusUnprocessableEntity, err.Error(), nil)
@@ -817,4 +916,32 @@ func (h *ContentHandler) AbortMultipart(w http.ResponseWriter, r *http.Request) 
 	}
 
 	response.Success(w, http.StatusOK, "abort multipart success", nil)
+}
+
+func (h *ContentHandler) RestoreVersion(w http.ResponseWriter, r *http.Request) {
+	wID := chi.URLParam(r, "workspaceID")
+	dID := chi.URLParam(r, "documentID")
+	vID := chi.URLParam(r, "versionID")
+
+	claims, ok := middleware.ClaimsFromContext(r.Context())
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	res, err := h.svc.RestoreVersion(context.Background(), wID, dID, vID, claims.ID)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrDocumentNotFound), errors.Is(err, service.ErrVersionNotFound):
+			response.Error(w, http.StatusNotFound, err.Error(), nil)
+		case errors.Is(err, service.ErrAlreadyCurrent):
+			response.Error(w, http.StatusConflict, err.Error(), nil)
+		default:
+			log.Printf("restore version internal error: %v", err)
+			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
+		}
+		return
+	}
+
+	response.Success(w, http.StatusOK, "restore version success", res)
 }

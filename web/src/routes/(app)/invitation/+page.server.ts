@@ -16,7 +16,8 @@ function mapActionError(status: number, raw: string): string {
 	const m = raw.toLowerCase();
 	if (status === 404 || m.includes('not found')) return t('inv.err.notFound');
 	if (m.includes('expired')) return t('inv.err.expired');
-	if (m.includes('no longer pending') || m.includes('does not belong')) return t('inv.err.notPending');
+	if (m.includes('no longer pending') || m.includes('does not belong'))
+		return t('inv.err.notPending');
 	return t('err.generic');
 }
 
@@ -27,7 +28,8 @@ export const actions: Actions = {
 		if (!id) return fail(400, { message: t('err.generic') });
 
 		const res = await acceptMyInvitation(locals.session, id);
-		if (!res.ok) return fail(res.status || 400, { message: mapActionError(res.status, res.message) });
+		if (!res.ok)
+			return fail(res.status || 400, { message: mapActionError(res.status, res.message) });
 		return { ok: true };
 	},
 
@@ -37,7 +39,8 @@ export const actions: Actions = {
 		if (!id) return fail(400, { message: t('err.generic') });
 
 		const res = await rejectMyInvitation(locals.session, id);
-		if (!res.ok) return fail(res.status || 400, { message: mapActionError(res.status, res.message) });
+		if (!res.ok)
+			return fail(res.status || 400, { message: mapActionError(res.status, res.message) });
 		return { ok: true };
 	}
 };

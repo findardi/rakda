@@ -187,10 +187,7 @@
 					aria-hidden="true">{initial(selected.workspace_name)}</span
 				>
 				<div class="min-w-0">
-					<h2
-						id="inv-detail-title"
-						class="truncate text-lg font-semibold tracking-[-0.01em]"
-					>
+					<h2 id="inv-detail-title" class="truncate text-lg font-semibold tracking-[-0.01em]">
 						{selected.workspace_name}
 					</h2>
 					<p class="mt-0.5 text-sm text-muted text-pretty">{t('inv.detail.subtitle')}</p>

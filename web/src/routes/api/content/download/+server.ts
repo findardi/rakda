@@ -8,9 +8,11 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 
 	const workspaceId = url.searchParams.get('workspaceId');
 	const documentId = url.searchParams.get('documentId');
+	// Absent means the current version; a non-current one is owner/admin only.
+	const version = url.searchParams.get('version') ?? undefined;
 	if (!workspaceId || !documentId) error(400, t('err.generic'));
 
-	const res = await getDownloadUrl(locals.session, workspaceId, documentId);
+	const res = await getDownloadUrl(locals.session, workspaceId, documentId, version);
 	if (!res.ok) {
 		if (res.status === 403) error(403, t('doc.docs.err.forbiddenDownload'));
 		if (res.status === 404) error(404, t('doc.docs.err.notFound'));

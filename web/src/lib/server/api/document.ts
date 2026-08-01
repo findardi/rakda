@@ -3,6 +3,7 @@ import type {
 	AbortMultipartPayload,
 	CompleteMultipartPayload,
 	CompleteUploadPayload,
+	CompleteVersionPayload,
 	DocumentData,
 	DownloadUrlData,
 	InitMultipartData,
@@ -12,6 +13,7 @@ import type {
 	MultipartPartUrlsData,
 	MultipartPartUrlsPayload,
 	UploadUrlData,
+	VersionData,
 	ViewMetaData
 } from '$lib/types/content';
 import { API_URL, del, get, patch, post } from './client';
@@ -49,20 +51,35 @@ export function completeUpload(
 	return post<DocumentData>(`${foldersBase(workspaceId)}/${folderId}/documents`, p, token);
 }
 
+// `?version=` is optional everywhere it appears: omitting it means the current
+// version, which is what a guest is limited to. Passing a non-current version id
+// is owner/admin only — the server answers 403 — and a malformed one is a 404,
+// never a 500.
+const versionQuery = (versionId?: string) =>
+	versionId ? `?version=${encodeURIComponent(versionId)}` : '';
+
 export function getDownloadUrl(
 	token: string,
 	workspaceId: string,
-	documentId: string
+	documentId: string,
+	versionId?: string
 ): Promise<ApiResult<DownloadUrlData>> {
-	return get<DownloadUrlData>(`${documentsBase(workspaceId)}/${documentId}/download`, token);
+	return get<DownloadUrlData>(
+		`${documentsBase(workspaceId)}/${documentId}/download${versionQuery(versionId)}`,
+		token
+	);
 }
 
 export function getViewMeta(
 	token: string,
 	workspaceId: string,
-	documentId: string
+	documentId: string,
+	versionId?: string
 ): Promise<ApiResult<ViewMetaData>> {
-	return get<ViewMetaData>(`${documentsBase(workspaceId)}/${documentId}/view`, token);
+	return get<ViewMetaData>(
+		`${documentsBase(workspaceId)}/${documentId}/view${versionQuery(versionId)}`,
+		token
+	);
 }
 
 // Raw upstream response for the page-image proxy. This endpoint streams a
@@ -72,11 +89,66 @@ export function fetchViewPage(
 	token: string,
 	workspaceId: string,
 	documentId: string,
-	page: number | string
+	page: number | string,
+	versionId?: string
 ): Promise<Response> {
-	return fetch(`${API_URL}${documentsBase(workspaceId)}/${documentId}/pages/${page}`, {
-		headers: { authorization: `Bearer ${token}` }
-	});
+	return fetch(
+		`${API_URL}${documentsBase(workspaceId)}/${documentId}/pages/${page}${versionQuery(versionId)}`,
+		{ headers: { authorization: `Bearer ${token}` } }
+	);
+}
+
+// --- versions ----------------------------------------------------------
+// Version uploads have no multipart path upstream: a new version is one
+// presigned PUT, then a completion call. Large files therefore cannot resume
+// the way a first upload can.
+
+const versionsBase = (workspaceId: string, documentId: string) =>
+	`${documentsBase(workspaceId)}/${documentId}/versions`;
+
+export function listVersions(
+	token: string,
+	workspaceId: string,
+	documentId: string
+): Promise<ApiResult<VersionData[]>> {
+	return get<VersionData[]>(versionsBase(workspaceId, documentId), token);
+}
+
+export function requestVersionUpload(
+	token: string,
+	workspaceId: string,
+	documentId: string
+): Promise<ApiResult<UploadUrlData>> {
+	return post<UploadUrlData>(
+		`${versionsBase(workspaceId, documentId)}/upload-url`,
+		undefined,
+		token
+	);
+}
+
+export function completeVersion(
+	token: string,
+	workspaceId: string,
+	documentId: string,
+	p: CompleteVersionPayload
+): Promise<ApiResult<DocumentData>> {
+	return post<DocumentData>(versionsBase(workspaceId, documentId), p, token);
+}
+
+// Restore copies the chosen version forward as a new current one, so nothing is
+// overwritten and the act is itself undoable. Restoring the version that is
+// already current is a 409.
+export function restoreVersion(
+	token: string,
+	workspaceId: string,
+	documentId: string,
+	versionId: string
+): Promise<ApiResult<DocumentData>> {
+	return post<DocumentData>(
+		`${versionsBase(workspaceId, documentId)}/${versionId}/restore`,
+		undefined,
+		token
+	);
 }
 
 const multipartBase = (workspaceId: string, folderId: string) =>

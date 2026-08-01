@@ -3,6 +3,7 @@ package content
 import (
 	"context"
 	"errors"
+	"time"
 
 	accessrepo "github.com/findardi/Riksa-App/server/internal/access/repository"
 	accessdb "github.com/findardi/Riksa-App/server/internal/access/repository/sqlc"
@@ -43,9 +44,9 @@ type Module struct {
 	storage    storage.Storage
 }
 
-func NewModule(pool *pgxpool.Pool, verifier middleware.TokenVerifier, store storage.Storage, viewer service.Viewer) *Module {
+func NewModule(pool *pgxpool.Pool, verifier middleware.TokenVerifier, store storage.Storage, viewer service.Viewer, trashRetention time.Duration) *Module {
 	r := repository.New(pool)
-	s := service.NewContentService(r, store, viewer)
+	s := service.NewContentService(r, store, viewer, trashRetention)
 	h := handler.NewContentHandler(s)
 
 	mw := middleware.New(verifier, userStatusReader{repo: auth.New(pool)}, nil)
@@ -125,6 +126,13 @@ func (m *Module) RegisterRoutes(r chi.Router) {
 				r.With(m.mw.RequirePermission(permission.PermDocumentView)).Get("/pages/{page}", m.handler.GetViewPage)
 				r.With(m.mw.RequirePermission(permission.PermDocumentEdit)).Patch("/move", m.handler.MoveDocument)
 				r.With(m.mw.RequirePermission(permission.PermDocumentDelete)).Delete("/", m.handler.DeleteDocument)
+				r.With(m.mw.RequirePermission(permission.PermDocumentEdit)).Post("/versions/{versionID}/restore", m.handler.RestoreVersion)
+			})
+
+			r.Route("/trash", func(r chi.Router) {
+				r.Get("/", m.handler.ListTrash)
+				r.Post("/folders/{folderID}/restore", m.handler.RestoreTrashFolder)
+				r.Post("/documents/{documentID}/restore", m.handler.RestoreTrashDocument)
 			})
 		})
 	})

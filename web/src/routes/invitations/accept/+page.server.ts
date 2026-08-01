@@ -1,9 +1,5 @@
 import { fail, redirect } from '@sveltejs/kit';
-import {
-	acceptInvitationSignup,
-	getWorkspaces,
-	previewInvitation
-} from '$lib/server/api';
+import { acceptInvitationSignup, getWorkspaces, previewInvitation } from '$lib/server/api';
 import { setSession } from '$lib/server/session';
 import { t } from '$lib/i18n';
 import type { Actions, PageServerLoad } from './$types';

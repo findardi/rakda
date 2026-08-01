@@ -19,12 +19,14 @@ type DocumentResponse struct {
 }
 
 type VersionResponse struct {
-	ID         string    `json:"id"`
-	VersionNo  int32     `json:"version_no"`
-	Mime       string    `json:"mime"`
-	Size       int64     `json:"size"`
-	UploadedBy string    `json:"uploaded_by"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID             string    `json:"id"`
+	VersionNo      int32     `json:"version_no"`
+	Mime           string    `json:"mime"`
+	Size           int64     `json:"size"`
+	UploadedBy     string    `json:"uploaded_by"`
+	UploadedByName string    `json:"uploaded_by_name"`
+	IsCurrent      bool      `json:"is_current"`
+	CreatedAt      time.Time `json:"created_at"`
 }
 
 type DownloadURLResponse struct {
@@ -35,6 +37,8 @@ type ViewMetaResponse struct {
 	DocumentID          string `json:"document_id"`
 	Name                string `json:"name"`
 	Mime                string `json:"mime"`
+	VersionID           string `json:"version_id"`
+	VersionNo           int32  `json:"version_no"`
 	PageCount           int    `json:"page_count"`
 	CanDownloadOriginal bool   `json:"can_download_original"`
 }

@@ -16,7 +16,7 @@ insert into documents
     (workspace_id, folder_id, name, position, uploaded_by)
 values
     ($1, $2, $3, $4, $5)
-returning id, workspace_id, folder_id, name, current_version_id, uploaded_by, created_at, updated_at, position
+returning id, workspace_id, folder_id, name, current_version_id, uploaded_by, created_at, updated_at, position, deleted_at, deleted_by, deleted_root_folder_id
 `
 
 type CreateDocumentParams struct {
@@ -46,6 +46,9 @@ func (q *Queries) CreateDocument(ctx context.Context, arg CreateDocumentParams) 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Position,
+		&i.DeletedAt,
+		&i.DeletedBy,
+		&i.DeletedRootFolderID,
 	)
 	return i, err
 }
@@ -92,15 +95,6 @@ func (q *Queries) CreateDocumentVersion(ctx context.Context, arg CreateDocumentV
 	return i, err
 }
 
-const deleteDocument = `-- name: DeleteDocument :exec
-delete from documents where id = $1
-`
-
-func (q *Queries) DeleteDocument(ctx context.Context, id pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, deleteDocument, id)
-	return err
-}
-
 const getCurrentVersion = `-- name: GetCurrentVersion :one
 select v.id, v.document_id, v.version_no, v.mime, v.size, v.storage_key, v.uploaded_by, v.created_at, v.rendition_key, v.page_count from document_versions v 
 join documents d on d.current_version_id = v.id
@@ -126,7 +120,7 @@ func (q *Queries) GetCurrentVersion(ctx context.Context, id pgtype.UUID) (Docume
 }
 
 const getDocumentByID = `-- name: GetDocumentByID :one
-select id, workspace_id, folder_id, name, current_version_id, uploaded_by, created_at, updated_at, position from documents where id = $1
+select id, workspace_id, folder_id, name, current_version_id, uploaded_by, created_at, updated_at, position, deleted_at, deleted_by, deleted_root_folder_id from documents where id = $1 and deleted_at is null
 `
 
 func (q *Queries) GetDocumentByID(ctx context.Context, id pgtype.UUID) (Document, error) {
@@ -142,12 +136,15 @@ func (q *Queries) GetDocumentByID(ctx context.Context, id pgtype.UUID) (Document
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Position,
+		&i.DeletedAt,
+		&i.DeletedBy,
+		&i.DeletedRootFolderID,
 	)
 	return i, err
 }
 
 const getDocumentByNameInFolder = `-- name: GetDocumentByNameInFolder :one
-select id, workspace_id, folder_id, name, current_version_id, uploaded_by, created_at, updated_at, position from documents where folder_id = $1 and name = $2
+select id, workspace_id, folder_id, name, current_version_id, uploaded_by, created_at, updated_at, position, deleted_at, deleted_by, deleted_root_folder_id from documents where folder_id = $1 and name = $2 and deleted_at is null
 `
 
 type GetDocumentByNameInFolderParams struct {
@@ -168,6 +165,9 @@ func (q *Queries) GetDocumentByNameInFolder(ctx context.Context, arg GetDocument
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Position,
+		&i.DeletedAt,
+		&i.DeletedBy,
+		&i.DeletedRootFolderID,
 	)
 	return i, err
 }
@@ -175,7 +175,7 @@ func (q *Queries) GetDocumentByNameInFolder(ctx context.Context, arg GetDocument
 const getMaxPosition = `-- name: GetMaxPosition :one
 select coalesce(max(position), -1)::int as max_position
 from documents
-where folder_id = $1
+where folder_id = $1 and deleted_at is null
 `
 
 func (q *Queries) GetMaxPosition(ctx context.Context, folderID pgtype.UUID) (int32, error) {
@@ -195,6 +195,30 @@ func (q *Queries) GetNextVersionNo(ctx context.Context, documentID pgtype.UUID) 
 	var next_no int32
 	err := row.Scan(&next_no)
 	return next_no, err
+}
+
+const getTrashedDocumentByID = `-- name: GetTrashedDocumentByID :one
+select id, workspace_id, folder_id, name, current_version_id, uploaded_by, created_at, updated_at, position, deleted_at, deleted_by, deleted_root_folder_id from documents where id = $1 and deleted_at is not null
+`
+
+func (q *Queries) GetTrashedDocumentByID(ctx context.Context, id pgtype.UUID) (Document, error) {
+	row := q.db.QueryRow(ctx, getTrashedDocumentByID, id)
+	var i Document
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.FolderID,
+		&i.Name,
+		&i.CurrentVersionID,
+		&i.UploadedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Position,
+		&i.DeletedAt,
+		&i.DeletedBy,
+		&i.DeletedRootFolderID,
+	)
+	return i, err
 }
 
 const getVersionByID = `-- name: GetVersionByID :one
@@ -233,7 +257,7 @@ select
     v.size
 from documents d
 join document_versions v on v.id = d.current_version_id
-where d.folder_id = $1
+where d.folder_id = $1 and d.deleted_at is null
 order by d.position, d.name, d.created_at
 `
 
@@ -268,6 +292,87 @@ func (q *Queries) ListDocumentsByFolder(ctx context.Context, folderID pgtype.UUI
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.VersionNo,
+			&i.Mime,
+			&i.Size,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listExpiredTrashDocuments = `-- name: ListExpiredTrashDocuments :many
+select id, workspace_id from documents
+where deleted_at is not null
+and deleted_root_folder_id is null
+and deleted_at < $1
+`
+
+type ListExpiredTrashDocumentsRow struct {
+	ID          pgtype.UUID `json:"id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+}
+
+func (q *Queries) ListExpiredTrashDocuments(ctx context.Context, cutoff pgtype.Timestamptz) ([]ListExpiredTrashDocumentsRow, error) {
+	rows, err := q.db.Query(ctx, listExpiredTrashDocuments, cutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListExpiredTrashDocumentsRow
+	for rows.Next() {
+		var i ListExpiredTrashDocumentsRow
+		if err := rows.Scan(&i.ID, &i.WorkspaceID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTrashDocuments = `-- name: ListTrashDocuments :many
+select d.id, d.name, d.deleted_at,
+    coalesce(u.username, u.email)::text as deleted_by_name,
+    v.mime, v.size
+from documents d
+join users u on u.id = d.deleted_by
+left join document_versions v on v.id = d.current_version_id
+where d.workspace_id = $1
+    and d.deleted_at is not null
+    and d.deleted_root_folder_id is null
+order by d.deleted_at desc
+`
+
+type ListTrashDocumentsRow struct {
+	ID            pgtype.UUID        `json:"id"`
+	Name          string             `json:"name"`
+	DeletedAt     pgtype.Timestamptz `json:"deleted_at"`
+	DeletedByName string             `json:"deleted_by_name"`
+	Mime          *string            `json:"mime"`
+	Size          *int64             `json:"size"`
+}
+
+func (q *Queries) ListTrashDocuments(ctx context.Context, workspaceID pgtype.UUID) ([]ListTrashDocumentsRow, error) {
+	rows, err := q.db.Query(ctx, listTrashDocuments, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListTrashDocumentsRow
+	for rows.Next() {
+		var i ListTrashDocumentsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.DeletedAt,
+			&i.DeletedByName,
 			&i.Mime,
 			&i.Size,
 		); err != nil {
@@ -316,6 +421,68 @@ func (q *Queries) ListVersionByDocument(ctx context.Context, documentID pgtype.U
 	return items, nil
 }
 
+const listVersionsWithUploader = `-- name: ListVersionsWithUploader :many
+select
+    v.id, v.document_id, v.version_no, v.mime, v.size, v.storage_key, v.uploaded_by, v.created_at, v.rendition_key, v.page_count,
+    coalesce(u.username, u.email)::text as uploaded_by_name,
+    coalesce(d.current_version_id = v.id, false)::bool as is_current
+from document_versions v
+join users u on u.id = v.uploaded_by
+join documents d on d.id = v.document_id
+where v.document_id = $1
+order by v.version_no desc
+`
+
+type ListVersionsWithUploaderRow struct {
+	ID             pgtype.UUID        `json:"id"`
+	DocumentID     pgtype.UUID        `json:"document_id"`
+	VersionNo      int32              `json:"version_no"`
+	Mime           string             `json:"mime"`
+	Size           int64              `json:"size"`
+	StorageKey     string             `json:"storage_key"`
+	UploadedBy     pgtype.UUID        `json:"uploaded_by"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	RenditionKey   *string            `json:"rendition_key"`
+	PageCount      *int32             `json:"page_count"`
+	UploadedByName string             `json:"uploaded_by_name"`
+	IsCurrent      bool               `json:"is_current"`
+}
+
+// `is_current` is the served version, which restore repoints freely, so it is
+// not necessarily the highest version_no. current_version_id is nullable.
+func (q *Queries) ListVersionsWithUploader(ctx context.Context, documentID pgtype.UUID) ([]ListVersionsWithUploaderRow, error) {
+	rows, err := q.db.Query(ctx, listVersionsWithUploader, documentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListVersionsWithUploaderRow
+	for rows.Next() {
+		var i ListVersionsWithUploaderRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.DocumentID,
+			&i.VersionNo,
+			&i.Mime,
+			&i.Size,
+			&i.StorageKey,
+			&i.UploadedBy,
+			&i.CreatedAt,
+			&i.RenditionKey,
+			&i.PageCount,
+			&i.UploadedByName,
+			&i.IsCurrent,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const moveDocument = `-- name: MoveDocument :exec
 update documents set folder_id = $2, position = $3, updated_at = now() where id = $1
 `
@@ -331,6 +498,15 @@ func (q *Queries) MoveDocument(ctx context.Context, arg MoveDocumentParams) erro
 	return err
 }
 
+const purgeDocument = `-- name: PurgeDocument :exec
+delete from documents where id = $1
+`
+
+func (q *Queries) PurgeDocument(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, purgeDocument, id)
+	return err
+}
+
 const reindexDocumentSiblings = `-- name: ReindexDocumentSiblings :exec
 with ordered as (
     select d.id as document_id,
@@ -341,6 +517,7 @@ with ordered as (
         ))::int - 1 as rn 
     from documents d
     where d.folder_id = $2
+    and d.deleted_at is null
 )
 update documents t
 set position = o.rn 
@@ -355,6 +532,49 @@ type ReindexDocumentSiblingsParams struct {
 
 func (q *Queries) ReindexDocumentSiblings(ctx context.Context, arg ReindexDocumentSiblingsParams) error {
 	_, err := q.db.Exec(ctx, reindexDocumentSiblings, arg.MovedID, arg.FolderID)
+	return err
+}
+
+const restoreDocument = `-- name: RestoreDocument :exec
+update documents set
+    deleted_at = null,
+    deleted_by = null,
+    deleted_root_folder_id = null,
+    folder_id = $1,
+    name = $2,
+    position = $3,
+    updated_at = now()
+where id = $4
+`
+
+type RestoreDocumentParams struct {
+	FolderID pgtype.UUID `json:"folder_id"`
+	Name     string      `json:"name"`
+	Position int32       `json:"position"`
+	ID       pgtype.UUID `json:"id"`
+}
+
+func (q *Queries) RestoreDocument(ctx context.Context, arg RestoreDocumentParams) error {
+	_, err := q.db.Exec(ctx, restoreDocument,
+		arg.FolderID,
+		arg.Name,
+		arg.Position,
+		arg.ID,
+	)
+	return err
+}
+
+const restoreDocumentsSweptBy = `-- name: RestoreDocumentsSweptBy :exec
+update documents set
+    deleted_at = null,
+    deleted_by = null,
+    deleted_root_folder_id = null,
+    updated_at = now()
+where deleted_root_folder_id = $1
+`
+
+func (q *Queries) RestoreDocumentsSweptBy(ctx context.Context, deletedRootFolderID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, restoreDocumentsSweptBy, deletedRootFolderID)
 	return err
 }
 
@@ -390,5 +610,23 @@ type SetVersionRenditionParams struct {
 
 func (q *Queries) SetVersionRendition(ctx context.Context, arg SetVersionRenditionParams) error {
 	_, err := q.db.Exec(ctx, setVersionRendition, arg.RenditionKey, arg.PageCount, arg.ID)
+	return err
+}
+
+const softDeleteDocument = `-- name: SoftDeleteDocument :exec
+update documents set 
+    deleted_at = now(),
+    deleted_by = $2,
+    updated_at = now()
+where id = $1
+`
+
+type SoftDeleteDocumentParams struct {
+	ID        pgtype.UUID `json:"id"`
+	DeletedBy pgtype.UUID `json:"deleted_by"`
+}
+
+func (q *Queries) SoftDeleteDocument(ctx context.Context, arg SoftDeleteDocumentParams) error {
+	_, err := q.db.Exec(ctx, softDeleteDocument, arg.ID, arg.DeletedBy)
 	return err
 }

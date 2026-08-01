@@ -108,7 +108,8 @@
 			<div class="flex flex-col items-center gap-2 text-center">
 				<p class="text-[0.9375rem] text-muted">
 					{t('nav.toLogin')}
-					<a href="/login" class="font-medium text-primary hover:underline">{t('nav.toLoginCta')}</a>
+					<a href="/login" class="font-medium text-primary hover:underline">{t('nav.toLoginCta')}</a
+					>
 				</p>
 			</div>
 		</section>

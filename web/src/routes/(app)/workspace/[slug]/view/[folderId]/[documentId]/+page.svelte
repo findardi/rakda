@@ -4,6 +4,7 @@
 	import { page } from '$app/state';
 	import { ViewerPage } from '$lib/components/app';
 	import { showToast } from '$lib/components/common';
+	import { formatDate } from '$lib/format';
 	import { t } from '$lib/i18n';
 	import type { WorkspaceData, MyAccessWorkspace } from '$lib/types/workspace';
 	import type { PageProps } from './$types';
@@ -12,6 +13,14 @@
 	const meta = $derived(data.meta);
 	const forbidden = $derived(data.forbidden);
 	const notViewable = $derived(data.notViewable);
+
+	// Empty for guests (upstream withholds history from them) and for documents
+	// that never got a second version.
+	const versions = $derived(data.versions ?? []);
+	// The served version, not the newest one: restore repoints the document, so
+	// v2 can be current while v3 exists. `is_current` is the only authority.
+	const current = $derived(versions.find((v) => v.is_current));
+	const stale = $derived(!!meta && !!current && meta.version_id !== current.id);
 
 	const workspace = $derived((page.data as { workspace: WorkspaceData }).workspace);
 	const access = $derived((page.data as { access?: MyAccessWorkspace }).access);
@@ -30,9 +39,30 @@
 	const pageCount = $derived(meta?.page_count ?? 0);
 	const pages = $derived(Array.from({ length: pageCount }, (_, i) => i + 1));
 
+	// Always name the version, even when it is the current one: a document that
+	// gains a version mid-read must not start serving pages from two of them.
 	const pageSrc = (n: number) =>
 		`/api/content/pages?workspaceId=${encodeURIComponent(workspace.id)}` +
-		`&documentId=${encodeURIComponent(documentId)}&page=${n}`;
+		`&documentId=${encodeURIComponent(documentId)}&page=${n}` +
+		(meta?.version_id ? `&version=${encodeURIComponent(meta.version_id)}` : '');
+
+	// Switching version is a navigation, so the version being read stays in the
+	// URL and a link to it is shareable.
+	function onVersionChange(e: Event): void {
+		const value = (e.currentTarget as HTMLSelectElement).value;
+		if (!value || value === meta?.version_id) return;
+
+		const href = `${resolve('/(app)/workspace/[slug]/view/[folderId]/[documentId]', {
+			slug,
+			folderId,
+			documentId
+		})}?version=${encodeURIComponent(value)}`;
+
+		// The route above is resolved; `resolve()` has no parameter for the query
+		// string, which is the only part appended here.
+		// eslint-disable-next-line svelte/no-navigation-without-resolve
+		void goto(href);
+	}
 
 	// --- current page tracking (max on-screen coverage wins) ---
 	// Plain Maps, deliberately non-reactive: the UI reads only `currentPage`
@@ -96,7 +126,12 @@
 	async function download() {
 		downloading = true;
 		try {
-			const q = new URLSearchParams({ workspaceId: workspace.id, documentId });
+			// Download what is on screen, not whatever became current since.
+			const q = new URLSearchParams(
+				meta?.version_id
+					? { workspaceId: workspace.id, documentId, version: meta.version_id }
+					: { workspaceId: workspace.id, documentId }
+			);
 			const res = await fetch(`/api/content/download?${q}`);
 			if (res.status === 403) {
 				showToast(t('doc.docs.err.forbiddenDownload'), 'error');
@@ -154,6 +189,28 @@
 		<h1 class="min-w-0 flex-1 truncate text-sm font-medium" title={meta?.name}>
 			{meta?.name ?? t('doc.view.tab')}
 		</h1>
+
+		<!-- Only owners and admins ever receive a version list, so this is their
+		     control alone; everyone else reads the current version, unlabelled. -->
+		{#if meta && versions.length > 1}
+			<label class="flex-none">
+				<span class="sr-only">{t('doc.view.ver.label')}</span>
+				<select
+					value={meta.version_id}
+					onchange={onVersionChange}
+					title={t('doc.view.ver.label')}
+					class="select select-sm w-auto font-mono text-xs"
+				>
+					{#each versions as v (v.id)}
+						<option value={v.id}>
+							{v.is_current
+								? t('doc.view.ver.optionCurrent', { n: v.version_no })
+								: t('doc.view.ver.option', { n: v.version_no, when: formatDate(v.created_at) })}
+						</option>
+					{/each}
+				</select>
+			</label>
+		{/if}
 
 		{#if meta && pageCount > 0}
 			<!-- Page stepper -->
@@ -287,6 +344,43 @@
 		{/if}
 	</header>
 
+	<!-- Reading an old version is a legitimate act, not an error — say which one
+	     is on screen and keep the way back one click away. -->
+	{#if meta && stale}
+		<div
+			class="flex flex-none flex-wrap items-center gap-x-3 gap-y-1 border-b border-warning/35 bg-warning/15 px-3 py-1.5 sm:px-4"
+		>
+			<p class="flex min-w-0 flex-1 items-center gap-2 text-xs">
+				<svg
+					class="h-4 w-4 flex-none"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="1.7"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					aria-hidden="true"
+				>
+					<circle cx="12" cy="12" r="9" />
+					<path d="M12 7v5l3 2" />
+				</svg>
+				{t('doc.view.ver.stale', { n: meta.version_no, cur: current?.version_no ?? '' })}
+			</p>
+			{#if current}
+				<a
+					href="{resolve('/(app)/workspace/[slug]/view/[folderId]/[documentId]', {
+						slug,
+						folderId,
+						documentId
+					})}?version={encodeURIComponent(current.id)}"
+					class="flex-none text-xs font-medium text-primary underline-offset-2 hover:underline"
+				>
+					{t('doc.view.ver.toCurrent')}
+				</a>
+			{/if}
+		</div>
+	{/if}
+
 	{#if forbidden}
 		<div class="flex flex-1 items-center justify-center overflow-y-auto px-6 py-16">
 			<div class="flex max-w-sm flex-col items-center gap-3 text-center">
@@ -364,7 +458,9 @@
 	{:else if meta && pageCount > 0}
 		<div class="min-h-0 flex-1 overflow-y-auto" aria-label={meta.name}>
 			<div class="mx-auto flex max-w-[820px] flex-col gap-4 px-3 py-6 sm:px-4">
-				{#each pages as n (n)}
+				<!-- Keyed by version too: switching must remount the pages rather than
+				     leave the previous version's images on screen while they reload. -->
+				{#each pages as n (`${meta.version_id}-${n}`)}
 					<ViewerPage pageNumber={n} total={pageCount} src={pageSrc(n)} {onactive} {onregister} />
 				{/each}
 			</div>
