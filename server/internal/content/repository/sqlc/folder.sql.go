@@ -251,6 +251,38 @@ func (q *Queries) GetTrashedFolderByID(ctx context.Context, id pgtype.UUID) (Fol
 	return i, err
 }
 
+const listExpiredTrashFolders = `-- name: ListExpiredTrashFolders :many
+select id, workspace_id from folders
+where deleted_at is not null 
+and deleted_root_folder_id is null
+and deleted_at < $1
+`
+
+type ListExpiredTrashFoldersRow struct {
+	ID          pgtype.UUID `json:"id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+}
+
+func (q *Queries) ListExpiredTrashFolders(ctx context.Context, cutoff pgtype.Timestamptz) ([]ListExpiredTrashFoldersRow, error) {
+	rows, err := q.db.Query(ctx, listExpiredTrashFolders, cutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListExpiredTrashFoldersRow
+	for rows.Next() {
+		var i ListExpiredTrashFoldersRow
+		if err := rows.Scan(&i.ID, &i.WorkspaceID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTrashFolders = `-- name: ListTrashFolders :many
 select f.id, f.name, f.deleted_at,
     coalesce(u.username, u.email)::text as deleted_by_name
@@ -294,6 +326,40 @@ func (q *Queries) ListTrashFolders(ctx context.Context, workspaceID pgtype.UUID)
 	return items, nil
 }
 
+const listVersionsSweptByFolder = `-- name: ListVersionsSweptByFolder :many
+select v.id, v.storage_key, d.workspace_id
+from document_versions v 
+join documents d on d.id = v.document_id
+join folders f on f.id = d.folder_id
+where f.id = $1 or f.deleted_root_folder_id = $1
+`
+
+type ListVersionsSweptByFolderRow struct {
+	ID          pgtype.UUID `json:"id"`
+	StorageKey  string      `json:"storage_key"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+}
+
+func (q *Queries) ListVersionsSweptByFolder(ctx context.Context, folderID pgtype.UUID) ([]ListVersionsSweptByFolderRow, error) {
+	rows, err := q.db.Query(ctx, listVersionsSweptByFolder, folderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListVersionsSweptByFolderRow
+	for rows.Next() {
+		var i ListVersionsSweptByFolderRow
+		if err := rows.Scan(&i.ID, &i.StorageKey, &i.WorkspaceID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockWorkspaceStructure = `-- name: LockWorkspaceStructure :exec
 select pg_advisory_xact_lock(hashtext($1::uuid::text))
 `
@@ -319,6 +385,15 @@ type MoveFolderParams struct {
 
 func (q *Queries) MoveFolder(ctx context.Context, arg MoveFolderParams) error {
 	_, err := q.db.Exec(ctx, moveFolder, arg.ID, arg.ParentID, arg.Position)
+	return err
+}
+
+const purgeFolder = `-- name: PurgeFolder :exec
+delete from folders where id = $1
+`
+
+func (q *Queries) PurgeFolder(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, purgeFolder, id)
 	return err
 }
 

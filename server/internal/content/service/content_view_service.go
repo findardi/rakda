@@ -37,6 +37,10 @@ func renditionPageKey(workspaceID, versionID string, page, dpi int) string {
 	return fmt.Sprintf("%s/renditions/%s/pages/%d@%d.png", workspaceID, versionID, page, dpi)
 }
 
+func renditionPrefix(workspaceID, versionID string) string {
+	return fmt.Sprintf("%s/renditions/%s/", workspaceID, versionID)
+}
+
 func (s *ContentService) resolveViewAccess(ctx context.Context, workspaceID, folderID string, actor Actor) (viewAccess, error) {
 	if actor.bypassesContentAccess() {
 		return viewAccess{

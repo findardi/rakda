@@ -140,3 +140,12 @@ update documents set
     deleted_root_folder_id = null,
     updated_at = now()
 where deleted_root_folder_id = $1;
+
+-- name: ListExpiredTrashDocuments :many
+select id, workspace_id from documents
+where deleted_at is not null
+and deleted_root_folder_id is null
+and deleted_at < sqlc.arg(cutoff);
+
+-- name: PurgeDocument :exec
+delete from documents where id = $1;

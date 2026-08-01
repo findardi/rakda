@@ -36,6 +36,7 @@ import (
 type App struct {
 	router chi.Router
 	addr   string
+	reap   func(ctx context.Context)
 }
 
 func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.Storage, viewer contentservice.Viewer) *App {
@@ -58,6 +59,12 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 	if err != nil {
 		log.Printf("invalid TRASH_RETENTION, fallback to 15h: %v", err)
 		trashRetention = 15 * time.Hour
+	}
+
+	reaperInterval, err := config.GetEnvDuration("REAPER_INTERVAL", time.Hour)
+	if err != nil {
+		log.Printf("invalid REAPER_INTERVAL, fallback to 1h: %v", err)
+		reaperInterval = time.Hour
 	}
 
 	authsvc := authservice.NewAuthService(authrepo.New(pool), otpGen, jwtGen, mailer, nil)
@@ -86,10 +93,18 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 	return &App{
 		router: r,
 		addr:   addr,
+		reap: func(ctx context.Context) {
+			contentSvc.RunReaper(ctx, reaperInterval)
+		},
 	}
 }
 
 func (a *App) Run() error {
+	reaperCtx, stopReaper := context.WithCancel(context.Background())
+	defer stopReaper()
+
+	go a.reap(reaperCtx)
+
 	srv := &http.Server{
 		Addr:    a.addr,
 		Handler: a.router,
@@ -98,13 +113,15 @@ func (a *App) Run() error {
 	go func() {
 		log.Printf("server running on %s", a.addr)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatal("listen: %w", err)
+			log.Fatalf("listen: %v", err)
 		}
 	}()
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	<-quit
+
+	stopReaper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

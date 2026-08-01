@@ -305,6 +305,38 @@ func (q *Queries) ListDocumentsByFolder(ctx context.Context, folderID pgtype.UUI
 	return items, nil
 }
 
+const listExpiredTrashDocuments = `-- name: ListExpiredTrashDocuments :many
+select id, workspace_id from documents
+where deleted_at is not null
+and deleted_root_folder_id is null
+and deleted_at < $1
+`
+
+type ListExpiredTrashDocumentsRow struct {
+	ID          pgtype.UUID `json:"id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+}
+
+func (q *Queries) ListExpiredTrashDocuments(ctx context.Context, cutoff pgtype.Timestamptz) ([]ListExpiredTrashDocumentsRow, error) {
+	rows, err := q.db.Query(ctx, listExpiredTrashDocuments, cutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListExpiredTrashDocumentsRow
+	for rows.Next() {
+		var i ListExpiredTrashDocumentsRow
+		if err := rows.Scan(&i.ID, &i.WorkspaceID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTrashDocuments = `-- name: ListTrashDocuments :many
 select d.id, d.name, d.deleted_at,
     coalesce(u.username, u.email)::text as deleted_by_name,
@@ -463,6 +495,15 @@ type MoveDocumentParams struct {
 
 func (q *Queries) MoveDocument(ctx context.Context, arg MoveDocumentParams) error {
 	_, err := q.db.Exec(ctx, moveDocument, arg.ID, arg.FolderID, arg.Position)
+	return err
+}
+
+const purgeDocument = `-- name: PurgeDocument :exec
+delete from documents where id = $1
+`
+
+func (q *Queries) PurgeDocument(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, purgeDocument, id)
 	return err
 }
 
