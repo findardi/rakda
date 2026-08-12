@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"log"
@@ -34,7 +33,7 @@ func NewContentHandler(svc *service.ContentService) *ContentHandler {
 func (h *ContentHandler) CreateFolder(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 
-	claim, ok := middleware.ClaimsFromContext(r.Context())
+	actor, ok := actorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -52,9 +51,9 @@ func (h *ContentHandler) CreateFolder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	req.WorkspaceID = chi.URLParam(r, "workspaceID")
-	req.CreatedBy = claim.ID
+	req.CreatedBy = actor.UserID
 
-	res, err := h.svc.CreateFolder(r.Context(), req)
+	res, err := h.svc.CreateFolder(r.Context(), req, actor)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrParentNotFound):
@@ -76,15 +75,22 @@ func (h *ContentHandler) CreateFolder(w http.ResponseWriter, r *http.Request) {
 func (h *ContentHandler) MoveFolder(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
 	var req dto.MoveFolderRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
 		return
 	}
 
+	req.WorkspaceID = chi.URLParam(r, "workspaceID")
 	req.FolderID = chi.URLParam(r, "folderID")
 
-	if err := h.svc.MoveFolder(r.Context(), req); err != nil {
+	if err := h.svc.MoveFolder(r.Context(), req, actor); err != nil {
 		switch {
 		case errors.Is(err, service.ErrFolderNotFound), errors.Is(err, service.ErrParentNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
@@ -115,7 +121,7 @@ func actorFromRequest(r *http.Request) (service.Actor, bool) {
 		return service.Actor{}, false
 	}
 
-	return service.Actor{UserID: claims.ID, Role: ms.Role}, true
+	return service.Actor{UserID: claims.ID, Role: ms.Role, Name: claims.Username, Email: claims.Email}, true
 }
 
 func (h *ContentHandler) GetFoldersTree(w http.ResponseWriter, r *http.Request) {
@@ -145,6 +151,12 @@ func (h *ContentHandler) GetFoldersTree(w http.ResponseWriter, r *http.Request) 
 func (h *ContentHandler) RenameFolder(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
 	var req dto.RenameFolderRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
@@ -156,9 +168,10 @@ func (h *ContentHandler) RenameFolder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	req.WorkspaceID = chi.URLParam(r, "workspaceID")
 	req.FolderID = chi.URLParam(r, "folderID")
 
-	res, err := h.svc.RenameFolder(r.Context(), req)
+	res, err := h.svc.RenameFolder(r.Context(), req, actor)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrFolderNameTaken):
@@ -227,7 +240,7 @@ func (h *ContentHandler) RequestUploadURL(w http.ResponseWriter, r *http.Request
 func (h *ContentHandler) CompletedUpload(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 
-	claims, ok := middleware.ClaimsFromContext(r.Context())
+	actor, ok := actorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -246,9 +259,9 @@ func (h *ContentHandler) CompletedUpload(w http.ResponseWriter, r *http.Request)
 
 	req.WorkspaceID = chi.URLParam(r, "workspaceID")
 	req.FolderID = chi.URLParam(r, "folderID")
-	req.UploadedBy = claims.ID
+	req.UploadedBy = actor.UserID
 
-	res, err := h.svc.CompletedUpload(r.Context(), req)
+	res, err := h.svc.CompletedUpload(r.Context(), req, actor)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrFolderNotFound):
@@ -341,7 +354,7 @@ func (h *ContentHandler) RequestUploadVersion(w http.ResponseWriter, r *http.Req
 func (h *ContentHandler) CompletedVersionUpload(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 
-	claims, ok := middleware.ClaimsFromContext(r.Context())
+	actor, ok := actorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -360,9 +373,9 @@ func (h *ContentHandler) CompletedVersionUpload(w http.ResponseWriter, r *http.R
 
 	req.WorkspaceID = chi.URLParam(r, "workspaceID")
 	req.DocumentID = chi.URLParam(r, "documentID")
-	req.UploadedBy = claims.ID
+	req.UploadedBy = actor.UserID
 
-	res, err := h.svc.CompletedVersion(r.Context(), req)
+	res, err := h.svc.CompletedVersion(r.Context(), req, actor)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrDocumentNotFound):
@@ -514,6 +527,12 @@ func (h *ContentHandler) RestoreTrashFolder(w http.ResponseWriter, r *http.Reque
 func (h *ContentHandler) MoveDocument(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
 	var req dto.MoveDocumentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
@@ -528,7 +547,7 @@ func (h *ContentHandler) MoveDocument(w http.ResponseWriter, r *http.Request) {
 	req.WorkspaceID = chi.URLParam(r, "workspaceID")
 	req.DocumentID = chi.URLParam(r, "documentID")
 
-	if err := h.svc.MoveDocument(r.Context(), req); err != nil {
+	if err := h.svc.MoveDocument(r.Context(), req, actor); err != nil {
 		switch {
 		case errors.Is(err, service.ErrDocumentNotFound), errors.Is(err, service.ErrFolderNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
@@ -547,6 +566,12 @@ func (h *ContentHandler) MoveDocument(w http.ResponseWriter, r *http.Request) {
 func (h *ContentHandler) SetFolderAccess(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
 	var req dto.SetFolderAccessRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
@@ -561,7 +586,7 @@ func (h *ContentHandler) SetFolderAccess(w http.ResponseWriter, r *http.Request)
 	req.WorkspaceID = chi.URLParam(r, "workspaceID")
 	req.FolderID = chi.URLParam(r, "folderID")
 
-	if err := h.svc.SetFolderAccess(r.Context(), req); err != nil {
+	if err := h.svc.SetFolderAccess(r.Context(), req, actor); err != nil {
 		switch {
 		case errors.Is(err, service.ErrFolderNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
@@ -582,7 +607,13 @@ func (h *ContentHandler) RemoveFolderAccess(w http.ResponseWriter, r *http.Reque
 	FolderID := chi.URLParam(r, "folderID")
 	groupID := chi.URLParam(r, "groupID")
 
-	if err := h.svc.RemoveFolderAccess(r.Context(), WorkspaceID, groupID, FolderID); err != nil {
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	if err := h.svc.RemoveFolderAccess(r.Context(), WorkspaceID, groupID, FolderID, actor); err != nil {
 		switch {
 		case errors.Is(err, service.ErrFolderNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
@@ -705,7 +736,7 @@ func (h *ContentHandler) ListFolderAccess(w http.ResponseWriter, r *http.Request
 func (h *ContentHandler) BulkCreateFolders(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 
-	claim, ok := middleware.ClaimsFromContext(r.Context())
+	actor, ok := actorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -723,9 +754,9 @@ func (h *ContentHandler) BulkCreateFolders(w http.ResponseWriter, r *http.Reques
 	}
 
 	req.WorkspaceID = chi.URLParam(r, "workspaceID")
-	req.CreatedBy = claim.ID
+	req.CreatedBy = actor.UserID
 
-	res, err := h.svc.BulkCreateFolders(r.Context(), req)
+	res, err := h.svc.BulkCreateFolders(r.Context(), req, actor)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrParentNotFound):
@@ -848,7 +879,7 @@ func (h *ContentHandler) MultipartParts(w http.ResponseWriter, r *http.Request) 
 func (h *ContentHandler) CompleteMultipart(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 
-	claims, ok := middleware.ClaimsFromContext(r.Context())
+	actor, ok := actorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -867,9 +898,9 @@ func (h *ContentHandler) CompleteMultipart(w http.ResponseWriter, r *http.Reques
 
 	req.WorkspaceID = chi.URLParam(r, "workspaceID")
 	req.FolderID = chi.URLParam(r, "folderID")
-	req.UploadedBy = claims.ID
+	req.UploadedBy = actor.UserID
 
-	res, err := h.svc.CompleteMultipart(r.Context(), req)
+	res, err := h.svc.CompleteMultipart(r.Context(), req, actor)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrFolderNotFound):
@@ -923,13 +954,13 @@ func (h *ContentHandler) RestoreVersion(w http.ResponseWriter, r *http.Request) 
 	dID := chi.URLParam(r, "documentID")
 	vID := chi.URLParam(r, "versionID")
 
-	claims, ok := middleware.ClaimsFromContext(r.Context())
+	actor, ok := actorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
 	}
 
-	res, err := h.svc.RestoreVersion(context.Background(), wID, dID, vID, claims.ID)
+	res, err := h.svc.RestoreVersion(r.Context(), wID, dID, vID, actor)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrDocumentNotFound), errors.Is(err, service.ErrVersionNotFound):

@@ -40,9 +40,9 @@ type Module struct {
 	repo    *repository.Repository
 }
 
-func NewModule(pool *pgxpool.Pool, verifier middleware.TokenVerifier, mail service.MailService, asvc service.AuthService, token service.Tokenizer, webURL string) *Module {
+func NewModule(pool *pgxpool.Pool, verifier middleware.TokenVerifier, mail service.MailService, asvc service.AuthService, token service.Tokenizer, webURL string, activity service.ActivityRecorder) *Module {
 	r := repository.New(pool)
-	s := service.NewAccessService(r, mail, asvc, token, webURL)
+	s := service.NewAccessService(r, mail, asvc, token, webURL, activity)
 	h := handler.NewAccessHandler(s)
 
 	mw := middleware.New(verifier, userStatusReader{repo: auth.New(pool)}, nil)

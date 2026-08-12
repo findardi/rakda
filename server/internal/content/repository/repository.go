@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	contentdb "github.com/findardi/Riksa-App/server/internal/content/repository/sqlc"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -28,6 +29,20 @@ func (r *Repository) ExecTx(ctx context.Context, fn func(*contentdb.Queries) err
 	defer tx.Rollback(ctx)
 
 	if err := fn(r.Queries.WithTx(tx)); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
+func (r *Repository) ExecTxTx(ctx context.Context, fn func(*contentdb.Queries, pgx.Tx) error) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	if err := fn(r.Queries.WithTx(tx), tx); err != nil {
 		return err
 	}
 

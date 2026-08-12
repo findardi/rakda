@@ -10,6 +10,7 @@ import (
 
 	"github.com/findardi/Riksa-App/server/internal/access/dto"
 	accessdb "github.com/findardi/Riksa-App/server/internal/access/repository/sqlc"
+	activityservice "github.com/findardi/Riksa-App/server/internal/activity/service"
 	"github.com/findardi/Riksa-App/server/internal/platform/permission"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -75,20 +76,43 @@ var (
 )
 
 type AccessService struct {
-	repo   AccessRepository
-	mail   MailService
-	asvc   AuthService
-	token  Tokenizer
-	webURL string
+	repo     AccessRepository
+	mail     MailService
+	asvc     AuthService
+	token    Tokenizer
+	webURL   string
+	activity ActivityRecorder
 }
 
-func NewAccessService(repo AccessRepository, mail MailService, asvc AuthService, token Tokenizer, webURL string) *AccessService {
+func NewAccessService(repo AccessRepository, mail MailService, asvc AuthService, token Tokenizer, webURL string, activity ActivityRecorder) *AccessService {
 	return &AccessService{
-		repo:   repo,
-		mail:   mail,
-		asvc:   asvc,
-		token:  token,
-		webURL: webURL,
+		repo:     repo,
+		mail:     mail,
+		asvc:     asvc,
+		token:    token,
+		webURL:   webURL,
+		activity: activity,
+	}
+}
+
+type Actor struct {
+	UserID string
+	Name   string
+	Email  string
+	Role   string
+}
+
+func (s *AccessService) activityEntry(workspaceID string, actor Actor, action, targetType, targetID, targetName string, metadata map[string]any) activityservice.Entry {
+	return activityservice.Entry{
+		WorkspaceID: workspaceID,
+		ActorID:     actor.UserID,
+		ActorName:   actor.Name,
+		ActorRole:   actor.Role,
+		Action:      action,
+		TargetType:  targetType,
+		TargetID:    targetID,
+		TargetName:  targetName,
+		Metadata:    metadata,
 	}
 }
 
@@ -230,7 +254,7 @@ func (s *AccessService) AddMember(ctx context.Context, req dto.CreateWorkspaceMe
 	}, nil
 }
 
-func (s *AccessService) AddMembers(ctx context.Context, req dto.AddMembersRequest) ([]dto.AddMembersResponse, error) {
+func (s *AccessService) AddMembers(ctx context.Context, req dto.AddMembersRequest, actor Actor) ([]dto.AddMembersResponse, error) {
 	outcome := []dto.AddMembersResponse{}
 
 	var wsID, roleID, inID pgtype.UUID
@@ -240,7 +264,7 @@ func (s *AccessService) AddMembers(ctx context.Context, req dto.AddMembersReques
 	if err := roleID.Scan(req.RoleId); err != nil {
 		return outcome, fmt.Errorf("parse role id: %w", err)
 	}
-	if err := inID.Scan(req.InvitedBy); err != nil {
+	if err := inID.Scan(actor.UserID); err != nil {
 		return outcome, fmt.Errorf("parse invited by id: %w", err)
 	}
 
@@ -251,7 +275,7 @@ func (s *AccessService) AddMembers(ctx context.Context, req dto.AddMembersReques
 	if err != nil {
 		return outcome, fmt.Errorf("get role: %w", err)
 	}
-	if err := guardRoleAssignment(req.ActorRole, invitedRole.Name); err != nil {
+	if err := guardRoleAssignment(actor.Role, invitedRole.Name); err != nil {
 		return outcome, err
 	}
 
@@ -304,7 +328,7 @@ func (s *AccessService) AddMembers(ctx context.Context, req dto.AddMembersReques
 
 		// Revive a previously revoked/rejected/expired invitation for this email
 		// instead of leaving a stale row and inserting a duplicate.
-		_, err = s.repo.ReinviteWorkspaceInvitation(ctx, accessdb.ReinviteWorkspaceInvitationParams{
+		revived, err := s.repo.ReinviteWorkspaceInvitation(ctx, accessdb.ReinviteWorkspaceInvitationParams{
 			WorkspaceID: wsID,
 			Email:       email,
 			RoleID:      roleID,
@@ -315,6 +339,9 @@ func (s *AccessService) AddMembers(ctx context.Context, req dto.AddMembersReques
 		})
 		if err == nil {
 			s.sendInviteEmail(email, rawToken, registered)
+			s.activity.Record(ctx, s.activityEntry(req.WorkspaceId, actor,
+				activityservice.ActionInviteSent, activityservice.TargetInvitation,
+				uuidString(revived.ID), email, map[string]any{"role": invitedRole.Name}))
 			outcome = append(outcome, dto.AddMembersResponse{
 				Email:   email,
 				Outcome: OutcomeInvited,
@@ -334,7 +361,7 @@ func (s *AccessService) AddMembers(ctx context.Context, req dto.AddMembersReques
 		}
 
 		// No revivable invitation: create a fresh one.
-		_, err = s.repo.InsertWorkspaceInvitation(ctx, accessdb.InsertWorkspaceInvitationParams{
+		fresh, err := s.repo.InsertWorkspaceInvitation(ctx, accessdb.InsertWorkspaceInvitationParams{
 			WorkspaceID: wsID,
 			Email:       email,
 			RoleID:      roleID,
@@ -357,6 +384,9 @@ func (s *AccessService) AddMembers(ctx context.Context, req dto.AddMembersReques
 		}
 
 		s.sendInviteEmail(email, rawToken, registered)
+		s.activity.Record(ctx, s.activityEntry(req.WorkspaceId, actor,
+			activityservice.ActionInviteSent, activityservice.TargetInvitation,
+			uuidString(fresh.ID), email, map[string]any{"role": invitedRole.Name}))
 		outcome = append(outcome, dto.AddMembersResponse{
 			Email:   email,
 			Outcome: OutcomeInvited,
@@ -549,7 +579,7 @@ func (s *AccessService) GetMember(ctx context.Context, memberID string) (dto.Get
 	}, nil
 }
 
-func (s *AccessService) UpdateMemberRole(ctx context.Context, req dto.UpdateMemberRoleRequest) (dto.GetMemberResponse, error) {
+func (s *AccessService) UpdateMemberRole(ctx context.Context, req dto.UpdateMemberRoleRequest, actor Actor) (dto.GetMemberResponse, error) {
 	var mID, rID pgtype.UUID
 	if err := mID.Scan(req.MemberID); err != nil {
 		return dto.GetMemberResponse{}, fmt.Errorf("parse member id: %w", err)
@@ -562,7 +592,7 @@ func (s *AccessService) UpdateMemberRole(ctx context.Context, req dto.UpdateMemb
 	if err != nil {
 		return dto.GetMemberResponse{}, err
 	}
-	if target.UserID == req.ActorID {
+	if target.UserID == actor.UserID {
 		return dto.GetMemberResponse{}, ErrCannotChangeSelfRole
 	}
 	if target.RoleName == permission.RoleOwner {
@@ -576,7 +606,7 @@ func (s *AccessService) UpdateMemberRole(ctx context.Context, req dto.UpdateMemb
 	if err != nil {
 		return dto.GetMemberResponse{}, fmt.Errorf("get role: %w", err)
 	}
-	if err := guardRoleAssignment(req.ActorRole, newRole.Name); err != nil {
+	if err := guardRoleAssignment(actor.Role, newRole.Name); err != nil {
 		return dto.GetMemberResponse{}, err
 	}
 
@@ -591,10 +621,14 @@ func (s *AccessService) UpdateMemberRole(ctx context.Context, req dto.UpdateMemb
 		return dto.GetMemberResponse{}, fmt.Errorf("update member role: %w", err)
 	}
 
+	s.activity.Record(ctx, s.activityEntry(target.WorkspaceID, actor,
+		activityservice.ActionRoleChanged, activityservice.TargetMember,
+		req.MemberID, target.Email, map[string]any{"from": target.RoleName, "to": newRole.Name}))
+
 	return s.GetMember(ctx, req.MemberID)
 }
 
-func (s *AccessService) DeleteMember(ctx context.Context, memberID, actorID string) error {
+func (s *AccessService) DeleteMember(ctx context.Context, memberID string, actor Actor) error {
 	var mID pgtype.UUID
 	if err := mID.Scan(memberID); err != nil {
 		return fmt.Errorf("parse member id: %w", err)
@@ -604,7 +638,7 @@ func (s *AccessService) DeleteMember(ctx context.Context, memberID, actorID stri
 	if err != nil {
 		return err
 	}
-	if target.UserID == actorID {
+	if target.UserID == actor.UserID {
 		return ErrCannotRemoveSelf
 	}
 	if target.RoleName == permission.RoleOwner {
@@ -615,10 +649,14 @@ func (s *AccessService) DeleteMember(ctx context.Context, memberID, actorID stri
 		return fmt.Errorf("delete member: %w", err)
 	}
 
+	s.activity.Record(ctx, s.activityEntry(target.WorkspaceID, actor,
+		activityservice.ActionMemberRemoved, activityservice.TargetMember,
+		memberID, target.Email, nil))
+
 	return nil
 }
 
-func (s *AccessService) ResendInvitation(ctx context.Context, invitationID string) error {
+func (s *AccessService) ResendInvitation(ctx context.Context, invitationID string, actor Actor) error {
 	var invID pgtype.UUID
 	if err := invID.Scan(invitationID); err != nil {
 		return fmt.Errorf("parse invitation id: %w", err)
@@ -646,33 +684,41 @@ func (s *AccessService) ResendInvitation(ctx context.Context, invitationID strin
 	}
 
 	s.sendInviteEmail(inv.Email, rawToken, inv.UserID.Valid)
+	s.activity.Record(ctx, s.activityEntry(uuidString(inv.WorkspaceID), actor,
+		activityservice.ActionInviteResent, activityservice.TargetInvitation,
+		invitationID, inv.Email, nil))
 	return nil
 }
 
-func (s *AccessService) RevokeInvitation(ctx context.Context, invitationID string) error {
+func (s *AccessService) RevokeInvitation(ctx context.Context, invitationID string, actor Actor) error {
 	var invID pgtype.UUID
 	if err := invID.Scan(invitationID); err != nil {
 		return fmt.Errorf("parse invitation id: %w", err)
 	}
 
-	if _, err := s.repo.RevokeWorkspaceInvitation(ctx, invID); err != nil {
+	inv, err := s.repo.RevokeWorkspaceInvitation(ctx, invID)
+	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrInvitationNotRevocable
 		}
 		return fmt.Errorf("revoke invitation: %w", err)
 	}
 
+	s.activity.Record(ctx, s.activityEntry(uuidString(inv.WorkspaceID), actor,
+		activityservice.ActionInviteRevoked, activityservice.TargetInvitation,
+		invitationID, inv.Email, nil))
+
 	return nil
 }
 
-func (s *AccessService) CreateGroup(ctx context.Context, req dto.CreateGroupRequest) (dto.GroupResponse, error) {
+func (s *AccessService) CreateGroup(ctx context.Context, req dto.CreateGroupRequest, actor Actor) (dto.GroupResponse, error) {
 	var wID pgtype.UUID
 	if err := wID.Scan(req.WorkspaceID); err != nil {
 		return dto.GroupResponse{}, fmt.Errorf("parse workspace id: %w", err)
 	}
 
 	var g accessdb.WorkspaceGroup
-	err := s.repo.ExecTx(ctx, func(q *accessdb.Queries) error {
+	err := s.repo.ExecTxTx(ctx, func(q *accessdb.Queries, tx pgx.Tx) error {
 		created, err := q.CreateGroup(ctx, accessdb.CreateGroupParams{
 			WorkspaceID: wID,
 			Name:        req.Name,
@@ -693,7 +739,9 @@ func (s *AccessService) CreateGroup(ctx context.Context, req dto.CreateGroupRequ
 		}
 
 		g = created
-		return nil
+		return s.activity.RecordTx(ctx, tx, s.activityEntry(req.WorkspaceID, actor,
+			activityservice.ActionGroupCreated, activityservice.TargetGroup,
+			uuidString(created.ID), created.Name, nil))
 	})
 	if err != nil {
 		return dto.GroupResponse{}, err
@@ -739,13 +787,13 @@ func (s *AccessService) GetGroups(ctx context.Context, workspaceID string) ([]dt
 	return groups, nil
 }
 
-func (s *AccessService) DeleteGroup(ctx context.Context, groupID string) error {
+func (s *AccessService) DeleteGroup(ctx context.Context, groupID string, actor Actor) error {
 	var gID pgtype.UUID
 	if err := gID.Scan(groupID); err != nil {
 		return fmt.Errorf("parse group id: %w", err)
 	}
 
-	return s.repo.ExecTx(ctx, func(q *accessdb.Queries) error {
+	return s.repo.ExecTxTx(ctx, func(q *accessdb.Queries, tx pgx.Tx) error {
 		g, err := q.GetGroup(ctx, gID)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
@@ -766,11 +814,13 @@ func (s *AccessService) DeleteGroup(ctx context.Context, groupID string) error {
 			return fmt.Errorf("delete group: %w", err)
 		}
 
-		return nil
+		return s.activity.RecordTx(ctx, tx, s.activityEntry(uuidString(g.WorkspaceID), actor,
+			activityservice.ActionGroupDeleted, activityservice.TargetGroup,
+			groupID, g.Name, nil))
 	})
 }
 
-func (s *AccessService) UpdateGroup(ctx context.Context, req dto.UpdateGroupRequest) (dto.GroupResponse, error) {
+func (s *AccessService) UpdateGroup(ctx context.Context, req dto.UpdateGroupRequest, actor Actor) (dto.GroupResponse, error) {
 	var gID pgtype.UUID
 	if err := gID.Scan(req.GroupID); err != nil {
 		return dto.GroupResponse{}, fmt.Errorf("parse group id: %w", err)
@@ -790,6 +840,10 @@ func (s *AccessService) UpdateGroup(ctx context.Context, req dto.UpdateGroupRequ
 	case err != nil:
 		return dto.GroupResponse{}, fmt.Errorf("update group: %w", err)
 	}
+
+	s.activity.Record(ctx, s.activityEntry(uuidString(g.WorkspaceID), actor,
+		activityservice.ActionGroupUpdated, activityservice.TargetGroup,
+		req.GroupID, g.Name, nil))
 
 	return dto.GroupResponse{
 		ID:          uuidString(g.ID),
@@ -831,7 +885,7 @@ func (s *AccessService) GetGroupDetail(ctx context.Context, groupID string) ([]d
 	return members, nil
 }
 
-func (s *AccessService) AssignToGroup(ctx context.Context, req dto.GroupMemberRequest) ([]dto.GroupMemberResponse, error) {
+func (s *AccessService) AssignToGroup(ctx context.Context, req dto.GroupMemberRequest, actor Actor) ([]dto.GroupMemberResponse, error) {
 
 	var gID pgtype.UUID
 	if err := gID.Scan(req.GroupID); err != nil {
@@ -863,12 +917,16 @@ func (s *AccessService) AssignToGroup(ctx context.Context, req dto.GroupMemberRe
 		if err != nil {
 			return []dto.GroupMemberResponse{}, fmt.Errorf("assign member to group: %w", err)
 		}
+
+		s.activity.Record(ctx, s.activityEntry(uuidString(mem.WorkspaceID), actor,
+			activityservice.ActionGroupAssigned, activityservice.TargetMember,
+			m, deref(mem.Email), map[string]any{"group_id": req.GroupID}))
 	}
 
 	return s.GetGroupDetail(ctx, req.GroupID)
 }
 
-func (s *AccessService) UnassignFromGroup(ctx context.Context, groupID, memberID string) error {
+func (s *AccessService) UnassignFromGroup(ctx context.Context, groupID, memberID string, actor Actor) error {
 	var gID, mID pgtype.UUID
 	if err := gID.Scan(groupID); err != nil {
 		return fmt.Errorf("parse group id: %w", err)
@@ -877,20 +935,28 @@ func (s *AccessService) UnassignFromGroup(ctx context.Context, groupID, memberID
 		return fmt.Errorf("parse member id: %w", err)
 	}
 
+	mem, err := s.repo.GetMember(ctx, mID)
+	if err != nil {
+		return fmt.Errorf("get member: %w", err)
+	}
+
 	moved, err := s.repo.MoveMemberToDefaultGroup(ctx, mID)
 	if err != nil {
 		return fmt.Errorf("move member to default group: %w", err)
 	}
-	if moved > 0 {
-		return nil
+
+	if moved == 0 {
+		if err := s.repo.DeleteGroupMember(ctx, accessdb.DeleteGroupMemberParams{
+			GroupID:  gID,
+			MemberID: mID,
+		}); err != nil {
+			return fmt.Errorf("unassign member from group: %w", err)
+		}
 	}
 
-	if err := s.repo.DeleteGroupMember(ctx, accessdb.DeleteGroupMemberParams{
-		GroupID:  gID,
-		MemberID: mID,
-	}); err != nil {
-		return fmt.Errorf("unassign member from group: %w", err)
-	}
+	s.activity.Record(ctx, s.activityEntry(uuidString(mem.WorkspaceID), actor,
+		activityservice.ActionGroupUnassigned, activityservice.TargetMember,
+		memberID, deref(mem.Email), map[string]any{"group_id": groupID}))
 
 	return nil
 }

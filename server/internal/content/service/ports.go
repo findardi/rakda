@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 
+	activityservice "github.com/findardi/Riksa-App/server/internal/activity/service"
 	contentdb "github.com/findardi/Riksa-App/server/internal/content/repository/sqlc"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -56,4 +58,11 @@ type ContentRepository interface {
 	PurgeDocument(ctx context.Context, id pgtype.UUID) error
 
 	ExecTx(ctx context.Context, fn func(*contentdb.Queries) error) error
+	ExecTxTx(ctx context.Context, fn func(*contentdb.Queries, pgx.Tx) error) error
+}
+
+type ActivityRecorder interface {
+	Record(ctx context.Context, e activityservice.Entry)
+	RecordTx(ctx context.Context, tx pgx.Tx, e activityservice.Entry) error
+	RecordPageEvent(ctx context.Context, ev activityservice.PageEvent)
 }

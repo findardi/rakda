@@ -13,12 +13,16 @@ import (
 	"github.com/findardi/Riksa-App/server/internal/access"
 	accessrepo "github.com/findardi/Riksa-App/server/internal/access/repository"
 	accessservice "github.com/findardi/Riksa-App/server/internal/access/service"
+	activityrepo "github.com/findardi/Riksa-App/server/internal/activity/repository"
 	"github.com/findardi/Riksa-App/server/internal/auth"
 	authrepo "github.com/findardi/Riksa-App/server/internal/auth/repository"
 	authservice "github.com/findardi/Riksa-App/server/internal/auth/service"
 	"github.com/findardi/Riksa-App/server/internal/content"
 	contentrepo "github.com/findardi/Riksa-App/server/internal/content/repository"
 	contentservice "github.com/findardi/Riksa-App/server/internal/content/service"
+
+	activityservice "github.com/findardi/Riksa-App/server/internal/activity/service"
+
 	"github.com/findardi/Riksa-App/server/internal/invitation"
 	"github.com/findardi/Riksa-App/server/internal/platform/config"
 	"github.com/findardi/Riksa-App/server/internal/platform/oauth"
@@ -67,15 +71,16 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 		reaperInterval = time.Hour
 	}
 
+	activitysvc := activityservice.NewActivityService(activityrepo.New(pool))
 	authsvc := authservice.NewAuthService(authrepo.New(pool), otpGen, jwtGen, mailer, nil)
-	accessSvc := accessservice.NewAccessService(accessrepo.New(pool), mailer, authsvc, otpGen, webURL)
-	contentSvc := contentservice.NewContentService(contentrepo.New(pool), store, viewer, trashRetention)
+	accessSvc := accessservice.NewAccessService(accessrepo.New(pool), mailer, authsvc, otpGen, webURL, activitysvc)
+	contentSvc := contentservice.NewContentService(contentrepo.New(pool), store, viewer, trashRetention, activitysvc)
 
 	authModule := auth.NewModule(pool, otpGen, jwtGen, mailer, limiter, providers, accessSvc)
 	workspaceModule := workspace.NewModule(pool, jwtGen, accessSvc, contentSvc)
-	accessModule := access.NewModule(pool, jwtGen, mailer, authsvc, otpGen, webURL)
-	invitationModule := invitation.NewModule(pool, jwtGen)
-	contentModule := content.NewModule(pool, jwtGen, store, viewer, trashRetention)
+	accessModule := access.NewModule(pool, jwtGen, mailer, authsvc, otpGen, webURL, activitysvc)
+	invitationModule := invitation.NewModule(pool, jwtGen, activitysvc)
+	contentModule := content.NewModule(pool, jwtGen, store, viewer, trashRetention, activitysvc)
 
 	r := chi.NewRouter()
 	registerGlobalMiddleware(r)

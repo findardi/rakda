@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	activityservice "github.com/findardi/Riksa-App/server/internal/activity/service"
 	"github.com/findardi/Riksa-App/server/internal/invitation/dto"
 	invitationdb "github.com/findardi/Riksa-App/server/internal/invitation/repository/sqlc"
 	"github.com/jackc/pgx/v5"
@@ -20,12 +21,32 @@ var (
 )
 
 type InvitationService struct {
-	repo InvitationRepo
+	repo     InvitationRepo
+	activity ActivityRecorder
 }
 
-func NewInvitationService(repo InvitationRepo) *InvitationService {
+func NewInvitationService(repo InvitationRepo, activity ActivityRecorder) *InvitationService {
 	return &InvitationService{
-		repo: repo,
+		repo:     repo,
+		activity: activity,
+	}
+}
+
+type Actor struct {
+	UserID string
+	Name   string
+	Email  string
+}
+
+func (a Actor) entry(workspaceID, action, invitationID, email string) activityservice.Entry {
+	return activityservice.Entry{
+		WorkspaceID: workspaceID,
+		ActorID:     a.UserID,
+		ActorName:   a.Name,
+		Action:      action,
+		TargetType:  activityservice.TargetInvitation,
+		TargetID:    invitationID,
+		TargetName:  email,
 	}
 }
 
@@ -71,16 +92,16 @@ func (s *InvitationService) GetListInvitations(ctx context.Context, userID strin
 	return invitations, nil
 }
 
-func (s *InvitationService) AcceptInvitation(ctx context.Context, invitationID, userID string) error {
+func (s *InvitationService) AcceptInvitation(ctx context.Context, invitationID string, actor Actor) error {
 	var invID, uID pgtype.UUID
 	if err := invID.Scan(invitationID); err != nil {
 		return fmt.Errorf("parse invitation id: %w", err)
 	}
-	if err := uID.Scan(userID); err != nil {
+	if err := uID.Scan(actor.UserID); err != nil {
 		return fmt.Errorf("parse user id: %w", err)
 	}
 
-	return s.repo.ExecTx(ctx, func(q *invitationdb.Queries) error {
+	return s.repo.ExecTxTx(ctx, func(q *invitationdb.Queries, tx pgx.Tx) error {
 		inv, err := q.GetWorkspaceInvitation(ctx, invID)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrInvitationNotFound
@@ -89,7 +110,7 @@ func (s *InvitationService) AcceptInvitation(ctx context.Context, invitationID, 
 			return fmt.Errorf("get invitation: %w", err)
 		}
 
-		if uuidString(inv.UserID) != userID {
+		if uuidString(inv.UserID) != actor.UserID {
 			return ErrInvitationForbidden
 		}
 		if inv.Status != "pending" {
@@ -121,11 +142,12 @@ func (s *InvitationService) AcceptInvitation(ctx context.Context, invitationID, 
 			return fmt.Errorf("assign default group: %w", err)
 		}
 
-		return nil
+		return s.activity.RecordTx(ctx, tx,
+			actor.entry(uuidString(inv.WorkspaceID), activityservice.ActionInviteAccepted, invitationID, inv.Email))
 	})
 }
 
-func (s *InvitationService) RejectInvitation(ctx context.Context, invitationID, userID string) error {
+func (s *InvitationService) RejectInvitation(ctx context.Context, invitationID string, actor Actor) error {
 	var invID pgtype.UUID
 	if err := invID.Scan(invitationID); err != nil {
 		return fmt.Errorf("parse invitation id: %w", err)
@@ -139,7 +161,7 @@ func (s *InvitationService) RejectInvitation(ctx context.Context, invitationID, 
 		return fmt.Errorf("get invitation: %w", err)
 	}
 
-	if uuidString(inv.UserID) != userID {
+	if uuidString(inv.UserID) != actor.UserID {
 		return ErrInvitationForbidden
 	}
 
@@ -149,6 +171,9 @@ func (s *InvitationService) RejectInvitation(ctx context.Context, invitationID, 
 		}
 		return fmt.Errorf("reject invitation: %w", err)
 	}
+
+	s.activity.Record(ctx,
+		actor.entry(uuidString(inv.WorkspaceID), activityservice.ActionInviteRejected, invitationID, inv.Email))
 
 	return nil
 }
