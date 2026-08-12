@@ -6,6 +6,7 @@ import (
 
 	"github.com/findardi/Riksa-App/server/internal/access/dto"
 	accessdb "github.com/findardi/Riksa-App/server/internal/access/repository/sqlc"
+	activityservice "github.com/findardi/Riksa-App/server/internal/activity/service"
 	"github.com/findardi/Riksa-App/server/internal/platform/permission"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -35,6 +36,11 @@ type fakeToken struct{}
 
 func (fakeToken) Generate() string        { return "rawtoken" }
 func (fakeToken) Hash(code string) string { return "hashed:" + code }
+
+type fakeRecorder struct{}
+
+func (fakeRecorder) Record(context.Context, activityservice.Entry)                 {}
+func (fakeRecorder) RecordTx(context.Context, pgx.Tx, activityservice.Entry) error { return nil }
 
 type fakeRepo struct {
 	AccessRepository
@@ -72,7 +78,7 @@ func (f *fakeRepo) GetInvitationByCodeHashDetailed(ctx context.Context, codeHash
 }
 
 func newService(repo AccessRepository) *AccessService {
-	return NewAccessService(repo, nil, nil, fakeToken{}, "")
+	return NewAccessService(repo, nil, nil, fakeToken{}, "", fakeRecorder{})
 }
 
 func TestGuardRoleAssignment(t *testing.T) {
@@ -124,11 +130,9 @@ func TestUpdateMemberRoleGuards(t *testing.T) {
 		}
 
 		_, err := newService(repo).UpdateMemberRole(context.Background(), dto.UpdateMemberRoleRequest{
-			MemberID:  uuidMember,
-			RoleId:    uuidRole,
-			ActorRole: permission.RoleOwner,
-			ActorID:   uuidActor,
-		})
+			MemberID: uuidMember,
+			RoleId:   uuidRole,
+		}, Actor{UserID: uuidActor, Role: permission.RoleOwner})
 
 		assert.ErrorIs(t, err, ErrCannotChangeSelfRole)
 	})
@@ -141,11 +145,9 @@ func TestUpdateMemberRoleGuards(t *testing.T) {
 		}
 
 		_, err := newService(repo).UpdateMemberRole(context.Background(), dto.UpdateMemberRoleRequest{
-			MemberID:  uuidMember,
-			RoleId:    uuidRole,
-			ActorRole: permission.RoleOwner,
-			ActorID:   uuidActor,
-		})
+			MemberID: uuidMember,
+			RoleId:   uuidRole,
+		}, Actor{UserID: uuidActor, Role: permission.RoleOwner})
 
 		assert.ErrorIs(t, err, ErrCannotChangeOwnerRole)
 	})
@@ -161,11 +163,9 @@ func TestUpdateMemberRoleGuards(t *testing.T) {
 		}
 
 		_, err := newService(repo).UpdateMemberRole(context.Background(), dto.UpdateMemberRoleRequest{
-			MemberID:  uuidMember,
-			RoleId:    uuidRole,
-			ActorRole: permission.RoleGuest,
-			ActorID:   uuidActor,
-		})
+			MemberID: uuidMember,
+			RoleId:   uuidRole,
+		}, Actor{UserID: uuidActor, Role: permission.RoleGuest})
 
 		assert.ErrorIs(t, err, ErrOnlyOwnerAssignsAdmin)
 	})
@@ -179,7 +179,7 @@ func TestDeleteMemberGuards(t *testing.T) {
 			},
 		}
 
-		err := newService(repo).DeleteMember(context.Background(), uuidMember, uuidActor)
+		err := newService(repo).DeleteMember(context.Background(), uuidMember, Actor{UserID: uuidActor})
 
 		assert.ErrorIs(t, err, ErrCannotRemoveSelf)
 	})
@@ -191,7 +191,7 @@ func TestDeleteMemberGuards(t *testing.T) {
 			},
 		}
 
-		err := newService(repo).DeleteMember(context.Background(), uuidMember, uuidActor)
+		err := newService(repo).DeleteMember(context.Background(), uuidMember, Actor{UserID: uuidActor})
 
 		assert.ErrorIs(t, err, ErrCannotRemoveOwner)
 	})
@@ -203,7 +203,7 @@ func TestDeleteMemberGuards(t *testing.T) {
 			},
 		}
 
-		err := newService(repo).DeleteMember(context.Background(), uuidMember, uuidActor)
+		err := newService(repo).DeleteMember(context.Background(), uuidMember, Actor{UserID: uuidActor})
 
 		assert.ErrorIs(t, err, ErrMemberNotFound)
 	})

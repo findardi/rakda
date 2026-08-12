@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 
+	activityservice "github.com/findardi/Riksa-App/server/internal/activity/service"
 	"github.com/findardi/Riksa-App/server/internal/content/dto"
 	contentdb "github.com/findardi/Riksa-App/server/internal/content/repository/sqlc"
 	"github.com/jackc/pgx/v5"
@@ -113,7 +114,7 @@ func (s *ContentService) RestoreFolders(ctx context.Context, workspaceID, folder
 		return fmt.Errorf("workspace id parse: %w", err)
 	}
 
-	return s.repo.ExecTx(ctx, func(q *contentdb.Queries) error {
+	return s.repo.ExecTxTx(ctx, func(q *contentdb.Queries, tx pgx.Tx) error {
 		if err := q.LockWorkspaceStructure(ctx, wID); err != nil {
 			return fmt.Errorf("lock workspace: %w", err)
 		}
@@ -173,7 +174,9 @@ func (s *ContentService) RestoreFolders(ctx context.Context, workspaceID, folder
 			return fmt.Errorf("restore swept documents: %w", err)
 		}
 
-		return nil
+		return s.activity.RecordTx(ctx, tx, s.activityEntry(workspaceID, actor,
+			activityservice.ActionFolderRestored, activityservice.TargetFolder,
+			folderID, name, nil))
 	})
 }
 
@@ -191,7 +194,7 @@ func (s *ContentService) RestoreDocument(ctx context.Context, workspaceID, docum
 		return fmt.Errorf("workspace id parse: %w", err)
 	}
 
-	return s.repo.ExecTx(ctx, func(q *contentdb.Queries) error {
+	return s.repo.ExecTxTx(ctx, func(q *contentdb.Queries, tx pgx.Tx) error {
 		if err := q.LockWorkspaceStructure(ctx, wID); err != nil {
 			return fmt.Errorf("lock workspace: %w", err)
 		}
@@ -241,6 +244,8 @@ func (s *ContentService) RestoreDocument(ctx context.Context, workspaceID, docum
 			return fmt.Errorf("restore document: %w", err)
 		}
 
-		return nil
+		return s.activity.RecordTx(ctx, tx, s.activityEntry(workspaceID, actor,
+			activityservice.ActionDocumentRestored, activityservice.TargetDocument,
+			documentID, name, nil))
 	})
 }

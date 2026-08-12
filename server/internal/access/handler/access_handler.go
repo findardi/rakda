@@ -29,6 +29,20 @@ func NewAccessHandler(svc *service.AccessService) *AccessHandler {
 	}
 }
 
+func actorFromRequest(r *http.Request) (service.Actor, bool) {
+	claims, ok := middleware.ClaimsFromContext(r.Context())
+	if !ok {
+		return service.Actor{}, false
+	}
+
+	ms, ok := middleware.MembershipFromContext(r.Context())
+	if !ok {
+		return service.Actor{}, false
+	}
+
+	return service.Actor{UserID: claims.ID, Name: claims.Username, Email: claims.Email, Role: ms.Role}, true
+}
+
 func (h *AccessHandler) GetMyAccess(w http.ResponseWriter, r *http.Request) {
 	ms, ok := middleware.MembershipFromContext(r.Context())
 	if !ok {
@@ -125,7 +139,7 @@ func (h *AccessHandler) AddMembers(w http.ResponseWriter, r *http.Request) {
 
 	wID := chi.URLParam(r, "workspaceID")
 
-	claims, ok := middleware.ClaimsFromContext(r.Context())
+	actor, ok := actorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -142,17 +156,9 @@ func (h *AccessHandler) AddMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ms, ok := middleware.MembershipFromContext(r.Context())
-	if !ok {
-		response.Error(w, http.StatusInternalServerError, "internal server error", nil)
-		return
-	}
-
 	req.WorkspaceId = wID
-	req.InvitedBy = claims.ID
-	req.ActorRole = ms.Role
 
-	res, err := h.svc.AddMembers(r.Context(), req)
+	res, err := h.svc.AddMembers(r.Context(), req, actor)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrCannotAssignOwnerRole), errors.Is(err, service.ErrOnlyOwnerAssignsAdmin):
@@ -236,23 +242,15 @@ func (h *AccessHandler) UpdateMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims, ok := middleware.ClaimsFromContext(r.Context())
+	actor, ok := actorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
 	}
 
-	ms, ok := middleware.MembershipFromContext(r.Context())
-	if !ok {
-		response.Error(w, http.StatusInternalServerError, "internal server error", nil)
-		return
-	}
-
 	req.MemberID = mID
-	req.ActorRole = ms.Role
-	req.ActorID = claims.ID
 
-	res, err := h.svc.UpdateMemberRole(r.Context(), req)
+	res, err := h.svc.UpdateMemberRole(r.Context(), req, actor)
 
 	if err != nil {
 		switch {
@@ -276,13 +274,13 @@ func (h *AccessHandler) UpdateMember(w http.ResponseWriter, r *http.Request) {
 func (h *AccessHandler) DeleteMember(w http.ResponseWriter, r *http.Request) {
 	mID := chi.URLParam(r, "memberID")
 
-	claims, ok := middleware.ClaimsFromContext(r.Context())
+	actor, ok := actorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
 	}
 
-	if err := h.svc.DeleteMember(r.Context(), mID, claims.ID); err != nil {
+	if err := h.svc.DeleteMember(r.Context(), mID, actor); err != nil {
 		switch {
 		case errors.Is(err, service.ErrMemberNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
@@ -301,7 +299,13 @@ func (h *AccessHandler) DeleteMember(w http.ResponseWriter, r *http.Request) {
 func (h *AccessHandler) ResendInvitation(w http.ResponseWriter, r *http.Request) {
 	invID := chi.URLParam(r, "invitationID")
 
-	if err := h.svc.ResendInvitation(r.Context(), invID); err != nil {
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	if err := h.svc.ResendInvitation(r.Context(), invID, actor); err != nil {
 		switch {
 		case errors.Is(err, service.ErrInvitationNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
@@ -320,7 +324,13 @@ func (h *AccessHandler) ResendInvitation(w http.ResponseWriter, r *http.Request)
 func (h *AccessHandler) RevokeInvitation(w http.ResponseWriter, r *http.Request) {
 	invID := chi.URLParam(r, "invitationID")
 
-	if err := h.svc.RevokeInvitation(r.Context(), invID); err != nil {
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	if err := h.svc.RevokeInvitation(r.Context(), invID, actor); err != nil {
 		switch {
 		case errors.Is(err, service.ErrInvitationNotRevocable):
 			response.Error(w, http.StatusConflict, err.Error(), nil)
@@ -350,9 +360,15 @@ func (h *AccessHandler) CreateGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
 	req.WorkspaceID = wID
 
-	res, err := h.svc.CreateGroup(r.Context(), req)
+	res, err := h.svc.CreateGroup(r.Context(), req, actor)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrGroupNameTaken):
@@ -383,7 +399,13 @@ func (h *AccessHandler) GetGroups(w http.ResponseWriter, r *http.Request) {
 func (h *AccessHandler) DeleteGroup(w http.ResponseWriter, r *http.Request) {
 	gID := chi.URLParam(r, "groupID")
 
-	if err := h.svc.DeleteGroup(r.Context(), gID); err != nil {
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	if err := h.svc.DeleteGroup(r.Context(), gID, actor); err != nil {
 		switch {
 		case errors.Is(err, service.ErrGroupNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
@@ -415,9 +437,15 @@ func (h *AccessHandler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
 	req.GroupID = gID
 
-	res, err := h.svc.UpdateGroup(r.Context(), req)
+	res, err := h.svc.UpdateGroup(r.Context(), req, actor)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrGroupNameTaken):
@@ -464,9 +492,15 @@ func (h *AccessHandler) AssignMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
 	req.GroupID = gID
 
-	res, err := h.svc.AssignToGroup(r.Context(), req)
+	res, err := h.svc.AssignToGroup(r.Context(), req, actor)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrAssignMemberRole):
@@ -485,7 +519,13 @@ func (h *AccessHandler) UnassignMember(w http.ResponseWriter, r *http.Request) {
 	gID := chi.URLParam(r, "groupID")
 	mID := chi.URLParam(r, "memberID")
 
-	if err := h.svc.UnassignFromGroup(r.Context(), gID, mID); err != nil {
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	if err := h.svc.UnassignFromGroup(r.Context(), gID, mID, actor); err != nil {
 		log.Printf("register internal error: %v", err)
 		response.Error(w, http.StatusInternalServerError, "internal server error", nil)
 		return

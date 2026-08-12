@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 
+	activityservice "github.com/findardi/Riksa-App/server/internal/activity/service"
 	"github.com/findardi/Riksa-App/server/internal/content/dto"
 	contentdb "github.com/findardi/Riksa-App/server/internal/content/repository/sqlc"
 	"github.com/findardi/Riksa-App/server/internal/platform/storage"
@@ -49,7 +50,7 @@ func (s *ContentService) RequestUploadURL(ctx context.Context, workspaceID, fold
 	}, nil
 }
 
-func (s *ContentService) CompletedUpload(ctx context.Context, req dto.CompleteUploadRequest) (dto.DocumentResponse, error) {
+func (s *ContentService) CompletedUpload(ctx context.Context, req dto.CompleteUploadRequest, actor Actor) (dto.DocumentResponse, error) {
 	var wID, fID, uID pgtype.UUID
 	if err := wID.Scan(req.WorkspaceID); err != nil {
 		return dto.DocumentResponse{}, fmt.Errorf("workspace id parse: %w", err)
@@ -84,7 +85,7 @@ func (s *ContentService) CompletedUpload(ctx context.Context, req dto.CompleteUp
 	var doc contentdb.Document
 	var ver contentdb.DocumentVersion
 
-	err = s.repo.ExecTx(ctx, func(q *contentdb.Queries) error {
+	err = s.repo.ExecTxTx(ctx, func(q *contentdb.Queries, tx pgx.Tx) error {
 		maxPos, err := q.GetMaxPosition(ctx, fID)
 		if err != nil {
 			return err
@@ -115,10 +116,16 @@ func (s *ContentService) CompletedUpload(ctx context.Context, req dto.CompleteUp
 			return err
 		}
 
-		return q.SetCurrentVersion(ctx, contentdb.SetCurrentVersionParams{
+		if err := q.SetCurrentVersion(ctx, contentdb.SetCurrentVersionParams{
 			ID:               doc.ID,
 			CurrentVersionID: ver.ID,
-		})
+		}); err != nil {
+			return err
+		}
+
+		return s.activity.RecordTx(ctx, tx, s.activityEntry(req.WorkspaceID, actor,
+			activityservice.ActionDocumentUploaded, activityservice.TargetDocument,
+			uuidString(doc.ID), doc.Name, nil))
 	})
 
 	if err != nil {
@@ -169,7 +176,7 @@ func (s *ContentService) RequestVersionUpload(ctx context.Context, workspaceID, 
 	}, nil
 }
 
-func (s *ContentService) CompletedVersion(ctx context.Context, req dto.CompleteVersionRequest) (dto.DocumentResponse, error) {
+func (s *ContentService) CompletedVersion(ctx context.Context, req dto.CompleteVersionRequest, actor Actor) (dto.DocumentResponse, error) {
 	var dID, uID pgtype.UUID
 	if err := dID.Scan(req.DocumentID); err != nil {
 		return dto.DocumentResponse{}, fmt.Errorf("document id parse: %w", err)
@@ -198,7 +205,7 @@ func (s *ContentService) CompletedVersion(ctx context.Context, req dto.CompleteV
 	}
 
 	var ver contentdb.DocumentVersion
-	err = s.repo.ExecTx(ctx, func(q *contentdb.Queries) error {
+	err = s.repo.ExecTxTx(ctx, func(q *contentdb.Queries, tx pgx.Tx) error {
 		next, err := q.GetNextVersionNo(ctx, dID)
 		if err != nil {
 			return err
@@ -217,10 +224,16 @@ func (s *ContentService) CompletedVersion(ctx context.Context, req dto.CompleteV
 			return err
 		}
 
-		return q.SetCurrentVersion(ctx, contentdb.SetCurrentVersionParams{
+		if err := q.SetCurrentVersion(ctx, contentdb.SetCurrentVersionParams{
 			ID:               dID,
 			CurrentVersionID: ver.ID,
-		})
+		}); err != nil {
+			return err
+		}
+
+		return s.activity.RecordTx(ctx, tx, s.activityEntry(req.WorkspaceID, actor,
+			activityservice.ActionVersionUploaded, activityservice.TargetVersion,
+			uuidString(ver.ID), doc.Name, map[string]any{"version_no": ver.VersionNo}))
 	})
 
 	if err != nil {
@@ -337,6 +350,10 @@ func (s *ContentService) GetDownloadURL(ctx context.Context, workspaceID, docume
 		return dto.DownloadURLResponse{}, fmt.Errorf("presign get: %w", err)
 	}
 
+	s.activity.Record(ctx, s.activityEntry(workspaceID, actor,
+		activityservice.ActionDocumentDownloaded, activityservice.TargetDocument,
+		documentID, doc.Name, map[string]any{"version_no": version.VersionNo}))
+
 	return dto.DownloadURLResponse{
 		DownloadURL: url,
 	}, nil
@@ -371,10 +388,14 @@ func (s *ContentService) DeleteDocument(ctx context.Context, workspaceID, docume
 		return fmt.Errorf("soft delete document: %w", err)
 	}
 
+	s.activity.Record(ctx, s.activityEntry(workspaceID, actor,
+		activityservice.ActionDocumentDeleted, activityservice.TargetDocument,
+		documentID, doc.Name, nil))
+
 	return nil
 }
 
-func (s *ContentService) MoveDocument(ctx context.Context, req dto.MoveDocumentRequest) error {
+func (s *ContentService) MoveDocument(ctx context.Context, req dto.MoveDocumentRequest, actor Actor) error {
 	var dID, fID pgtype.UUID
 	if err := dID.Scan(req.DocumentID); err != nil {
 		return fmt.Errorf("document id parse: %w", err)
@@ -383,7 +404,7 @@ func (s *ContentService) MoveDocument(ctx context.Context, req dto.MoveDocumentR
 		return fmt.Errorf("folder id parse: %w", err)
 	}
 
-	return s.repo.ExecTx(ctx, func(q *contentdb.Queries) error {
+	return s.repo.ExecTxTx(ctx, func(q *contentdb.Queries, tx pgx.Tx) error {
 		doc, err := q.GetDocumentByID(ctx, dID)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrDocumentNotFound
@@ -446,11 +467,13 @@ func (s *ContentService) MoveDocument(ctx context.Context, req dto.MoveDocumentR
 			}
 		}
 
-		return nil
+		return s.activity.RecordTx(ctx, tx, s.activityEntry(req.WorkspaceID, actor,
+			activityservice.ActionDocumentMoved, activityservice.TargetDocument,
+			req.DocumentID, doc.Name, map[string]any{"to_folder_id": req.FolderID}))
 	})
 }
 
-func (s *ContentService) CompleteMultipart(ctx context.Context, req dto.CompleteMultipartRequest) (dto.DocumentResponse, error) {
+func (s *ContentService) CompleteMultipart(ctx context.Context, req dto.CompleteMultipartRequest, actor Actor) (dto.DocumentResponse, error) {
 	if err := validateStorageKey(req.StorageKey, req.WorkspaceID, req.FolderID); err != nil {
 		return dto.DocumentResponse{}, err
 	}
@@ -478,7 +501,7 @@ func (s *ContentService) CompleteMultipart(ctx context.Context, req dto.Complete
 		UploadedBy:  req.UploadedBy,
 		Name:        req.Name,
 		StorageKey:  req.StorageKey,
-	})
+	}, actor)
 }
 
 func (s *ContentService) assertFolderInWorkspace(ctx context.Context, workspaceID, folderID string) error {
@@ -614,25 +637,21 @@ func (s *ContentService) AbortMultipart(ctx context.Context, req dto.AbortMultip
 // The consequence: the current version is no longer necessarily the highest
 // version_no. `is_current` on the version list is the authority, not the number.
 //
-// `restoreBy` is validated but not stored: who restored what is an activity fact,
-// and belongs in the audit log rather than in the version list.
-func (s *ContentService) RestoreVersion(ctx context.Context, workspaceID, documentID, versionID, restoreBy string) (dto.DocumentResponse, error) {
+// Who restored what is an activity fact: it is recorded in the activity log,
+// not in the version list.
+func (s *ContentService) RestoreVersion(ctx context.Context, workspaceID, documentID, versionID string, actor Actor) (dto.DocumentResponse, error) {
 	doc, err := s.getDocumentScoped(ctx, workspaceID, documentID)
 	if err != nil {
 		return dto.DocumentResponse{}, err
 	}
 
-	var vID, uID pgtype.UUID
+	var vID pgtype.UUID
 	if err := vID.Scan(versionID); err != nil {
 		return dto.DocumentResponse{}, ErrVersionNotFound
 	}
 
-	if err := uID.Scan(restoreBy); err != nil {
-		return dto.DocumentResponse{}, fmt.Errorf("restored by parse: %w", err)
-	}
-
 	var target contentdb.DocumentVersion
-	err = s.repo.ExecTx(ctx, func(q *contentdb.Queries) error {
+	err = s.repo.ExecTxTx(ctx, func(q *contentdb.Queries, tx pgx.Tx) error {
 		src, err := q.GetVersionByID(ctx, vID)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrVersionNotFound
@@ -657,10 +676,16 @@ func (s *ContentService) RestoreVersion(ctx context.Context, workspaceID, docume
 
 		target = src
 
-		return q.SetCurrentVersion(ctx, contentdb.SetCurrentVersionParams{
+		if err := q.SetCurrentVersion(ctx, contentdb.SetCurrentVersionParams{
 			ID:               doc.ID,
 			CurrentVersionID: src.ID,
-		})
+		}); err != nil {
+			return err
+		}
+
+		return s.activity.RecordTx(ctx, tx, s.activityEntry(workspaceID, actor,
+			activityservice.ActionVersionRestored, activityservice.TargetVersion,
+			versionID, doc.Name, map[string]any{"version_no": src.VersionNo}))
 	})
 
 	if err != nil {
