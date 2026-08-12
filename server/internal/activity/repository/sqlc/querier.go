@@ -11,6 +11,7 @@ import (
 type Querier interface {
 	InsertActivityLog(ctx context.Context, arg InsertActivityLogParams) error
 	InsertContentEvent(ctx context.Context, arg InsertContentEventParams) error
+	ListActivityLogs(ctx context.Context, arg ListActivityLogsParams) ([]ActivityLog, error)
 }
 
 var _ Querier = (*Queries)(nil)

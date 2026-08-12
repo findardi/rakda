@@ -78,3 +78,69 @@ func (q *Queries) InsertContentEvent(ctx context.Context, arg InsertContentEvent
 	)
 	return err
 }
+
+const listActivityLogs = `-- name: ListActivityLogs :many
+select id, workspace_id, actor_id, actor_name, actor_role, action, target_type, target_id, target_name, metadata, created_at from activity_logs
+where
+    workspace_id = $1
+    and ($2::timestamptz is null
+        or (created_at, id) < ($2::timestamptz, $3::uuid))
+    and ($4::timestamptz is null or created_at >= $4)
+    and ($5::timestamptz is null or created_at <= $5)
+    and ($6::uuid is null or actor_id = $6)
+    and ($7::text is null or action = $7)
+order by created_at desc, id desc
+limit $8
+`
+
+type ListActivityLogsParams struct {
+	WorkspaceID     pgtype.UUID        `json:"workspace_id"`
+	CursorCreatedAt pgtype.Timestamptz `json:"cursor_created_at"`
+	CursorID        pgtype.UUID        `json:"cursor_id"`
+	FromTime        pgtype.Timestamptz `json:"from_time"`
+	ToTime          pgtype.Timestamptz `json:"to_time"`
+	ActorID         pgtype.UUID        `json:"actor_id"`
+	Action          *string            `json:"action"`
+	PageSize        int32              `json:"page_size"`
+}
+
+func (q *Queries) ListActivityLogs(ctx context.Context, arg ListActivityLogsParams) ([]ActivityLog, error) {
+	rows, err := q.db.Query(ctx, listActivityLogs,
+		arg.WorkspaceID,
+		arg.CursorCreatedAt,
+		arg.CursorID,
+		arg.FromTime,
+		arg.ToTime,
+		arg.ActorID,
+		arg.Action,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ActivityLog
+	for rows.Next() {
+		var i ActivityLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.ActorID,
+			&i.ActorName,
+			&i.ActorRole,
+			&i.Action,
+			&i.TargetType,
+			&i.TargetID,
+			&i.TargetName,
+			&i.Metadata,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
