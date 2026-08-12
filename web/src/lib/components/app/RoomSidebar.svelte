@@ -12,6 +12,9 @@
 	const overviewHref = $derived(`/workspace/${workspace.slug}`);
 	const documentsHref = $derived(`/workspace/${workspace.slug}/document`);
 	const accessManagementHref = $derived(`/workspace/${workspace.slug}/management-access`);
+	const activityHref = $derived(
+		resolve('/(app)/workspace/[slug]/activity', { slug: workspace.slug })
+	);
 	const trashHref = $derived(resolve('/(app)/workspace/[slug]/trash', { slug: workspace.slug }));
 	const isActive = (href: string) => page.url.pathname === href;
 	// Active for the module's own route and any of its sub-routes.
@@ -109,31 +112,32 @@
 		<span class="flex-1 text-left">{t('ws.section.documents')}</span>
 	</a>
 
-	<!-- Activity / audit trail — not built yet. -->
-	<button
-		type="button"
-		disabled
-		title={t('app.nav.soon')}
-		class="flex cursor-not-allowed items-center gap-3 rounded-field px-3 py-2 text-[0.9375rem] font-medium text-muted/70"
-	>
-		<svg
-			class="h-4.5 w-4.5 flex-none"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			stroke-width="1.6"
-			stroke-linecap="round"
-			stroke-linejoin="round"
-			aria-hidden="true"
-		>
-			<path d="M3 12h4l2 6 4-12 2 6h6" />
-		</svg>
-		<span class="flex-1 text-left">{t('ws.section.activity')}</span>
-		<span class="text-[0.6875rem] font-normal text-muted">{t('app.nav.soon')}</span>
-	</button>
-
-	<!-- People & permissions — managers only. -->
+	<!-- Activity trail, people & permissions — managers only. -->
 	{#if showAccess}
+		<a
+			href={activityHref}
+			class="flex items-center gap-3 rounded-field px-3 py-2 text-[0.9375rem] font-medium transition-colors {isSection(
+				activityHref
+			)
+				? 'bg-primary/10 text-primary'
+				: 'text-base-content hover:bg-base-content/5'}"
+			aria-current={isSection(activityHref) ? 'page' : undefined}
+		>
+			<svg
+				class="h-4.5 w-4.5 flex-none"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="1.6"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				aria-hidden="true"
+			>
+				<path d="M3 12h4l2 6 4-12 2 6h6" />
+			</svg>
+			<span class="flex-1 text-left">{t('ws.section.activity')}</span>
+		</a>
+
 		<a
 			href={accessManagementHref}
 			class="flex items-center gap-3 rounded-field px-3 py-2 text-[0.9375rem] font-medium transition-colors {isActive(
