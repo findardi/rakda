@@ -13,16 +13,15 @@ import (
 	"github.com/findardi/Riksa-App/server/internal/access"
 	accessrepo "github.com/findardi/Riksa-App/server/internal/access/repository"
 	accessservice "github.com/findardi/Riksa-App/server/internal/access/service"
+	"github.com/findardi/Riksa-App/server/internal/activity"
 	activityrepo "github.com/findardi/Riksa-App/server/internal/activity/repository"
+	activityservice "github.com/findardi/Riksa-App/server/internal/activity/service"
 	"github.com/findardi/Riksa-App/server/internal/auth"
 	authrepo "github.com/findardi/Riksa-App/server/internal/auth/repository"
 	authservice "github.com/findardi/Riksa-App/server/internal/auth/service"
 	"github.com/findardi/Riksa-App/server/internal/content"
 	contentrepo "github.com/findardi/Riksa-App/server/internal/content/repository"
 	contentservice "github.com/findardi/Riksa-App/server/internal/content/service"
-
-	activityservice "github.com/findardi/Riksa-App/server/internal/activity/service"
-
 	"github.com/findardi/Riksa-App/server/internal/invitation"
 	"github.com/findardi/Riksa-App/server/internal/platform/config"
 	"github.com/findardi/Riksa-App/server/internal/platform/oauth"
@@ -81,6 +80,7 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 	accessModule := access.NewModule(pool, jwtGen, mailer, authsvc, otpGen, webURL, activitysvc)
 	invitationModule := invitation.NewModule(pool, jwtGen, activitysvc)
 	contentModule := content.NewModule(pool, jwtGen, store, viewer, trashRetention, activitysvc)
+	activityModule := activity.NewModule(pool, jwtGen)
 
 	r := chi.NewRouter()
 	registerGlobalMiddleware(r)
@@ -94,6 +94,7 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 	accessModule.RegisterRoutes(r)
 	invitationModule.RegisterRoutes(r)
 	contentModule.RegisterRoutes(r)
+	activityModule.RegisterRoutes(r)
 
 	return &App{
 		router: r,
