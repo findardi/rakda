@@ -64,10 +64,11 @@ go test ./...                  # Run all tests
 - Gotenberg service for document conversion at runtime.
 
 ### Architecture
-- Modules: `auth`, `workspace`, `access`, `invitation`, `content` under `internal/`.
+- Modules: `auth`, `workspace`, `access`, `invitation`, `content`, `activity` under `internal/`.
 - Each module follows: `handler/` → `service/` → `repository/` (sqlc-generated queries).
 - Shared platform layer at `internal/platform/`: config, database, middleware, oauth, otp, storage, token, etc.
-- 5 separate sqlc packages in `sqlc.yaml` — one per domain (authdb, workspacedb, accessdb, invitationdb, contentdb).
+- 6 separate sqlc packages in `sqlc.yaml` — one per domain (authdb, workspacedb, accessdb, invitationdb, contentdb, activitydb).
+- Audit (`activity` domain): actions → `activity_logs` (same-tx `RecordTx` inside `ExecTxTx`, else best-effort `Record`; consumers declare an `ActivityRecorder` port); page views/read durations → `content_events` (append-only, no FK to documents, snapshotted names/actors). Two tables, never merged, never UPDATEd. Timeline/engagement endpoints are owner/admin only — guests are recorded, never readers.
 - **After changing SQL queries** in any `repository/query/` directory, run `make sqlc` to regenerate.
 
 ### Tests

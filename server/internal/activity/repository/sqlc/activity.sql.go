@@ -11,6 +11,80 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const getDocumentEngagement = `-- name: GetDocumentEngagement :many
+select 
+    page_no,
+    (count(*) filter (where event_type = 'view_page'))::bigint as raw_hits,
+    (count(distinct (actor_id, date_bin('5 minutes', created_at, timestamptz 'epoch')))
+        filter (where event_type = 'view_page')
+    )::bigint as opens,
+    (count(distinct actor_id) filter (where event_type = 'view_page'))::bigint as unique_viewers,
+    coalesce(sum(duration_ms) filter (where event_type = 'page_duration'), 0)::bigint as read_ms
+from content_events
+where workspace_id = $1
+    and document_id = $2
+    and page_no is not null
+group by page_no
+order by page_no
+`
+
+type GetDocumentEngagementParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	DocumentID  pgtype.UUID `json:"document_id"`
+}
+
+type GetDocumentEngagementRow struct {
+	PageNo        *int32 `json:"page_no"`
+	RawHits       int64  `json:"raw_hits"`
+	Opens         int64  `json:"opens"`
+	UniqueViewers int64  `json:"unique_viewers"`
+	ReadMs        int64  `json:"read_ms"`
+}
+
+func (q *Queries) GetDocumentEngagement(ctx context.Context, arg GetDocumentEngagementParams) ([]GetDocumentEngagementRow, error) {
+	rows, err := q.db.Query(ctx, getDocumentEngagement, arg.WorkspaceID, arg.DocumentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetDocumentEngagementRow
+	for rows.Next() {
+		var i GetDocumentEngagementRow
+		if err := rows.Scan(
+			&i.PageNo,
+			&i.RawHits,
+			&i.Opens,
+			&i.UniqueViewers,
+			&i.ReadMs,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getDocumentForEvent = `-- name: GetDocumentForEvent :one
+select id, workspace_id, name from documents
+where id = $1 and deleted_at is null
+`
+
+type GetDocumentForEventRow struct {
+	ID          pgtype.UUID `json:"id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	Name        string      `json:"name"`
+}
+
+func (q *Queries) GetDocumentForEvent(ctx context.Context, id pgtype.UUID) (GetDocumentForEventRow, error) {
+	row := q.db.QueryRow(ctx, getDocumentForEvent, id)
+	var i GetDocumentForEventRow
+	err := row.Scan(&i.ID, &i.WorkspaceID, &i.Name)
+	return i, err
+}
+
 const insertActivityLog = `-- name: InsertActivityLog :exec
 insert into activity_logs 
     (workspace_id, actor_id, actor_name, actor_role, action, target_type, target_id, target_name, metadata)
