@@ -566,6 +566,12 @@ export const id = {
 	'activity.engagement.err.load': 'Gagal memuat aktivitas baca.',
 	'activity.engagement.retry': 'Coba lagi',
 	'activity.engagement.hint': 'Lama baca dilaporkan peramban pembaca — indikatif, bukan presisi.',
+	'activity.engagement.export': 'Ekspor aktivitas baca ke CSV',
+
+	'activity.export.csv': 'Ekspor CSV',
+	'activity.export.all': 'Unduh seluruh linimasa sebagai CSV',
+	'activity.export.filtered': 'Unduh entri yang lolos filter aktif sebagai CSV',
+	'activity.export.err': 'Gagal menyiapkan berkas ekspor.',
 
 	'fmt.dur.s': '{s}s',
 	'fmt.dur.m': '{m}m',

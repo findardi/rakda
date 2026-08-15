@@ -98,6 +98,16 @@
 			.map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
 			.join('&');
 
+	// The link carries whatever the page is currently showing, so the file and the
+	// screen can never disagree about scope.
+	const exportHref = $derived(
+		`/api/activity/export?${queryString([
+			['workspaceId', data.workspaceId],
+			['format', 'csv'],
+			...(Object.entries(data.filters) as [string, string][])
+		])}`
+	);
+
 	function applyFilter(patch: Partial<ActivityFilters>) {
 		const next = { ...data.filters, ...patch };
 		const qs = queryString(Object.entries(next) as [string, string][]);
@@ -169,7 +179,17 @@
 		</svg>
 
 		<p class="min-w-0 flex-1 text-sm text-pretty">
-			<span class="font-medium">{item.actor_name || t('activity.actor.system')}</span>
+			<!-- A blank name alongside a real actor id is a member who never set a
+			     display name, not the system. Calling that "System" credits a
+			     person's action to nobody — the one thing an audit trail may not
+			     do. The id is what is actually known, so the id is what is shown. -->
+			{#if item.actor_name}
+				<span class="font-medium">{item.actor_name}</span>
+			{:else if item.actor_id}
+				<span class="font-mono text-xs" title={item.actor_id}>{item.actor_id.slice(0, 8)}</span>
+			{:else}
+				<span class="font-medium">{t('activity.actor.system')}</span>
+			{/if}
 			{#if item.actor_role}
 				<span
 					class="mx-0.5 rounded-selector bg-base-content/6 px-1.5 py-0.5 align-[0.05em] text-[0.6875rem] text-muted"
@@ -192,66 +212,102 @@
 		<p class="mt-1.5 max-w-prose text-sm text-muted">{t('activity.desc')}</p>
 	</header>
 
-	<div class="mt-6 flex flex-wrap items-end gap-x-3 gap-y-2">
-		<label class="flex flex-col gap-1">
-			<span class="text-xs text-muted">{t('activity.filter.from')}</span>
-			<input
-				type="date"
-				class="input input-sm w-40"
-				value={data.filters.from}
-				max={data.filters.to || undefined}
-				onchange={(e) => applyFilter({ from: e.currentTarget.value })}
-			/>
-		</label>
+	<!-- Two groups, not one flowing row: the actions travel together and stay at
+	     the right edge, so the export button does not change lines the moment a
+	     filter adds a reset next to it. -->
+	<div class="mt-6 flex flex-wrap items-end gap-x-4 gap-y-2">
+		<div class="flex flex-wrap items-end gap-x-3 gap-y-2">
+			<label class="flex flex-col gap-1">
+				<span class="text-xs text-muted">{t('activity.filter.from')}</span>
+				<input
+					type="date"
+					class="input input-sm w-40"
+					value={data.filters.from}
+					max={data.filters.to || undefined}
+					onchange={(e) => applyFilter({ from: e.currentTarget.value })}
+				/>
+			</label>
 
-		<label class="flex flex-col gap-1">
-			<span class="text-xs text-muted">{t('activity.filter.to')}</span>
-			<input
-				type="date"
-				class="input input-sm w-40"
-				value={data.filters.to}
-				min={data.filters.from || undefined}
-				onchange={(e) => applyFilter({ to: e.currentTarget.value })}
-			/>
-		</label>
+			<label class="flex flex-col gap-1">
+				<span class="text-xs text-muted">{t('activity.filter.to')}</span>
+				<input
+					type="date"
+					class="input input-sm w-40"
+					value={data.filters.to}
+					min={data.filters.from || undefined}
+					onchange={(e) => applyFilter({ to: e.currentTarget.value })}
+				/>
+			</label>
 
-		<label class="flex flex-col gap-1">
-			<span class="text-xs text-muted">{t('activity.filter.action')}</span>
-			<select
-				class="select select-sm w-48"
-				value={data.filters.action}
-				onchange={(e) => applyFilter({ action: e.currentTarget.value })}
-			>
-				<option value="">{t('activity.filter.allActions')}</option>
-				{#each ACTIVITY_GROUPS as group (group.key)}
-					<optgroup label={t(group.key)}>
-						{#each group.actions as action (action)}
-							<option value={action}>{activityActionLabel(action)}</option>
-						{/each}
-					</optgroup>
-				{/each}
-			</select>
-		</label>
+			<label class="flex flex-col gap-1">
+				<span class="text-xs text-muted">{t('activity.filter.action')}</span>
+				<select
+					class="select select-sm w-48"
+					value={data.filters.action}
+					onchange={(e) => applyFilter({ action: e.currentTarget.value })}
+				>
+					<option value="">{t('activity.filter.allActions')}</option>
+					{#each ACTIVITY_GROUPS as group (group.key)}
+						<optgroup label={t(group.key)}>
+							{#each group.actions as action (action)}
+								<option value={action}>{activityActionLabel(action)}</option>
+							{/each}
+						</optgroup>
+					{/each}
+				</select>
+			</label>
 
-		<label class="flex flex-col gap-1">
-			<span class="text-xs text-muted">{t('activity.filter.actor')}</span>
-			<select
-				class="select select-sm w-40"
-				value={data.filters.actor_id}
-				onchange={(e) => applyFilter({ actor_id: e.currentTarget.value })}
-			>
-				<option value="">{t('activity.filter.allActors')}</option>
-				{#each data.actors as actor (actor.id)}
-					<option value={actor.id}>{actor.name}</option>
-				{/each}
-			</select>
-		</label>
+			<label class="flex flex-col gap-1">
+				<span class="text-xs text-muted">{t('activity.filter.actor')}</span>
+				<select
+					class="select select-sm w-40"
+					value={data.filters.actor_id}
+					onchange={(e) => applyFilter({ actor_id: e.currentTarget.value })}
+				>
+					<option value="">{t('activity.filter.allActors')}</option>
+					{#each data.actors as actor (actor.id)}
+						<option value={actor.id}>{actor.name}</option>
+					{/each}
+				</select>
+			</label>
+		</div>
 
-		{#if hasFilter}
-			<button type="button" class="btn btn-ghost btn-sm" onclick={resetFilters}>
-				{t('activity.filter.reset')}
-			</button>
-		{/if}
+		<div class="ml-auto flex items-end gap-1">
+			{#if hasFilter}
+				<button type="button" class="btn btn-ghost btn-sm" onclick={resetFilters}>
+					{t('activity.filter.reset')}
+				</button>
+			{/if}
+
+			<!-- Archive action, not a primary one: quiet, at the end of the controls it
+		     belongs to. A plain link so the CSV streams straight to disk instead of
+		     being assembled in the tab. Hidden when the filter is already rejected —
+		     the export would only earn the same 400. -->
+			{#if !data.filterRejected}
+				<!-- eslint-disable svelte/no-navigation-without-resolve -- endpoint, not a page: resolve() has no entry for /api routes -->
+				<a
+					href={exportHref}
+					title={hasFilter ? t('activity.export.filtered') : t('activity.export.all')}
+					class="btn btn-ghost btn-sm gap-1.5"
+				>
+					<svg
+						class="h-4 w-4"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.8"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						aria-hidden="true"
+					>
+						<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5" />
+						<path d="M5 19h14" />
+					</svg>
+					{t('activity.export.csv')}
+				</a>
+				<!-- eslint-enable svelte/no-navigation-without-resolve -->
+			{/if}
+		</div>
 	</div>
 
 	{#if reloading}
