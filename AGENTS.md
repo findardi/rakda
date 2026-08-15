@@ -3,6 +3,10 @@
 ## Two-package monorepo
 - `web/` — SvelteKit 5 frontend (Bun package manager)
 - `server/` — Go 1.26 backend (Chi, PostgreSQL/pgx, Minio)
+- `brainstorm-folder/` — discussion and decision notes for the active phase
+
+`CLAUDE.md` carries the same instructions for Claude Code; keep the two in sync
+when editing either.
 
 ## Skills — invoke proactively, not on request
 
@@ -81,8 +85,143 @@ go test ./...                  # Run all tests
 ## CI
 - `.github/workflows/` is currently empty — no CI pipeline yet.
 
+## Workflow
+
+- Display the full code in the chat before writing it to a file, not just a summary of the changes.
+- For long files, display the modified blocks along with their surrounding context.
+- Every discussion that produces a decision, a design direction, or a rejected
+  option must be written to `brainstorm-folder/` before the session ends.
+  Discussion that leaves no file is treated as unfinished work.
+
+## Discussion notes — `brainstorm-folder/`
+
+Work is organised into numbered phases. Exactly one phase is active at a time,
+and `brainstorm-folder/` holds files for the active phase only.
+
+```
+brainstorm-folder/
+  current-phase.md          # permanent. index + history. never deleted.
+  phase-7-description.md    # scope of the active phase
+  phase-7-a.md              # step notes, in order
+  phase-7-b.md
+```
+
+Flat — no subfolders, no files for past or future phases. Create the folder if
+it does not exist; it is committed, not gitignored.
+
+### `current-phase.md`
+
+The only permanent file. It is the answer to "where is this project". Appended
+to as steps close; the Completed phases section is written at every transition.
+
+```
+# Current phase
+
+- Active: phase 7 — <name>
+- Started: YYYY-MM-DD
+- Status: in progress | blocked | complete
+
+## Steps
+- [x] 7-a — <title> — <one-line outcome>
+- [ ] 7-b — <title>
+- [ ] 7-c — <title>
+
+## Decisions carried forward
+Decisions from the active phase that outlive it. One line each, with the
+affected path.
+
+## Completed phases
+### Phase 6 — <name> (YYYY-MM-DD → YYYY-MM-DD)
+What shipped, what was decided, what was deliberately deferred, what is
+still owed. Written at closing time — once the phase-6 files are deleted
+this paragraph is all that survives of them.
+```
+
+### `phase-N-description.md`
+
+Written once when the phase opens, before any step file exists.
+
+```
+# Phase N — <name>
+
+## Goal
+What is true when this phase is done.
+
+## Out of scope
+What is deliberately not in this phase.
+
+## Steps
+- N-a — <title>
+- N-b — <title>
+
+## Open questions
+To be resolved during the phase.
+```
+
+Steps are planned upfront but not frozen. Adding `7-d` mid-phase is fine —
+record it in both this file and `current-phase.md`.
+
+### `phase-N-x.md`
+
+One file per step, lettered in order (`-a`, `-b`, …). More than ~8 steps means
+the phase is too large; split it rather than reaching `-i`.
+
+```
+# Phase N-x — <title>
+
+- Status: open | done
+- Files touched:
+
+## Context
+Why this step exists; constraints already fixed.
+
+## Options considered
+Trade-offs per option. Name the reference product when a pattern comes from
+one, e.g. "Ansarada handles this as X".
+
+## Decision
+What was chosen, or `none yet`.
+
+## Rationale
+Why — and what was rejected, on what grounds.
+
+## Follow-ups
+Next actions and the files likely to change.
+```
+
+### Phase transition
+
+Never initiate this. It runs only after the user explicitly states the phase is
+complete, and in this order:
+
+1. Verify every `phase-N-*.md` has `Status: done`. If any does not, report which
+   ones and stop.
+2. Lift every durable decision out of the step files into `current-phase.md` →
+   Completed phases. Write it assuming the step files are about to become
+   unreadable, because they are.
+3. Reflect any rule change (roles, permission semantics, domain model, UI
+   constraints) into `CLAUDE.md`, `AGENTS.md`, `web/PRODUCT.md`, or
+   `web/DESIGN.md`.
+4. Show the proposed new `current-phase.md` in chat and wait for approval.
+5. Only then delete `phase-N-description.md` and every `phase-N-*.md`.
+6. Write `phase-(N+1)-description.md` and reset the Steps checklist.
+
+Steps 2–4 happen before step 5, never after. A deletion that precedes the
+summary loses the phase.
+
+### Content rules
+
+- Record rejected options and the reason. A note holding only the winner is
+  useless three months later.
+- No code dumps. Reference paths (`server/internal/access/service/`) instead of
+  pasting implementations; include a snippet only when the decision *is* the
+  exact shape of an API or schema.
+- Mark unverified assumptions so they can be checked later.
+- `brainstorm-folder/` is a working record, not a source of truth. Project rules
+  live in the instruction files.
+
 ## Warning
 
 All the code you generate will be audited by other AI models such as DeepSeek-v4 Pro, ChatGPT, Kimi K3, and GLM.
 
-So make sure the code you generate has no flaws that these models could flag. 
+So make sure the code you generate has no flaws that these models could flag.
