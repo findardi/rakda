@@ -60,12 +60,13 @@ Prerequisites: `configs/.env` (gitignored, `include`d by the Makefile as shell v
 
 ## Server architecture
 
-- **Domain modules** under `internal/`: `auth`, `workspace`, `access`, `invitation`, `content`. Each follows `handler/` → `service/` → `repository/`.
-- **sqlc**: hand-written SQL in each module's `repository/query/*.sql` compiles (via `configs/sqlc.yaml`) into a per-domain package in `repository/sqlc/` — `authdb`, `workspacedb`, `accessdb`, `invitationdb`, `contentdb` — all checked against the single shared `migrations/` schema. `emit_interface` produces `Querier` interfaces; service tests use hand-written fake repos satisfying them (`testify` assert/require).
+- **Domain modules** under `internal/`: `auth`, `workspace`, `access`, `invitation`, `content`, `activity`. Each follows `handler/` → `service/` → `repository/`.
+- **sqlc**: hand-written SQL in each module's `repository/query/*.sql` compiles (via `configs/sqlc.yaml`) into a per-domain package in `repository/sqlc/` — `authdb`, `workspacedb`, `accessdb`, `invitationdb`, `contentdb`, `activitydb` — all checked against the single shared `migrations/` schema. `emit_interface` produces `Querier` interfaces; service tests use hand-written fake repos satisfying them (`testify` assert/require).
 - **Composition root**: `cmd/main/main.go` loads config/database/storage/viewer pipeline, then `internal/app/app.go New()` wires every module; `internal/app/router.go` mounts routes.
 - **Platform layer** `internal/platform/`: config, database, middleware (JWT auth + workspace membership/permission guards), oauth (Google/GitHub), otp, storage (Minio incl. multipart), token, ratelimit, watermark, convert (Gotenberg → PDF), render (Poppler PDF → PNG), response, validation, sender (mail), permission, cache, logger.
 - **Secure viewer pipeline**: non-PDF uploads convert via Gotenberg to PDF, pages render via Poppler to PNG renditions, watermark burned per request. Lazy — no job queue.
 - **Cross-domain transactions**: repositories expose `ExecTx`/`ExecTxTx` so one pgx transaction can span domains (e.g. invitation acceptance feeds an `InvitationConsumer` implemented in `access`).
+- **Audit & activity** (`activity` domain): every meaningful action writes one row to `activity_logs` — same-tx via `RecordTx(tx)` when the action already runs in `ExecTxTx`, best-effort `Record` otherwise; consumers declare an `ActivityRecorder` port in their `ports.go`. Page views (`view_page`, server-emitted) and read durations (`page_duration`, browser-beacon) go to `content_events` — append-only, `document_id` deliberately has no FK, names/actors are snapshotted at write time. Timeline and engagement endpoints are owner/admin only (guests are recorded, never readers).
 - **Migrations**: goose, sequential numbering (`-s`), in `server/migrations/`.
 
 ## Web architecture
@@ -83,6 +84,7 @@ Prerequisites: `configs/.env` (gitignored, `include`d by the Makefile as shell v
 - Guests belong to exactly one group; folder permissions are boolean flags on `folder_access` per group, resolved by walking up the folder tree.
 - Root level holds folders only; a default non-deletable `General` folder (`is_default`) catches root-level drops.
 - Documents are versioned; `current` version is a pointer (restore = pointer flip, `current` ≠ max version_no).
+- Audit trail is two separate tables, never merged: `activity_logs` (one row per action, chronological timeline) vs `content_events` (per-page, high volume, aggregation only). Both are append-only — never UPDATE audit rows. Visible to owner/admin only; guests never see any activity, including their own.
 
 ## UI design constraints (must follow)
 

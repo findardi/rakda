@@ -1,8 +1,11 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import { ViewerPage } from '$lib/components/app';
+	import { canManageAccess } from '$lib/access/roles';
+	import { createDwellTracker, type DwellTracker } from '$lib/activity/dwell';
+	import { DocumentEngagement, ViewerPage } from '$lib/components/app';
 	import { showToast } from '$lib/components/common';
 	import { formatDate } from '$lib/format';
 	import { t } from '$lib/i18n';
@@ -70,10 +73,15 @@
 	// eslint-disable-next-line svelte/prefer-svelte-reactivity
 	const coverage = new Map<number, number>();
 	let currentPage = $state(1);
+	// Nothing on screen — a hidden reader (panel open on a narrow viewport) or a
+	// version switch mid-remount. The dwell clock stops rather than crediting a
+	// page nobody can see.
+	let anyVisible = $state(false);
 
 	function onactive(p: number, cov: number) {
 		if (cov <= 0) coverage.delete(p);
 		else coverage.set(p, cov);
+		anyVisible = coverage.size > 0;
 		if (coverage.size === 0) return;
 		let best = currentPage;
 		let bestCov = -1;
@@ -94,12 +102,61 @@
 		else pageEls.delete(p);
 	}
 
+	let readerEl = $state<HTMLElement>();
+
 	function scrollToPage(n: number) {
 		const target = Math.min(Math.max(1, n), pageCount);
 		const el = pageEls.get(target);
 		if (!el) return;
+
 		const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 		el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+		if (reduce || !readerEl) return;
+
+		// A smooth scroll is dropped without a word when the browser has smooth
+		// scrolling switched off, and a page whose image lands mid-flight can
+		// cancel it too. The jump has to arrive either way, so check and snap.
+		const from = readerEl.scrollTop;
+		setTimeout(() => {
+			if (readerEl?.scrollTop === from) el.scrollIntoView({ behavior: 'auto', block: 'start' });
+		}, 250);
+	}
+
+	// --- read-duration beacon ---
+	// Every role feeds this, guests included: their reading is the signal the
+	// room owner opened the document for. Never rendered, so it stays a plain
+	// binding — a reactive proxy would buy nothing and cost a wrapper.
+	let dwell: DwellTracker | null = null;
+
+	$effect(() => {
+		const versionId = meta?.version_id;
+		if (!versionId || pageCount === 0) return;
+
+		const tracker = createDwellTracker({ workspaceId: workspace.id, documentId, versionId });
+		dwell = tracker;
+
+		// Teardown flushes: switching version lands the read under the version it
+		// happened on, before the new one starts collecting.
+		return () => {
+			dwell = null;
+			tracker.destroy();
+		};
+	});
+
+	$effect(() => {
+		dwell?.setPage(anyVisible ? currentPage : null);
+	});
+
+	// --- engagement panel (owner/admin only) ---
+	const canSeeEngagement = $derived(canManageAccess(access?.role ?? ''));
+	let panelOpen = $state(false);
+
+	// Below `lg` the panel takes the reader's place, so a jump has to give the
+	// reader back before it can scroll to anything.
+	async function jumpFromPanel(n: number) {
+		if (!window.matchMedia('(min-width: 64rem)').matches) panelOpen = false;
+		await tick();
+		scrollToPage(n);
 	}
 
 	// --- jump-to-page input (display follows scroll unless the user is typing) ---
@@ -118,7 +175,13 @@
 	}
 
 	function onWindowKey(e: KeyboardEvent) {
-		if (e.key === 'Escape' && !editing) goto(backHref);
+		if (e.key !== 'Escape' || editing) return;
+		// Escape unwinds one layer at a time: panel first, then the reader itself.
+		if (panelOpen) {
+			panelOpen = false;
+			return;
+		}
+		goto(backHref);
 	}
 
 	// --- download (view-and-download access) ---
@@ -314,6 +377,38 @@
 				<span class="hidden lg:inline">{t('doc.view.watermarked')}</span>
 			</span>
 
+			<!-- Who read what is owner/admin knowledge. A guest is recorded, never a
+			     reader of the record, so the control does not exist for them. -->
+			{#if canSeeEngagement}
+				<button
+					type="button"
+					onclick={() => (panelOpen = !panelOpen)}
+					aria-expanded={panelOpen}
+					title={panelOpen ? t('activity.engagement.close') : t('activity.engagement.open')}
+					class="grid h-8 w-8 flex-none place-items-center rounded-field transition-colors
+						{panelOpen
+						? 'bg-primary/10 text-primary'
+						: 'text-muted hover:bg-base-content/5 hover:text-base-content'}"
+				>
+					<svg
+						class="h-4 w-4"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.8"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						aria-hidden="true"
+					>
+						<path d="M4 19h16" />
+						<path d="M7 19v-4M12 19v-7M17 19v-2" />
+					</svg>
+					<span class="sr-only">
+						{panelOpen ? t('activity.engagement.close') : t('activity.engagement.open')}
+					</span>
+				</button>
+			{/if}
+
 			{#if meta.can_download_original}
 				<button
 					type="button"
@@ -456,14 +551,33 @@
 			</div>
 		</div>
 	{:else if meta && pageCount > 0}
-		<div class="min-h-0 flex-1 overflow-y-auto" aria-label={meta.name}>
-			<div class="mx-auto flex max-w-[820px] flex-col gap-4 px-3 py-6 sm:px-4">
-				<!-- Keyed by version too: switching must remount the pages rather than
-				     leave the previous version's images on screen while they reload. -->
-				{#each pages as n (`${meta.version_id}-${n}`)}
-					<ViewerPage pageNumber={n} total={pageCount} src={pageSrc(n)} {onactive} {onregister} />
-				{/each}
+		<div class="flex min-h-0 flex-1">
+			<!-- Hidden rather than unmounted below `lg`: the pages keep their decoded
+			     images, and the beacon reads the hiding as "not being read". -->
+			<div
+				bind:this={readerEl}
+				class="min-h-0 flex-1 overflow-y-auto {panelOpen ? 'hidden lg:block' : ''}"
+				aria-label={meta.name}
+			>
+				<div class="mx-auto flex max-w-[820px] flex-col gap-4 px-3 py-6 sm:px-4">
+					<!-- Keyed by version too: switching must remount the pages rather than
+					     leave the previous version's images on screen while they reload. -->
+					{#each pages as n (`${meta.version_id}-${n}`)}
+						<ViewerPage pageNumber={n} total={pageCount} src={pageSrc(n)} {onactive} {onregister} />
+					{/each}
+				</div>
 			</div>
+
+			{#if panelOpen && canSeeEngagement}
+				<DocumentEngagement
+					workspaceId={workspace.id}
+					{documentId}
+					{pageCount}
+					{currentPage}
+					onjump={(n) => void jumpFromPanel(n)}
+					onclose={() => (panelOpen = false)}
+				/>
+			{/if}
 		</div>
 	{:else}
 		<div class="flex flex-1 items-center justify-center overflow-y-auto px-6 py-16">

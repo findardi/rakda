@@ -50,9 +50,9 @@
 		);
 		loader.observe(node);
 
-		// Track on-screen coverage so the toolbar can name the page in view. Height
-		// of the visible slice (not target ratio) keeps tall and short pages
-		// comparable. Phase 7's dwell beacon will hang off this same boundary.
+		// Track on-screen coverage so the toolbar can name the page in view, and so
+		// the dwell beacon knows which page owns the screen. Height of the visible
+		// slice (not target ratio) keeps tall and short pages comparable.
 		const spy = new IntersectionObserver(
 			(entries) => {
 				for (const e of entries) {
@@ -66,6 +66,10 @@
 		return () => {
 			loader.disconnect();
 			spy.disconnect();
+			// A disconnected observer reports nothing, so say it here: a version
+			// switch remounts every page, and stale coverage would keep the dwell
+			// clock running on a page that is no longer on screen.
+			onactive?.(pageNumber, 0);
 			onregister?.(pageNumber, null);
 		};
 	});

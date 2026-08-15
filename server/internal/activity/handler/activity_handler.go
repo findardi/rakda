@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
@@ -10,7 +11,12 @@ import (
 	"github.com/findardi/Riksa-App/server/internal/activity/service"
 	"github.com/findardi/Riksa-App/server/internal/platform/middleware"
 	"github.com/findardi/Riksa-App/server/internal/platform/response"
+	"github.com/findardi/Riksa-App/server/internal/platform/validation"
 	"github.com/go-chi/chi/v5"
+)
+
+const (
+	MaxBodyBytes = 1 << 20
 )
 
 type ActivityHandler struct {
@@ -64,4 +70,70 @@ func (h *ActivityHandler) ListActivity(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.Success(w, http.StatusOK, "list activity success", res)
+}
+
+func (h *ActivityHandler) RecordDurations(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
+
+	claims, ok := middleware.ClaimsFromContext(r.Context())
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	var req dto.RecordDurationsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
+		return
+	}
+
+	if errs := validation.Validate(&req); errs != nil {
+		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+		return
+	}
+
+	req.WorkspaceID = chi.URLParam(r, "workspaceID")
+	req.DocumentID = chi.URLParam(r, "documentID")
+
+	if err := h.svc.RecordPageDurations(r.Context(), req, claims.ID, claims.Email); err != nil {
+		switch {
+		case errors.Is(err, service.ErrDocumentNotFound):
+			response.Error(w, http.StatusNotFound, err.Error(), nil)
+		case errors.Is(err, service.ErrInvalidFilter):
+			response.Error(w, http.StatusBadRequest, err.Error(), nil)
+		default:
+			log.Printf("record durations internal error: %v", err)
+			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
+		}
+		return
+	}
+
+	response.Success(w, http.StatusOK, "record durations success", nil)
+}
+
+func (h *ActivityHandler) GetDocumentEngagement(w http.ResponseWriter, r *http.Request) {
+	wID := chi.URLParam(r, "workspaceID")
+	dID := chi.URLParam(r, "documentID")
+
+	ms, ok := middleware.MembershipFromContext(r.Context())
+	if !ok {
+		response.Error(w, http.StatusInternalServerError, "internal server error", nil)
+		return
+	}
+
+	res, err := h.svc.GetDocumentEngagement(r.Context(), wID, dID, ms.Role)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrActivityForbidden):
+			response.Error(w, http.StatusForbidden, err.Error(), nil)
+		case errors.Is(err, service.ErrDocumentNotFound):
+			response.Error(w, http.StatusNotFound, err.Error(), nil)
+		default:
+			log.Printf("get engagement internal error: %v", err)
+			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
+		}
+		return
+	}
+
+	response.Success(w, http.StatusOK, "get engagement success", res)
 }

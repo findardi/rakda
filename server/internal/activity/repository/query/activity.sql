@@ -23,3 +23,22 @@ where
 order by created_at desc, id desc
 limit @page_size;
 
+-- name: GetDocumentForEvent :one
+select id, workspace_id, name from documents
+where id = $1 and deleted_at is null;
+
+-- name: GetDocumentEngagement :many
+select 
+    page_no,
+    (count(*) filter (where event_type = 'view_page'))::bigint as raw_hits,
+    (count(distinct (actor_id, date_bin('5 minutes', created_at, timestamptz 'epoch')))
+        filter (where event_type = 'view_page')
+    )::bigint as opens,
+    (count(distinct actor_id) filter (where event_type = 'view_page'))::bigint as unique_viewers,
+    coalesce(sum(duration_ms) filter (where event_type = 'page_duration'), 0)::bigint as read_ms
+from content_events
+where workspace_id = @workspace_id
+    and document_id = @document_id
+    and page_no is not null
+group by page_no
+order by page_no;

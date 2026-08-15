@@ -6,9 +6,13 @@ package activitydb
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
+	GetDocumentEngagement(ctx context.Context, arg GetDocumentEngagementParams) ([]GetDocumentEngagementRow, error)
+	GetDocumentForEvent(ctx context.Context, id pgtype.UUID) (GetDocumentForEventRow, error)
 	InsertActivityLog(ctx context.Context, arg InsertActivityLogParams) error
 	InsertContentEvent(ctx context.Context, arg InsertContentEventParams) error
 	ListActivityLogs(ctx context.Context, arg ListActivityLogsParams) ([]ActivityLog, error)
