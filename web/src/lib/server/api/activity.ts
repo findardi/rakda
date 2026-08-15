@@ -1,11 +1,12 @@
 import type { ApiResult } from '$lib/types';
 import type {
+	ActivityFilters,
 	ActivityListData,
 	ActivityQuery,
 	DocumentEngagement,
 	RecordDurationsPayload
 } from '$lib/types/activity';
-import { get, post } from './client';
+import { API_URL, get, post } from './client';
 
 export function listActivity(
 	token: string,
@@ -36,6 +37,39 @@ export function recordPageDurations(
 		`/activity/workspaces/${workspaceId}/documents/${documentId}/duration`,
 		payload,
 		token
+	);
+}
+
+// --- exports ---
+// These two answer with a CSV stream, not the JSON envelope every other endpoint
+// uses, so they hand back the raw Response for the proxy to pipe through. An
+// export of a full audit trail is unbounded; buffering it would be a memory
+// hazard for the exact rooms that need it most.
+
+export function fetchActivityExport(
+	token: string,
+	workspaceId: string,
+	filters: Partial<ActivityFilters> = {}
+): Promise<Response> {
+	const params = new URLSearchParams({ format: 'csv' });
+	if (filters.from) params.set('from', filters.from);
+	if (filters.to) params.set('to', filters.to);
+	if (filters.actor_id) params.set('actor_id', filters.actor_id);
+	if (filters.action) params.set('action', filters.action);
+
+	return fetch(`${API_URL}/activity/workspaces/${workspaceId}/export?${params}`, {
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function fetchEngagementExport(
+	token: string,
+	workspaceId: string,
+	documentId: string
+): Promise<Response> {
+	return fetch(
+		`${API_URL}/activity/workspaces/${workspaceId}/documents/${documentId}/engagement/export?format=csv`,
+		{ headers: { authorization: `Bearer ${token}` } }
 	);
 }
 

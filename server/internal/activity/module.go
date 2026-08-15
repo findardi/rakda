@@ -91,10 +91,12 @@ func (m *Module) RegisterRoutes(r chi.Router) {
 			r.Use(m.mw.RequireMember("workspaceID", m.workspaceMember))
 
 			r.Get("/", m.handler.ListActivity)
+			r.Get("/export", m.handler.ExportActivity)
 
 			r.Route("/documents/{documentID}", func(r chi.Router) {
 				r.Post("/duration", m.handler.RecordDurations)
 				r.Get("/engagement", m.handler.GetDocumentEngagement)
+				r.Get("/engagement/export", m.handler.ExportDocumentEngagement)
 			})
 		})
 	})

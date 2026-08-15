@@ -116,6 +116,31 @@
 			</p>
 		</div>
 
+		<!-- eslint-disable svelte/no-navigation-without-resolve -- endpoint, not a page: resolve() has no entry for /api routes -->
+		<a
+			href="/api/activity/engagement/export?workspaceId={encodeURIComponent(
+				workspaceId
+			)}&documentId={encodeURIComponent(documentId)}&format=csv"
+			title={t('activity.engagement.export')}
+			aria-label={t('activity.engagement.export')}
+			class="grid h-8 w-8 flex-none place-items-center rounded-field text-muted no-underline transition-colors hover:bg-base-content/5 hover:text-base-content pointer-coarse:h-11 pointer-coarse:w-11"
+		>
+			<svg
+				class="h-4 w-4"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="1.8"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				aria-hidden="true"
+			>
+				<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5" />
+				<path d="M5 19h14" />
+			</svg>
+		</a>
+		<!-- eslint-enable svelte/no-navigation-without-resolve -->
+
 		<button
 			type="button"
 			onclick={() => void load()}

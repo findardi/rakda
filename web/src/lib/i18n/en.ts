@@ -572,6 +572,12 @@ export const en: Record<keyof Dict, string> = {
 	'activity.engagement.retry': 'Try again',
 	'activity.engagement.hint':
 		'Read time is reported by the reader’s browser — indicative, not precise.',
+	'activity.engagement.export': 'Export read activity to CSV',
+
+	'activity.export.csv': 'Export CSV',
+	'activity.export.all': 'Download the whole timeline as CSV',
+	'activity.export.filtered': 'Download the entries matching the active filters as CSV',
+	'activity.export.err': 'Could not prepare the export file.',
 
 	'fmt.dur.s': '{s}s',
 	'fmt.dur.m': '{m}m',
