@@ -11,11 +11,13 @@ import (
 )
 
 type Querier interface {
-	GetDocumentEngagement(ctx context.Context, arg GetDocumentEngagementParams) ([]GetDocumentEngagementRow, error)
 	GetDocumentForEvent(ctx context.Context, id pgtype.UUID) (GetDocumentForEventRow, error)
 	InsertActivityLog(ctx context.Context, arg InsertActivityLogParams) error
 	InsertContentEvent(ctx context.Context, arg InsertContentEventParams) error
 	ListActivityLogs(ctx context.Context, arg ListActivityLogsParams) ([]ActivityLog, error)
+	ListDocumentReaders(ctx context.Context, arg ListDocumentReadersParams) ([]ListDocumentReadersRow, error)
+	ListEngagementBreakdown(ctx context.Context, arg ListEngagementBreakdownParams) ([]ListEngagementBreakdownRow, error)
+	ListReaderPages(ctx context.Context, arg ListReaderPagesParams) ([]ListReaderPagesRow, error)
 }
 
 var _ Querier = (*Queries)(nil)

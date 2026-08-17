@@ -12,6 +12,8 @@ type ActivityRepository interface {
 	InsertContentEvent(ctx context.Context, arg activitydb.InsertContentEventParams) error
 	ListActivityLogs(ctx context.Context, arg activitydb.ListActivityLogsParams) ([]activitydb.ActivityLog, error)
 
-	GetDocumentEngagement(ctx context.Context, arg activitydb.GetDocumentEngagementParams) ([]activitydb.GetDocumentEngagementRow, error)
+	ListDocumentReaders(ctx context.Context, arg activitydb.ListDocumentReadersParams) ([]activitydb.ListDocumentReadersRow, error)
+	ListReaderPages(ctx context.Context, arg activitydb.ListReaderPagesParams) ([]activitydb.ListReaderPagesRow, error)
+	ListEngagementBreakdown(ctx context.Context, arg activitydb.ListEngagementBreakdownParams) ([]activitydb.ListEngagementBreakdownRow, error)
 	GetDocumentForEvent(ctx context.Context, id pgtype.UUID) (activitydb.GetDocumentForEventRow, error)
 }

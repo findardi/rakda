@@ -27,18 +27,53 @@ limit @page_size;
 select id, workspace_id, name from documents
 where id = $1 and deleted_at is null;
 
--- name: GetDocumentEngagement :many
-select 
+-- name: ListDocumentReaders :many
+select
+    ce.actor_id,
+    coalesce(u.username, '')::text as actor_name,
+    max(ce.actor_email)::text as actor_email,
+    (count(distinct date_bin('5 minutes', ce.created_at, timestamptz 'epoch'))
+        filter (where ce.event_type = 'view_page')
+    )::bigint as opens,
+    (count(distinct ce.page_no) filter (where ce.event_type = 'view_page'))::bigint as pages_seen,
+    coalesce(sum(ce.duration_ms) filter (where ce.event_type = 'page_duration'), 0)::bigint as read_ms,
+    max(ce.created_at)::timestamptz as last_read_at
+from content_events ce
+left join users u on u.id = ce.actor_id
+where ce.workspace_id = @workspace_id
+    and ce.document_id = @document_id
+group by ce.actor_id, u.username
+order by read_ms desc, last_read_at desc;
+
+-- name: ListReaderPages :many
+select
     page_no,
-    (count(*) filter (where event_type = 'view_page'))::bigint as raw_hits,
-    (count(distinct (actor_id, date_bin('5 minutes', created_at, timestamptz 'epoch')))
+    (count(distinct date_bin('5 minutes', created_at, timestamptz 'epoch'))
         filter (where event_type = 'view_page')
     )::bigint as opens,
-    (count(distinct actor_id) filter (where event_type = 'view_page'))::bigint as unique_viewers,
     coalesce(sum(duration_ms) filter (where event_type = 'page_duration'), 0)::bigint as read_ms
 from content_events
 where workspace_id = @workspace_id
     and document_id = @document_id
+    and actor_id = @actor_id
     and page_no is not null
 group by page_no
 order by page_no;
+
+-- name: ListEngagementBreakdown :many
+select
+    ce.actor_id,
+    coalesce(u.username, '')::text as actor_name,
+    max(ce.actor_email)::text as actor_email,
+    ce.page_no,
+    (count(distinct date_bin('5 minutes', ce.created_at, timestamptz 'epoch'))
+        filter (where ce.event_type = 'view_page')
+    )::bigint as opens,
+    coalesce(sum(ce.duration_ms) filter (where ce.event_type = 'page_duration'), 0)::bigint as read_ms
+from content_events ce
+left join users u on u.id = ce.actor_id
+where ce.workspace_id = @workspace_id
+    and ce.document_id = @document_id
+    and ce.page_no is not null
+group by ce.actor_id, u.username, ce.page_no
+order by actor_name, ce.actor_id, ce.page_no;

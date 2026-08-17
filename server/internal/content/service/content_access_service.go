@@ -20,8 +20,12 @@ type Actor struct {
 	Email  string
 }
 
-func (a Actor) bypassesContentAccess() bool {
+func (a Actor) managesRoom() bool {
 	return a.Role == permission.RoleOwner || a.Role == permission.RoleAdmin
+}
+
+func (a Actor) bypassesContentAccess() bool {
+	return a.managesRoom()
 }
 
 func (s *ContentService) resolveFolderAccess(ctx context.Context, workspaceID, folderID string, actor Actor) (contentdb.ResolveFolderAccessRow, error) {

@@ -28,6 +28,9 @@
 	const workspace = $derived((page.data as { workspace: WorkspaceData }).workspace);
 	const access = $derived((page.data as { access?: MyAccessWorkspace }).access);
 	const perms = $derived(access?.permissions ?? []);
+	// Owner/admin manage the room: they may read the engagement panel, and their
+	// own reading is never recorded — here or upstream.
+	const managesRoom = $derived(canManageAccess(access?.role ?? ''));
 
 	const slug = $derived(page.params.slug!);
 	const folderId = $derived(page.params.folderId!);
@@ -123,14 +126,15 @@
 	}
 
 	// --- read-duration beacon ---
-	// Every role feeds this, guests included: their reading is the signal the
-	// room owner opened the document for. Never rendered, so it stays a plain
-	// binding — a reactive proxy would buy nothing and cost a wrapper.
+	// Guests feed this and nobody else: their reading is the signal the room owner
+	// opened the document for, while the room's own managers are not readers.
+	// Never rendered, so it stays a plain binding — a reactive proxy would buy
+	// nothing and cost a wrapper.
 	let dwell: DwellTracker | null = null;
 
 	$effect(() => {
 		const versionId = meta?.version_id;
-		if (!versionId || pageCount === 0) return;
+		if (!versionId || pageCount === 0 || managesRoom) return;
 
 		const tracker = createDwellTracker({ workspaceId: workspace.id, documentId, versionId });
 		dwell = tracker;
@@ -148,7 +152,6 @@
 	});
 
 	// --- engagement panel (owner/admin only) ---
-	const canSeeEngagement = $derived(canManageAccess(access?.role ?? ''));
 	let panelOpen = $state(false);
 
 	// Below `lg` the panel takes the reader's place, so a jump has to give the
@@ -379,7 +382,7 @@
 
 			<!-- Who read what is owner/admin knowledge. A guest is recorded, never a
 			     reader of the record, so the control does not exist for them. -->
-			{#if canSeeEngagement}
+			{#if managesRoom}
 				<button
 					type="button"
 					onclick={() => (panelOpen = !panelOpen)}
@@ -568,7 +571,7 @@
 				</div>
 			</div>
 
-			{#if panelOpen && canSeeEngagement}
+			{#if panelOpen && managesRoom}
 				<DocumentEngagement
 					workspaceId={workspace.id}
 					{documentId}

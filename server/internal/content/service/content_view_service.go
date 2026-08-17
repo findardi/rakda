@@ -275,16 +275,18 @@ func (s *ContentService) GetPageImage(ctx context.Context, req dto.ViewPageReque
 		return nil, err
 	}
 
-	s.activity.RecordPageEvent(ctx, activityservice.PageEvent{
-		WorkspaceID:  req.WorkspaceID,
-		DocumentID:   uuidString(doc.ID),
-		DocumentName: doc.Name,
-		VersionID:    uuidString(version.ID),
-		PageNo:       int32(req.Page),
-		EventType:    activityservice.EventViewPage,
-		ActorID:      actor.UserID,
-		ActorEmail:   actor.Email,
-	})
+	if !actor.managesRoom() {
+		s.activity.RecordPageEvent(ctx, activityservice.PageEvent{
+			WorkspaceID:  req.WorkspaceID,
+			DocumentID:   uuidString(doc.ID),
+			DocumentName: doc.Name,
+			VersionID:    uuidString(version.ID),
+			PageNo:       int32(req.Page),
+			EventType:    activityservice.EventViewPage,
+			ActorID:      actor.UserID,
+			ActorEmail:   actor.Email,
+		})
+	}
 
 	if !access.canWatermark {
 		return pageBytes, nil
