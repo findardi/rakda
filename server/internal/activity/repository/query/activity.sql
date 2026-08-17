@@ -1,0 +1,79 @@
+-- name: InsertActivityLog :exec
+insert into activity_logs 
+    (workspace_id, actor_id, actor_name, actor_role, action, target_type, target_id, target_name, metadata)
+values
+    ($1, $2, $3, $4, $5, $6, $7, $8, $9);
+
+-- name: InsertContentEvent :exec
+insert into content_events
+    (workspace_id, document_id, document_name, version_id, page_no, event_type, duration_ms, actor_id, actor_email)
+values
+    ($1, $2, $3, $4, $5, $6, $7, $8, $9);
+
+-- name: ListActivityLogs :many
+select * from activity_logs
+where
+    workspace_id = @workspace_id
+    and (sqlc.narg('cursor_created_at')::timestamptz is null
+        or (created_at, id) < (sqlc.narg('cursor_created_at')::timestamptz, sqlc.narg('cursor_id')::uuid))
+    and (sqlc.narg('from_time')::timestamptz is null or created_at >= sqlc.narg('from_time'))
+    and (sqlc.narg('to_time')::timestamptz is null or created_at <= sqlc.narg('to_time'))
+    and (sqlc.narg('actor_id')::uuid is null or actor_id = sqlc.narg('actor_id'))
+    and (sqlc.narg('action')::text is null or action = sqlc.narg('action'))
+order by created_at desc, id desc
+limit @page_size;
+
+-- name: GetDocumentForEvent :one
+select id, workspace_id, name from documents
+where id = $1 and deleted_at is null;
+
+-- name: ListDocumentReaders :many
+select
+    ce.actor_id,
+    coalesce(u.username, '')::text as actor_name,
+    max(ce.actor_email)::text as actor_email,
+    (count(distinct date_bin('5 minutes', ce.created_at, timestamptz 'epoch'))
+        filter (where ce.event_type = 'view_page')
+    )::bigint as opens,
+    (count(distinct ce.page_no) filter (where ce.event_type = 'view_page'))::bigint as pages_seen,
+    coalesce(sum(ce.duration_ms) filter (where ce.event_type = 'page_duration'), 0)::bigint as read_ms,
+    max(ce.created_at)::timestamptz as last_read_at
+from content_events ce
+left join users u on u.id = ce.actor_id
+where ce.workspace_id = @workspace_id
+    and ce.document_id = @document_id
+group by ce.actor_id, u.username
+order by read_ms desc, last_read_at desc;
+
+-- name: ListReaderPages :many
+select
+    page_no,
+    (count(distinct date_bin('5 minutes', created_at, timestamptz 'epoch'))
+        filter (where event_type = 'view_page')
+    )::bigint as opens,
+    coalesce(sum(duration_ms) filter (where event_type = 'page_duration'), 0)::bigint as read_ms
+from content_events
+where workspace_id = @workspace_id
+    and document_id = @document_id
+    and actor_id = @actor_id
+    and page_no is not null
+group by page_no
+order by page_no;
+
+-- name: ListEngagementBreakdown :many
+select
+    ce.actor_id,
+    coalesce(u.username, '')::text as actor_name,
+    max(ce.actor_email)::text as actor_email,
+    ce.page_no,
+    (count(distinct date_bin('5 minutes', ce.created_at, timestamptz 'epoch'))
+        filter (where ce.event_type = 'view_page')
+    )::bigint as opens,
+    coalesce(sum(ce.duration_ms) filter (where ce.event_type = 'page_duration'), 0)::bigint as read_ms
+from content_events ce
+left join users u on u.id = ce.actor_id
+where ce.workspace_id = @workspace_id
+    and ce.document_id = @document_id
+    and ce.page_no is not null
+group by ce.actor_id, u.username, ce.page_no
+order by actor_name, ce.actor_id, ce.page_no;

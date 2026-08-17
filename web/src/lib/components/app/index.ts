@@ -8,3 +8,4 @@ export { default as WorkspaceStatusBadge } from './WorkspaceStatusBadge.svelte';
 export { default as UploadQueue } from './UploadQueue.svelte';
 export { default as ViewerPage } from './ViewerPage.svelte';
 export { default as DocumentVersions } from './DocumentVersions.svelte';
+export { default as DocumentEngagement } from './DocumentEngagement.svelte';

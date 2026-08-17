@@ -4,7 +4,9 @@ import (
 	"context"
 
 	accessdb "github.com/findardi/Riksa-App/server/internal/access/repository/sqlc"
+	activityservice "github.com/findardi/Riksa-App/server/internal/activity/service"
 	authdto "github.com/findardi/Riksa-App/server/internal/auth/dto"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -42,6 +44,12 @@ type AccessRepository interface {
 	ReinviteWorkspaceInvitation(ctx context.Context, arg accessdb.ReinviteWorkspaceInvitationParams) (accessdb.WorkspaceUserInvitation, error)
 
 	ExecTx(ctx context.Context, fn func(q *accessdb.Queries) error) error
+	ExecTxTx(ctx context.Context, fn func(*accessdb.Queries, pgx.Tx) error) error
+}
+
+type ActivityRecorder interface {
+	Record(ctx context.Context, e activityservice.Entry)
+	RecordTx(ctx context.Context, tx pgx.Tx, e activityservice.Entry) error
 }
 
 type MailService interface {

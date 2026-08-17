@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 
+	activityservice "github.com/findardi/Riksa-App/server/internal/activity/service"
 	"github.com/findardi/Riksa-App/server/internal/content/dto"
 	contentdb "github.com/findardi/Riksa-App/server/internal/content/repository/sqlc"
 	"github.com/findardi/Riksa-App/server/internal/platform/convert"
@@ -222,6 +223,10 @@ func (s *ContentService) GetViewMeta(ctx context.Context, workspaceID, documentI
 		return dto.ViewMetaResponse{}, err
 	}
 
+	s.activity.Record(ctx, s.activityEntry(workspaceID, actor,
+		activityservice.ActionDocumentViewed, activityservice.TargetDocument,
+		documentID, doc.Name, map[string]any{"version_no": version.VersionNo}))
+
 	return dto.ViewMetaResponse{
 		DocumentID:          uuidString(doc.ID),
 		Name:                doc.Name,
@@ -268,6 +273,19 @@ func (s *ContentService) GetPageImage(ctx context.Context, req dto.ViewPageReque
 	pageBytes, err := s.loadOrRenderPage(ctx, req.WorkspaceID, uuidString(version.ID), renditionKey, req.Page)
 	if err != nil {
 		return nil, err
+	}
+
+	if !actor.managesRoom() {
+		s.activity.RecordPageEvent(ctx, activityservice.PageEvent{
+			WorkspaceID:  req.WorkspaceID,
+			DocumentID:   uuidString(doc.ID),
+			DocumentName: doc.Name,
+			VersionID:    uuidString(version.ID),
+			PageNo:       int32(req.Page),
+			EventType:    activityservice.EventViewPage,
+			ActorID:      actor.UserID,
+			ActorEmail:   actor.Email,
+		})
 	}
 
 	if !access.canWatermark {

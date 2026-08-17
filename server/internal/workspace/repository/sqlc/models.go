@@ -8,6 +8,34 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type ActivityLog struct {
+	ID          pgtype.UUID        `json:"id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	ActorID     pgtype.UUID        `json:"actor_id"`
+	ActorName   string             `json:"actor_name"`
+	ActorRole   string             `json:"actor_role"`
+	Action      string             `json:"action"`
+	TargetType  string             `json:"target_type"`
+	TargetID    pgtype.UUID        `json:"target_id"`
+	TargetName  string             `json:"target_name"`
+	Metadata    []byte             `json:"metadata"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type ContentEvent struct {
+	ID           int64              `json:"id"`
+	WorkspaceID  pgtype.UUID        `json:"workspace_id"`
+	DocumentID   pgtype.UUID        `json:"document_id"`
+	DocumentName string             `json:"document_name"`
+	VersionID    pgtype.UUID        `json:"version_id"`
+	PageNo       *int32             `json:"page_no"`
+	EventType    string             `json:"event_type"`
+	DurationMs   *int32             `json:"duration_ms"`
+	ActorID      pgtype.UUID        `json:"actor_id"`
+	ActorEmail   string             `json:"actor_email"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+}
+
 type Document struct {
 	ID                  pgtype.UUID        `json:"id"`
 	WorkspaceID         pgtype.UUID        `json:"workspace_id"`

@@ -10,4 +10,5 @@ export * from './document.folder';
 export * from './document';
 export * from './document.trash';
 export * from './content.access';
+export * from './activity';
 export * from './resolve';

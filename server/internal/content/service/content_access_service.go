@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	activityservice "github.com/findardi/Riksa-App/server/internal/activity/service"
 	"github.com/findardi/Riksa-App/server/internal/content/dto"
 	contentdb "github.com/findardi/Riksa-App/server/internal/content/repository/sqlc"
 	"github.com/findardi/Riksa-App/server/internal/platform/permission"
@@ -15,10 +16,16 @@ import (
 type Actor struct {
 	UserID string
 	Role   string
+	Name   string
+	Email  string
+}
+
+func (a Actor) managesRoom() bool {
+	return a.Role == permission.RoleOwner || a.Role == permission.RoleAdmin
 }
 
 func (a Actor) bypassesContentAccess() bool {
-	return a.Role == permission.RoleOwner || a.Role == permission.RoleAdmin
+	return a.managesRoom()
 }
 
 func (s *ContentService) resolveFolderAccess(ctx context.Context, workspaceID, folderID string, actor Actor) (contentdb.ResolveFolderAccessRow, error) {
@@ -81,7 +88,7 @@ func (s *ContentService) requireFolderDownloadOriginal(ctx context.Context, work
 	return nil
 }
 
-func (s *ContentService) SetFolderAccess(ctx context.Context, req dto.SetFolderAccessRequest) error {
+func (s *ContentService) SetFolderAccess(ctx context.Context, req dto.SetFolderAccessRequest, actor Actor) error {
 	var wID, fID, gID pgtype.UUID
 	if err := wID.Scan(req.WorkspaceID); err != nil {
 		return fmt.Errorf("workspace id parse: %w", err)
@@ -95,10 +102,23 @@ func (s *ContentService) SetFolderAccess(ctx context.Context, req dto.SetFolderA
 		return ErrAccessTargetInvalid
 	}
 
+	folder, err := s.repo.GetFolderByID(ctx, fID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrFolderNotFound
+	}
+
+	if err != nil {
+		return fmt.Errorf("get folder: %w", err)
+	}
+
+	if folder.WorkspaceID != wID {
+		return ErrFolderNotFound
+	}
+
 	canDownload := req.CanDownload || req.CanDownloadOriginal
 	canView := req.CanView || canDownload || req.CanWatermark
 
-	_, err := s.repo.SetFolderAccess(ctx, contentdb.SetFolderAccessParams{
+	if _, err := s.repo.SetFolderAccess(ctx, contentdb.SetFolderAccessParams{
 		GroupID:             gID,
 		WorkspaceID:         wID,
 		FolderID:            fID,
@@ -106,20 +126,27 @@ func (s *ContentService) SetFolderAccess(ctx context.Context, req dto.SetFolderA
 		CanDownload:         canDownload,
 		CanWatermark:        req.CanWatermark,
 		CanDownloadOriginal: req.CanDownloadOriginal,
-	})
-
-	if errors.Is(err, pgx.ErrNoRows) {
-		return ErrAccessTargetInvalid
-	}
-
-	if err != nil {
+	}); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrAccessTargetInvalid
+		}
 		return fmt.Errorf("set folder access: %w", err)
 	}
+
+	s.activity.Record(ctx, s.activityEntry(req.WorkspaceID, actor,
+		activityservice.ActionFolderAccessChanged, activityservice.TargetFolderAccess,
+		req.FolderID, folder.Name, map[string]any{
+			"group_id":              req.GroupID,
+			"can_view":              canView,
+			"can_download":          canDownload,
+			"can_watermark":         req.CanWatermark,
+			"can_download_original": req.CanDownloadOriginal,
+		}))
 
 	return nil
 }
 
-func (s *ContentService) RemoveFolderAccess(ctx context.Context, workspaceID, groupID, folderID string) error {
+func (s *ContentService) RemoveFolderAccess(ctx context.Context, workspaceID, groupID, folderID string, actor Actor) error {
 	var wID, fID, gID pgtype.UUID
 	if err := wID.Scan(workspaceID); err != nil {
 		return fmt.Errorf("parse workspace id: %w", err)
@@ -131,6 +158,19 @@ func (s *ContentService) RemoveFolderAccess(ctx context.Context, workspaceID, gr
 		return ErrAccessTargetInvalid
 	}
 
+	folder, err := s.repo.GetFolderByID(ctx, fID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrFolderNotFound
+	}
+
+	if err != nil {
+		return fmt.Errorf("get folder: %w", err)
+	}
+
+	if folder.WorkspaceID != wID {
+		return ErrFolderNotFound
+	}
+
 	if err := s.repo.RemoveFolderAccess(ctx, contentdb.RemoveFolderAccessParams{
 		FolderID:    fID,
 		GroupID:     gID,
@@ -138,6 +178,10 @@ func (s *ContentService) RemoveFolderAccess(ctx context.Context, workspaceID, gr
 	}); err != nil {
 		return fmt.Errorf("remove folder access: %w", err)
 	}
+
+	s.activity.Record(ctx, s.activityEntry(workspaceID, actor,
+		activityservice.ActionFolderAccessRemoved, activityservice.TargetFolderAccess,
+		folderID, folder.Name, map[string]any{"group_id": groupID}))
 
 	return nil
 }

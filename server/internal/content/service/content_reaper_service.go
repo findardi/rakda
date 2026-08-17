@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	activityservice "github.com/findardi/Riksa-App/server/internal/activity/service"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -69,6 +70,13 @@ func (s *ContentService) reapOnce(ctx context.Context) {
 			continue
 		}
 
+		s.activity.Record(ctx, activityservice.Entry{
+			WorkspaceID: uuidString(f.WorkspaceID),
+			Action:      activityservice.ActionFolderPurged,
+			TargetType:  activityservice.TargetFolder,
+			TargetID:    uuidString(f.ID),
+		})
+
 		purgeFolders++
 	}
 
@@ -101,6 +109,13 @@ func (s *ContentService) reapOnce(ctx context.Context) {
 			log.Printf("reaper: purge document %s: %v", uuidString(d.ID), err)
 			continue
 		}
+
+		s.activity.Record(ctx, activityservice.Entry{
+			WorkspaceID: uuidString(d.WorkspaceID),
+			Action:      activityservice.ActionDocumentPurged,
+			TargetType:  activityservice.TargetDocument,
+			TargetID:    uuidString(d.ID),
+		})
 
 		purgeDocuments++
 	}

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	activityservice "github.com/findardi/Riksa-App/server/internal/activity/service"
 	"github.com/findardi/Riksa-App/server/internal/content/dto"
 	contentdb "github.com/findardi/Riksa-App/server/internal/content/repository/sqlc"
 	"github.com/findardi/Riksa-App/server/internal/platform/storage"
@@ -60,14 +61,30 @@ type ContentService struct {
 	store          storage.Storage
 	viewer         Viewer
 	trashRetention time.Duration
+	activity       ActivityRecorder
 }
 
-func NewContentService(repo ContentRepository, store storage.Storage, viewer Viewer, trashRetention time.Duration) *ContentService {
+func NewContentService(repo ContentRepository, store storage.Storage, viewer Viewer, trashRetention time.Duration, activity ActivityRecorder) *ContentService {
 	return &ContentService{
 		repo:           repo,
 		store:          store,
 		viewer:         viewer,
 		trashRetention: trashRetention,
+		activity:       activity,
+	}
+}
+
+func (s *ContentService) activityEntry(workspaceID string, actor Actor, action, targetType, targetID, targetName string, metadata map[string]any) activityservice.Entry {
+	return activityservice.Entry{
+		WorkspaceID: workspaceID,
+		ActorID:     actor.UserID,
+		ActorName:   actor.Name,
+		ActorRole:   actor.Role,
+		Action:      action,
+		TargetType:  targetType,
+		TargetID:    targetID,
+		TargetName:  targetName,
+		Metadata:    metadata,
 	}
 }
 
@@ -160,7 +177,7 @@ func validateStorageKey(key, workspaceID, folderID string) error {
 	return nil
 }
 
-func (s *ContentService) CreateFolder(ctx context.Context, req dto.CreateFolderRequest) (dto.FolderResponse, error) {
+func (s *ContentService) CreateFolder(ctx context.Context, req dto.CreateFolderRequest, actor Actor) (dto.FolderResponse, error) {
 
 	var wID, pID, cID pgtype.UUID
 
@@ -230,6 +247,10 @@ func (s *ContentService) CreateFolder(ctx context.Context, req dto.CreateFolderR
 		return dto.FolderResponse{}, fmt.Errorf("create folder: %w", err)
 	}
 
+	s.activity.Record(ctx, s.activityEntry(req.WorkspaceID, actor,
+		activityservice.ActionFolderCreated, activityservice.TargetFolder,
+		uuidString(f.ID), f.Name, nil))
+
 	return dto.FolderResponse{
 		ID:          uuidString(f.ID),
 		WorkspaceID: uuidString(f.WorkspaceID),
@@ -243,7 +264,7 @@ func (s *ContentService) CreateFolder(ctx context.Context, req dto.CreateFolderR
 	}, nil
 }
 
-func (s *ContentService) MoveFolder(ctx context.Context, req dto.MoveFolderRequest) error {
+func (s *ContentService) MoveFolder(ctx context.Context, req dto.MoveFolderRequest, actor Actor) error {
 
 	var fID, pID pgtype.UUID
 
@@ -257,7 +278,7 @@ func (s *ContentService) MoveFolder(ctx context.Context, req dto.MoveFolderReque
 		}
 	}
 
-	return s.repo.ExecTx(ctx, func(q *contentdb.Queries) error {
+	return s.repo.ExecTxTx(ctx, func(q *contentdb.Queries, tx pgx.Tx) error {
 		folder, err := q.GetFolderByID(ctx, fID)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrFolderNotFound
@@ -265,6 +286,10 @@ func (s *ContentService) MoveFolder(ctx context.Context, req dto.MoveFolderReque
 
 		if err != nil {
 			return fmt.Errorf("get folder: %w", err)
+		}
+
+		if uuidString(folder.WorkspaceID) != req.WorkspaceID {
+			return ErrFolderNotFound
 		}
 
 		if folder.IsDefault {
@@ -362,8 +387,9 @@ func (s *ContentService) MoveFolder(ctx context.Context, req dto.MoveFolderReque
 			}
 		}
 
-		return nil
-
+		return s.activity.RecordTx(ctx, tx, s.activityEntry(req.WorkspaceID, actor,
+			activityservice.ActionFolderMoved, activityservice.TargetFolder,
+			req.FolderID, folder.Name, map[string]any{"to_parent_id": req.ParentID}))
 	})
 }
 
@@ -445,10 +471,23 @@ func buildFolderTree(childrenOf map[string][]contentdb.Folder, parentKey, prefix
 	return nodes
 }
 
-func (s *ContentService) RenameFolder(ctx context.Context, req dto.RenameFolderRequest) (dto.FolderResponse, error) {
+func (s *ContentService) RenameFolder(ctx context.Context, req dto.RenameFolderRequest, actor Actor) (dto.FolderResponse, error) {
 	var fID pgtype.UUID
 	if err := fID.Scan(req.FolderID); err != nil {
 		return dto.FolderResponse{}, fmt.Errorf("folder id parse: %w", err)
+	}
+
+	prev, err := s.repo.GetFolderByID(ctx, fID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return dto.FolderResponse{}, ErrFolderNotFound
+	}
+
+	if err != nil {
+		return dto.FolderResponse{}, fmt.Errorf("get folder: %w", err)
+	}
+
+	if uuidString(prev.WorkspaceID) != req.WorkspaceID {
+		return dto.FolderResponse{}, ErrFolderNotFound
 	}
 
 	f, err := s.repo.RenameFolder(ctx, contentdb.RenameFolderParams{
@@ -467,6 +506,10 @@ func (s *ContentService) RenameFolder(ctx context.Context, req dto.RenameFolderR
 	if err != nil {
 		return dto.FolderResponse{}, fmt.Errorf("rename folder: %w", err)
 	}
+
+	s.activity.Record(ctx, s.activityEntry(req.WorkspaceID, actor,
+		activityservice.ActionFolderRenamed, activityservice.TargetFolder,
+		req.FolderID, f.Name, map[string]any{"from": prev.Name, "to": f.Name}))
 
 	return dto.FolderResponse{
 		ID:          uuidString(f.ID),
@@ -507,7 +550,7 @@ func (s *ContentService) DeleteFolder(ctx context.Context, folderID, workspaceID
 		return fmt.Errorf("user id parse: %w", err)
 	}
 
-	return s.repo.ExecTx(ctx, func(q *contentdb.Queries) error {
+	return s.repo.ExecTxTx(ctx, func(q *contentdb.Queries, tx pgx.Tx) error {
 		if err := q.SoftDeleteFolderSubtree(ctx, contentdb.SoftDeleteFolderSubtreeParams{
 			DeletedBy: uID,
 			FolderID:  fID,
@@ -522,7 +565,9 @@ func (s *ContentService) DeleteFolder(ctx context.Context, folderID, workspaceID
 			return fmt.Errorf("soft delete documents: %w", err)
 		}
 
-		return nil
+		return s.activity.RecordTx(ctx, tx, s.activityEntry(workspaceID, actor,
+			activityservice.ActionFolderDeleted, activityservice.TargetFolder,
+			folderID, folder.Name, nil))
 	})
 }
 
@@ -584,7 +629,7 @@ func (s *ContentService) ensureFolderTree(ctx context.Context, q *contentdb.Quer
 	return nil
 }
 
-func (s *ContentService) BulkCreateFolders(ctx context.Context, req dto.BulkCreateFolderRequest) (dto.BulkCreateFolderResponse, error) {
+func (s *ContentService) BulkCreateFolders(ctx context.Context, req dto.BulkCreateFolderRequest, actor Actor) (dto.BulkCreateFolderResponse, error) {
 	var wID, pID, cID pgtype.UUID
 
 	if err := wID.Scan(req.WorkspaceID); err != nil {
@@ -612,7 +657,7 @@ func (s *ContentService) BulkCreateFolders(ctx context.Context, req dto.BulkCrea
 
 	out := make([]dto.BulkFolderResult, 0, total)
 
-	err = s.repo.ExecTx(ctx, func(q *contentdb.Queries) error {
+	err = s.repo.ExecTxTx(ctx, func(q *contentdb.Queries, tx pgx.Tx) error {
 		if err := q.LockWorkspaceStructure(ctx, wID); err != nil {
 			return fmt.Errorf("lock workspace structure: %w", err)
 		}
@@ -632,7 +677,24 @@ func (s *ContentService) BulkCreateFolders(ctx context.Context, req dto.BulkCrea
 			}
 		}
 
-		return s.ensureFolderTree(ctx, q, wID, pID, cID, req.Folders, "", &out)
+		if err := s.ensureFolderTree(ctx, q, wID, pID, cID, req.Folders, "", &out); err != nil {
+			return err
+		}
+
+		created := 0
+		for _, f := range out {
+			if f.Created {
+				created++
+			}
+		}
+
+		if created == 0 {
+			return nil
+		}
+
+		return s.activity.RecordTx(ctx, tx, s.activityEntry(req.WorkspaceID, actor,
+			activityservice.ActionFolderCreated, activityservice.TargetFolder,
+			"", "", map[string]any{"bulk": true, "count": created}))
 	})
 
 	if err != nil {

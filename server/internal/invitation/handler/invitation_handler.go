@@ -51,7 +51,7 @@ func (h *InvitationHandler) AcceptInvitation(w http.ResponseWriter, r *http.Requ
 
 	invID := chi.URLParam(r, "invitationID")
 
-	if err := h.svc.AcceptInvitation(r.Context(), invID, claims.ID); err != nil {
+	if err := h.svc.AcceptInvitation(r.Context(), invID, service.Actor{UserID: claims.ID, Name: claims.Username, Email: claims.Email}); err != nil {
 		switch {
 		case errors.Is(err, service.ErrInvitationNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
@@ -78,7 +78,7 @@ func (h *InvitationHandler) RejectInvitation(w http.ResponseWriter, r *http.Requ
 
 	invID := chi.URLParam(r, "invitationID")
 
-	if err := h.svc.RejectInvitation(r.Context(), invID, claims.ID); err != nil {
+	if err := h.svc.RejectInvitation(r.Context(), invID, service.Actor{UserID: claims.ID, Name: claims.Username, Email: claims.Email}); err != nil {
 		switch {
 		case errors.Is(err, service.ErrInvitationNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
