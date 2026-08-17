@@ -11,62 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const getDocumentEngagement = `-- name: GetDocumentEngagement :many
-select 
-    page_no,
-    (count(*) filter (where event_type = 'view_page'))::bigint as raw_hits,
-    (count(distinct (actor_id, date_bin('5 minutes', created_at, timestamptz 'epoch')))
-        filter (where event_type = 'view_page')
-    )::bigint as opens,
-    (count(distinct actor_id) filter (where event_type = 'view_page'))::bigint as unique_viewers,
-    coalesce(sum(duration_ms) filter (where event_type = 'page_duration'), 0)::bigint as read_ms
-from content_events
-where workspace_id = $1
-    and document_id = $2
-    and page_no is not null
-group by page_no
-order by page_no
-`
-
-type GetDocumentEngagementParams struct {
-	WorkspaceID pgtype.UUID `json:"workspace_id"`
-	DocumentID  pgtype.UUID `json:"document_id"`
-}
-
-type GetDocumentEngagementRow struct {
-	PageNo        *int32 `json:"page_no"`
-	RawHits       int64  `json:"raw_hits"`
-	Opens         int64  `json:"opens"`
-	UniqueViewers int64  `json:"unique_viewers"`
-	ReadMs        int64  `json:"read_ms"`
-}
-
-func (q *Queries) GetDocumentEngagement(ctx context.Context, arg GetDocumentEngagementParams) ([]GetDocumentEngagementRow, error) {
-	rows, err := q.db.Query(ctx, getDocumentEngagement, arg.WorkspaceID, arg.DocumentID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetDocumentEngagementRow
-	for rows.Next() {
-		var i GetDocumentEngagementRow
-		if err := rows.Scan(
-			&i.PageNo,
-			&i.RawHits,
-			&i.Opens,
-			&i.UniqueViewers,
-			&i.ReadMs,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getDocumentForEvent = `-- name: GetDocumentForEvent :one
 select id, workspace_id, name from documents
 where id = $1 and deleted_at is null
@@ -209,6 +153,176 @@ func (q *Queries) ListActivityLogs(ctx context.Context, arg ListActivityLogsPara
 			&i.Metadata,
 			&i.CreatedAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDocumentReaders = `-- name: ListDocumentReaders :many
+select
+    ce.actor_id,
+    coalesce(u.username, '')::text as actor_name,
+    max(ce.actor_email)::text as actor_email,
+    (count(distinct date_bin('5 minutes', ce.created_at, timestamptz 'epoch'))
+        filter (where ce.event_type = 'view_page')
+    )::bigint as opens,
+    (count(distinct ce.page_no) filter (where ce.event_type = 'view_page'))::bigint as pages_seen,
+    coalesce(sum(ce.duration_ms) filter (where ce.event_type = 'page_duration'), 0)::bigint as read_ms,
+    max(ce.created_at)::timestamptz as last_read_at
+from content_events ce
+left join users u on u.id = ce.actor_id
+where ce.workspace_id = $1
+    and ce.document_id = $2
+group by ce.actor_id, u.username
+order by read_ms desc, last_read_at desc
+`
+
+type ListDocumentReadersParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	DocumentID  pgtype.UUID `json:"document_id"`
+}
+
+type ListDocumentReadersRow struct {
+	ActorID    pgtype.UUID        `json:"actor_id"`
+	ActorName  string             `json:"actor_name"`
+	ActorEmail string             `json:"actor_email"`
+	Opens      int64              `json:"opens"`
+	PagesSeen  int64              `json:"pages_seen"`
+	ReadMs     int64              `json:"read_ms"`
+	LastReadAt pgtype.Timestamptz `json:"last_read_at"`
+}
+
+func (q *Queries) ListDocumentReaders(ctx context.Context, arg ListDocumentReadersParams) ([]ListDocumentReadersRow, error) {
+	rows, err := q.db.Query(ctx, listDocumentReaders, arg.WorkspaceID, arg.DocumentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListDocumentReadersRow
+	for rows.Next() {
+		var i ListDocumentReadersRow
+		if err := rows.Scan(
+			&i.ActorID,
+			&i.ActorName,
+			&i.ActorEmail,
+			&i.Opens,
+			&i.PagesSeen,
+			&i.ReadMs,
+			&i.LastReadAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEngagementBreakdown = `-- name: ListEngagementBreakdown :many
+select
+    ce.actor_id,
+    coalesce(u.username, '')::text as actor_name,
+    max(ce.actor_email)::text as actor_email,
+    ce.page_no,
+    (count(distinct date_bin('5 minutes', ce.created_at, timestamptz 'epoch'))
+        filter (where ce.event_type = 'view_page')
+    )::bigint as opens,
+    coalesce(sum(ce.duration_ms) filter (where ce.event_type = 'page_duration'), 0)::bigint as read_ms
+from content_events ce
+left join users u on u.id = ce.actor_id
+where ce.workspace_id = $1
+    and ce.document_id = $2
+    and ce.page_no is not null
+group by ce.actor_id, u.username, ce.page_no
+order by actor_name, ce.actor_id, ce.page_no
+`
+
+type ListEngagementBreakdownParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	DocumentID  pgtype.UUID `json:"document_id"`
+}
+
+type ListEngagementBreakdownRow struct {
+	ActorID    pgtype.UUID `json:"actor_id"`
+	ActorName  string      `json:"actor_name"`
+	ActorEmail string      `json:"actor_email"`
+	PageNo     *int32      `json:"page_no"`
+	Opens      int64       `json:"opens"`
+	ReadMs     int64       `json:"read_ms"`
+}
+
+func (q *Queries) ListEngagementBreakdown(ctx context.Context, arg ListEngagementBreakdownParams) ([]ListEngagementBreakdownRow, error) {
+	rows, err := q.db.Query(ctx, listEngagementBreakdown, arg.WorkspaceID, arg.DocumentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListEngagementBreakdownRow
+	for rows.Next() {
+		var i ListEngagementBreakdownRow
+		if err := rows.Scan(
+			&i.ActorID,
+			&i.ActorName,
+			&i.ActorEmail,
+			&i.PageNo,
+			&i.Opens,
+			&i.ReadMs,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listReaderPages = `-- name: ListReaderPages :many
+select
+    page_no,
+    (count(distinct date_bin('5 minutes', created_at, timestamptz 'epoch'))
+        filter (where event_type = 'view_page')
+    )::bigint as opens,
+    coalesce(sum(duration_ms) filter (where event_type = 'page_duration'), 0)::bigint as read_ms
+from content_events
+where workspace_id = $1
+    and document_id = $2
+    and actor_id = $3
+    and page_no is not null
+group by page_no
+order by page_no
+`
+
+type ListReaderPagesParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	DocumentID  pgtype.UUID `json:"document_id"`
+	ActorID     pgtype.UUID `json:"actor_id"`
+}
+
+type ListReaderPagesRow struct {
+	PageNo *int32 `json:"page_no"`
+	Opens  int64  `json:"opens"`
+	ReadMs int64  `json:"read_ms"`
+}
+
+func (q *Queries) ListReaderPages(ctx context.Context, arg ListReaderPagesParams) ([]ListReaderPagesRow, error) {
+	rows, err := q.db.Query(ctx, listReaderPages, arg.WorkspaceID, arg.DocumentID, arg.ActorID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListReaderPagesRow
+	for rows.Next() {
+		var i ListReaderPagesRow
+		if err := rows.Scan(&i.PageNo, &i.Opens, &i.ReadMs); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

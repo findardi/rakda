@@ -3,7 +3,8 @@ import type {
 	ActivityFilters,
 	ActivityListData,
 	ActivityQuery,
-	DocumentEngagement,
+	DocumentReaders,
+	ReaderPages,
 	RecordDurationsPayload
 } from '$lib/types/activity';
 import { API_URL, get, post } from './client';
@@ -74,13 +75,25 @@ export function fetchEngagementExport(
 }
 
 // Owner/admin only upstream; a guest earns a 403 and never sees the control.
-export function getDocumentEngagement(
+export function getDocumentReaders(
 	token: string,
 	workspaceId: string,
 	documentId: string
-): Promise<ApiResult<DocumentEngagement>> {
-	return get<DocumentEngagement>(
+): Promise<ApiResult<DocumentReaders>> {
+	return get<DocumentReaders>(
 		`/activity/workspaces/${workspaceId}/documents/${documentId}/engagement`,
+		token
+	);
+}
+
+export function getReaderPages(
+	token: string,
+	workspaceId: string,
+	documentId: string,
+	actorId: string
+): Promise<ApiResult<ReaderPages>> {
+	return get<ReaderPages>(
+		`/activity/workspaces/${workspaceId}/documents/${documentId}/engagement/readers/${actorId}`,
 		token
 	);
 }

@@ -95,7 +95,8 @@ func (m *Module) RegisterRoutes(r chi.Router) {
 
 			r.Route("/documents/{documentID}", func(r chi.Router) {
 				r.Post("/duration", m.handler.RecordDurations)
-				r.Get("/engagement", m.handler.GetDocumentEngagement)
+				r.Get("/engagement", m.handler.GetDocumentReaders)
+				r.Get("/engagement/readers/{actorID}", m.handler.GetReaderPages)
 				r.Get("/engagement/export", m.handler.ExportDocumentEngagement)
 			})
 		})

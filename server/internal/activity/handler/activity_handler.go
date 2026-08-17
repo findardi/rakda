@@ -85,6 +85,12 @@ func (h *ActivityHandler) RecordDurations(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	ms, ok := middleware.MembershipFromContext(r.Context())
+	if !ok {
+		response.Error(w, http.StatusInternalServerError, "internal server error", nil)
+		return
+	}
+
 	var req dto.RecordDurationsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
@@ -99,7 +105,7 @@ func (h *ActivityHandler) RecordDurations(w http.ResponseWriter, r *http.Request
 	req.WorkspaceID = chi.URLParam(r, "workspaceID")
 	req.DocumentID = chi.URLParam(r, "documentID")
 
-	if err := h.svc.RecordPageDurations(r.Context(), req, claims.ID, claims.Email); err != nil {
+	if err := h.svc.RecordPageDurations(r.Context(), req, claims.ID, claims.Email, ms.Role); err != nil {
 		switch {
 		case errors.Is(err, service.ErrDocumentNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
@@ -115,7 +121,7 @@ func (h *ActivityHandler) RecordDurations(w http.ResponseWriter, r *http.Request
 	response.Success(w, http.StatusOK, "record durations success", nil)
 }
 
-func (h *ActivityHandler) GetDocumentEngagement(w http.ResponseWriter, r *http.Request) {
+func (h *ActivityHandler) GetDocumentReaders(w http.ResponseWriter, r *http.Request) {
 	wID := chi.URLParam(r, "workspaceID")
 	dID := chi.URLParam(r, "documentID")
 
@@ -125,21 +131,47 @@ func (h *ActivityHandler) GetDocumentEngagement(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	res, err := h.svc.GetDocumentEngagement(r.Context(), wID, dID, ms.Role)
+	res, err := h.svc.GetDocumentReaders(r.Context(), wID, dID, ms.Role)
 	if err != nil {
-		switch {
-		case errors.Is(err, service.ErrActivityForbidden):
-			response.Error(w, http.StatusForbidden, err.Error(), nil)
-		case errors.Is(err, service.ErrDocumentNotFound):
-			response.Error(w, http.StatusNotFound, err.Error(), nil)
-		default:
-			log.Printf("get engagement internal error: %v", err)
-			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
-		}
+		h.engagementError(w, err, "get document readers")
 		return
 	}
 
-	response.Success(w, http.StatusOK, "get engagement success", res)
+	response.Success(w, http.StatusOK, "get document readers success", res)
+}
+
+func (h *ActivityHandler) GetReaderPages(w http.ResponseWriter, r *http.Request) {
+	wID := chi.URLParam(r, "workspaceID")
+	dID := chi.URLParam(r, "documentID")
+	aID := chi.URLParam(r, "actorID")
+
+	ms, ok := middleware.MembershipFromContext(r.Context())
+	if !ok {
+		response.Error(w, http.StatusInternalServerError, "internal server error", nil)
+		return
+	}
+
+	res, err := h.svc.GetReaderPages(r.Context(), wID, dID, aID, ms.Role)
+	if err != nil {
+		h.engagementError(w, err, "get reader pages")
+		return
+	}
+
+	response.Success(w, http.StatusOK, "get reader pages success", res)
+}
+
+func (h *ActivityHandler) engagementError(w http.ResponseWriter, err error, op string) {
+	switch {
+	case errors.Is(err, service.ErrActivityForbidden):
+		response.Error(w, http.StatusForbidden, err.Error(), nil)
+	case errors.Is(err, service.ErrDocumentNotFound):
+		response.Error(w, http.StatusNotFound, err.Error(), nil)
+	case errors.Is(err, service.ErrInvalidFilter):
+		response.Error(w, http.StatusBadRequest, err.Error(), nil)
+	default:
+		log.Printf("%s internal error: %v", op, err)
+		response.Error(w, http.StatusInternalServerError, "internal server error", nil)
+	}
 }
 
 func (h *ActivityHandler) ExportActivity(w http.ResponseWriter, r *http.Request) {
@@ -239,36 +271,29 @@ func (h *ActivityHandler) ExportDocumentEngagement(w http.ResponseWriter, r *htt
 		return
 	}
 
-	res, err := h.svc.GetDocumentEngagement(r.Context(), wID, dID, ms.Role)
+	data, err := h.svc.GetEngagementBreakdown(r.Context(), wID, dID, ms.Role)
 	if err != nil {
-		switch {
-		case errors.Is(err, service.ErrActivityForbidden):
-			response.Error(w, http.StatusForbidden, err.Error(), nil)
-		case errors.Is(err, service.ErrDocumentNotFound):
-			response.Error(w, http.StatusNotFound, err.Error(), nil)
-		default:
-			log.Printf("export engagement internal error: %v", err)
-			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
-		}
+		h.engagementError(w, err, "export engagement")
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
-	w.Header().Set("Content-Disposition", `attachment; filename="`+exportFilename("engagement", res.DocumentName)+`"`)
+	w.Header().Set("Content-Disposition", `attachment; filename="`+exportFilename("engagement", data.DocumentName)+`"`)
 	if _, err := w.Write([]byte("\xEF\xBB\xBF")); err != nil {
 		return
 	}
 
 	cw := csv.NewWriter(w)
-	cw.Write([]string{"page_no", "opens", "raw_hits", "unique_viewers", "read_ms"})
+	cw.Write([]string{"actor_id", "actor_name", "actor_email", "page_no", "opens", "read_ms"})
 
-	for _, p := range res.Pages {
+	for _, row := range data.Rows {
 		cw.Write([]string{
-			strconv.FormatInt(int64(p.PageNo), 10),
-			strconv.FormatInt(p.Opens, 10),
-			strconv.FormatInt(p.RawHits, 10),
-			strconv.FormatInt(p.UniqueViewers, 10),
-			strconv.FormatInt(p.ReadMs, 10),
+			row.ActorID,
+			row.ActorName,
+			row.ActorEmail,
+			strconv.FormatInt(int64(row.PageNo), 10),
+			strconv.FormatInt(row.Opens, 10),
+			strconv.FormatInt(row.ReadMs, 10),
 		})
 	}
 

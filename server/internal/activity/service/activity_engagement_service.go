@@ -9,13 +9,28 @@ import (
 	activitydb "github.com/findardi/Riksa-App/server/internal/activity/repository/sqlc"
 	"github.com/findardi/Riksa-App/server/internal/platform/permission"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const maxPageDurationMs = 3_600_000
 
 var ErrDocumentNotFound = errors.New("document not found")
 
-func (s *ActivityService) RecordPageDurations(ctx context.Context, req dto.RecordDurationsRequest, actorID, actorEmail string) error {
+type engagementScope struct {
+	doc         activitydb.GetDocumentForEventRow
+	workspaceID pgtype.UUID
+	documentID  pgtype.UUID
+}
+
+func isRoomManager(role string) bool {
+	return role == permission.RoleOwner || role == permission.RoleAdmin
+}
+
+func (s *ActivityService) RecordPageDurations(ctx context.Context, req dto.RecordDurationsRequest, actorID, actorEmail, actorRole string) error {
+	if isRoomManager(actorRole) {
+		return nil
+	}
+
 	docID, err := pgUUID(req.DocumentID)
 	if err != nil {
 		return ErrDocumentNotFound
@@ -71,46 +86,99 @@ func (s *ActivityService) RecordPageDurations(ctx context.Context, req dto.Recor
 	return nil
 }
 
-func (s *ActivityService) GetDocumentEngagement(ctx context.Context, workspaceID, documentID, actorRole string) (dto.DocumentEngagementResponse, error) {
-	if actorRole != permission.RoleOwner && actorRole != permission.RoleAdmin {
-		return dto.DocumentEngagementResponse{}, ErrActivityForbidden
+func (s *ActivityService) resolveEngagementScope(ctx context.Context, workspaceID, documentID, actorRole string) (engagementScope, error) {
+	if !isRoomManager(actorRole) {
+		return engagementScope{}, ErrActivityForbidden
 	}
 
 	docID, err := pgUUID(documentID)
 	if err != nil {
-		return dto.DocumentEngagementResponse{}, ErrDocumentNotFound
+		return engagementScope{}, ErrDocumentNotFound
 	}
 
 	doc, err := s.repo.GetDocumentForEvent(ctx, docID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return dto.DocumentEngagementResponse{}, ErrDocumentNotFound
+		return engagementScope{}, ErrDocumentNotFound
 	}
 
 	if err != nil {
-		return dto.DocumentEngagementResponse{}, fmt.Errorf("get document: %w", err)
+		return engagementScope{}, fmt.Errorf("get document: %w", err)
 	}
 
 	if uuidString(doc.WorkspaceID) != workspaceID {
-		return dto.DocumentEngagementResponse{}, ErrDocumentNotFound
+		return engagementScope{}, ErrDocumentNotFound
 	}
 
 	wID, err := pgUUID(workspaceID)
 	if err != nil {
-		return dto.DocumentEngagementResponse{}, fmt.Errorf("workspace id: %w", err)
+		return engagementScope{}, fmt.Errorf("workspace id: %w", err)
 	}
 
-	rows, err := s.repo.GetDocumentEngagement(ctx, activitydb.GetDocumentEngagementParams{
-		WorkspaceID: wID,
-		DocumentID:  docID,
+	return engagementScope{doc: doc, workspaceID: wID, documentID: docID}, nil
+}
+
+func (s *ActivityService) GetDocumentReaders(ctx context.Context, workspaceID, documentID, actorRole string) (dto.DocumentReadersResponse, error) {
+	scope, err := s.resolveEngagementScope(ctx, workspaceID, documentID, actorRole)
+	if err != nil {
+		return dto.DocumentReadersResponse{}, err
+	}
+
+	rows, err := s.repo.ListDocumentReaders(ctx, activitydb.ListDocumentReadersParams{
+		WorkspaceID: scope.workspaceID,
+		DocumentID:  scope.documentID,
 	})
 	if err != nil {
-		return dto.DocumentEngagementResponse{}, fmt.Errorf("get engagement: %w", err)
+		return dto.DocumentReadersResponse{}, fmt.Errorf("list readers: %w", err)
 	}
 
-	res := dto.DocumentEngagementResponse{
+	res := dto.DocumentReadersResponse{
 		DocumentID:   documentID,
-		DocumentName: doc.Name,
-		Pages:        make([]dto.PageEngagement, 0, len(rows)),
+		DocumentName: scope.doc.Name,
+		Readers:      make([]dto.ReaderEngagement, 0, len(rows)),
+	}
+
+	for _, r := range rows {
+		res.Readers = append(res.Readers, dto.ReaderEngagement{
+			ActorID:    uuidString(r.ActorID),
+			ActorName:  r.ActorName,
+			ActorEmail: r.ActorEmail,
+			Opens:      r.Opens,
+			PagesSeen:  r.PagesSeen,
+			ReadMs:     r.ReadMs,
+			LastReadAt: r.LastReadAt.Time,
+		})
+
+		res.TotalReadMs += r.ReadMs
+	}
+
+	return res, nil
+}
+
+func (s *ActivityService) GetReaderPages(ctx context.Context, workspaceID, documentID, readerID, actorRole string) (dto.ReaderDetailResponse, error) {
+	scope, err := s.resolveEngagementScope(ctx, workspaceID, documentID, actorRole)
+	if err != nil {
+		return dto.ReaderDetailResponse{}, err
+	}
+
+	actorID, err := pgUUID(readerID)
+	if err != nil || !actorID.Valid {
+		return dto.ReaderDetailResponse{}, ErrInvalidFilter
+	}
+
+	rows, err := s.repo.ListReaderPages(ctx, activitydb.ListReaderPagesParams{
+		WorkspaceID: scope.workspaceID,
+		DocumentID:  scope.documentID,
+		ActorID:     actorID,
+	})
+	if err != nil {
+		return dto.ReaderDetailResponse{}, fmt.Errorf("list reader pages: %w", err)
+	}
+
+	res := dto.ReaderDetailResponse{
+		DocumentID:   documentID,
+		DocumentName: scope.doc.Name,
+		ActorID:      readerID,
+		Pages:        make([]dto.ReaderPageEngagement, 0, len(rows)),
 	}
 
 	for _, r := range rows {
@@ -119,17 +187,52 @@ func (s *ActivityService) GetDocumentEngagement(ctx context.Context, workspaceID
 			pageNo = *r.PageNo
 		}
 
-		res.Pages = append(res.Pages, dto.PageEngagement{
-			PageNo:        pageNo,
-			Opens:         r.Opens,
-			RawHits:       r.RawHits,
-			UniqueViewers: r.UniqueViewers,
-			ReadMs:        r.ReadMs,
+		res.Pages = append(res.Pages, dto.ReaderPageEngagement{
+			PageNo: pageNo,
+			Opens:  r.Opens,
+			ReadMs: r.ReadMs,
 		})
 
-		res.TotalOpens += r.Opens
 		res.TotalReadMs += r.ReadMs
 	}
 
 	return res, nil
+}
+
+func (s *ActivityService) GetEngagementBreakdown(ctx context.Context, workspaceID, documentID, actorRole string) (dto.EngagementBreakdown, error) {
+	scope, err := s.resolveEngagementScope(ctx, workspaceID, documentID, actorRole)
+	if err != nil {
+		return dto.EngagementBreakdown{}, err
+	}
+
+	rows, err := s.repo.ListEngagementBreakdown(ctx, activitydb.ListEngagementBreakdownParams{
+		WorkspaceID: scope.workspaceID,
+		DocumentID:  scope.documentID,
+	})
+	if err != nil {
+		return dto.EngagementBreakdown{}, fmt.Errorf("list engagement breakdown: %w", err)
+	}
+
+	out := dto.EngagementBreakdown{
+		DocumentName: scope.doc.Name,
+		Rows:         make([]dto.EngagementBreakdownRow, 0, len(rows)),
+	}
+
+	for _, r := range rows {
+		var pageNo int32
+		if r.PageNo != nil {
+			pageNo = *r.PageNo
+		}
+
+		out.Rows = append(out.Rows, dto.EngagementBreakdownRow{
+			ActorID:    uuidString(r.ActorID),
+			ActorName:  r.ActorName,
+			ActorEmail: r.ActorEmail,
+			PageNo:     pageNo,
+			Opens:      r.Opens,
+			ReadMs:     r.ReadMs,
+		})
+	}
+
+	return out, nil
 }
