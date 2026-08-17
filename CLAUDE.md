@@ -66,7 +66,7 @@ Prerequisites: `configs/.env` (gitignored, `include`d by the Makefile as shell v
 - **Platform layer** `internal/platform/`: config, database, middleware (JWT auth + workspace membership/permission guards), oauth (Google/GitHub), otp, storage (Minio incl. multipart), token, ratelimit, watermark, convert (Gotenberg → PDF), render (Poppler PDF → PNG), response, validation, sender (mail), permission, cache, logger.
 - **Secure viewer pipeline**: non-PDF uploads convert via Gotenberg to PDF, pages render via Poppler to PNG renditions, watermark burned per request. Lazy — no job queue.
 - **Cross-domain transactions**: repositories expose `ExecTx`/`ExecTxTx` so one pgx transaction can span domains (e.g. invitation acceptance feeds an `InvitationConsumer` implemented in `access`).
-- **Audit & activity** (`activity` domain): every meaningful action writes one row to `activity_logs` — same-tx via `RecordTx(tx)` when the action already runs in `ExecTxTx`, best-effort `Record` otherwise; consumers declare an `ActivityRecorder` port in their `ports.go`. Page views (`view_page`, server-emitted) and read durations (`page_duration`, browser-beacon) go to `content_events` — append-only, `document_id` deliberately has no FK, names/actors are snapshotted at write time. Timeline and engagement endpoints are owner/admin only (guests are recorded, never readers).
+- **Audit & activity** (`activity` domain): every meaningful action writes one row to `activity_logs` — same-tx via `RecordTx(tx)` when the action already runs in `ExecTxTx`, best-effort `Record` otherwise; consumers declare an `ActivityRecorder` port in their `ports.go`. Page views (`view_page`, server-emitted) and read durations (`page_duration`, browser-beacon) go to `content_events` — append-only, `document_id` deliberately has no FK, names/actors are snapshotted at write time. **Room managers produce no `content_events` at all**: owner/admin are filtered on the *write* side (`content_view_service.go` skips `RecordPageEvent`, `RecordPageDurations` no-ops, the client builds no dwell tracker), so a guest later promoted to admin keeps their reading history — `activity_logs` still records `document_viewed` for every role. Timeline and engagement endpoints are owner/admin only (guests are recorded, never readers). Engagement is **per reader, two levels** — L1 reader list, L2 that reader's pages; there is no cross-reader page heatmap.
 - **Migrations**: goose, sequential numbering (`-s`), in `server/migrations/`.
 
 ## Web architecture
@@ -84,7 +84,7 @@ Prerequisites: `configs/.env` (gitignored, `include`d by the Makefile as shell v
 - Guests belong to exactly one group; folder permissions are boolean flags on `folder_access` per group, resolved by walking up the folder tree.
 - Root level holds folders only; a default non-deletable `General` folder (`is_default`) catches root-level drops.
 - Documents are versioned; `current` version is a pointer (restore = pointer flip, `current` ≠ max version_no).
-- Audit trail is two separate tables, never merged: `activity_logs` (one row per action, chronological timeline) vs `content_events` (per-page, high volume, aggregation only). Both are append-only — never UPDATE audit rows. Visible to owner/admin only; guests never see any activity, including their own.
+- Audit trail is two separate tables, never merged: `activity_logs` (one row per action, chronological timeline) vs `content_events` (per-page, high volume, aggregation only). Both are append-only — never UPDATE audit rows. Visible to owner/admin only; guests never see any activity, including their own. Owner/admin generate no `content_events` (filtered at write time); `activity_logs` covers every role.
 
 ## UI design constraints (must follow)
 
@@ -114,9 +114,9 @@ and `brainstorm-folder/` holds files for the active phase only.
 ```
 brainstorm-folder/
   current-phase.md          # permanent. index + history. never deleted.
-  phase-7-description.md    # scope of the active phase
-  phase-7-a.md              # step notes, in order
-  phase-7-b.md
+  phase-8-description.md    # scope of the active phase
+  phase-8-a.md              # step notes, in order
+  phase-8-b.md
 ```
 
 Flat — no subfolders, no files for past or future phases. Create the folder if
@@ -130,23 +130,23 @@ to as steps close; the Completed phases section is written at every transition.
 ```
 # Current phase
 
-- Active: phase 7 — <name>
+- Active: phase 8 — <name>
 - Started: YYYY-MM-DD
 - Status: in progress | blocked | complete
 
 ## Steps
-- [x] 7-a — <title> — <one-line outcome>
-- [ ] 7-b — <title>
-- [ ] 7-c — <title>
+- [x] 8-a — <title> — <one-line outcome>
+- [ ] 8-b — <title>
+- [ ] 8-c — <title>
 
 ## Decisions carried forward
 Decisions from the active phase that outlive it. One line each, with the
 affected path.
 
 ## Completed phases
-### Phase 6 — <name> (YYYY-MM-DD → YYYY-MM-DD)
+### Phase 7 — <name> (YYYY-MM-DD → YYYY-MM-DD)
 What shipped, what was decided, what was deliberately deferred, what is
-still owed. Written at closing time — once the phase-6 files are deleted
+still owed. Written at closing time — once the phase-7 files are deleted
 this paragraph is all that survives of them.
 ```
 
@@ -171,7 +171,7 @@ What is deliberately not in this phase.
 To be resolved during the phase.
 ```
 
-Steps are planned upfront but not frozen. Adding `7-d` mid-phase is fine —
+Steps are planned upfront but not frozen. Adding `8-d` mid-phase is fine —
 record it in both this file and `current-phase.md`.
 
 ### `phase-N-x.md`

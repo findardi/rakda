@@ -68,7 +68,7 @@ go test ./...                  # Run all tests
 - Each module follows: `handler/` → `service/` → `repository/` (sqlc-generated queries).
 - Shared platform layer at `internal/platform/`: config, database, middleware, oauth, otp, storage, token, etc.
 - 6 separate sqlc packages in `sqlc.yaml` — one per domain (authdb, workspacedb, accessdb, invitationdb, contentdb, activitydb).
-- Audit (`activity` domain): actions → `activity_logs` (same-tx `RecordTx` inside `ExecTxTx`, else best-effort `Record`; consumers declare an `ActivityRecorder` port); page views/read durations → `content_events` (append-only, no FK to documents, snapshotted names/actors). Two tables, never merged, never UPDATEd. Timeline/engagement endpoints are owner/admin only — guests are recorded, never readers.
+- Audit (`activity` domain): actions → `activity_logs` (same-tx `RecordTx` inside `ExecTxTx`, else best-effort `Record`; consumers declare an `ActivityRecorder` port); page views/read durations → `content_events` (append-only, no FK to documents, snapshotted names/actors). Two tables, never merged, never UPDATEd. Owner/admin produce **no** `content_events` — filtered on the write side (`content_view_service.go` skips `RecordPageEvent`, `RecordPageDurations` no-ops, client builds no dwell tracker) so a promoted guest keeps their history; `activity_logs` still covers every role. Timeline/engagement endpoints are owner/admin only — guests are recorded, never readers. Engagement is per-reader, two levels (L1 readers → L2 that reader's pages); no cross-reader page heatmap.
 - **After changing SQL queries** in any `repository/query/` directory, run `make sqlc` to regenerate.
 
 ### Tests
@@ -102,9 +102,9 @@ and `brainstorm-folder/` holds files for the active phase only.
 ```
 brainstorm-folder/
   current-phase.md          # permanent. index + history. never deleted.
-  phase-7-description.md    # scope of the active phase
-  phase-7-a.md              # step notes, in order
-  phase-7-b.md
+  phase-8-description.md    # scope of the active phase
+  phase-8-a.md              # step notes, in order
+  phase-8-b.md
 ```
 
 Flat — no subfolders, no files for past or future phases. Create the folder if
@@ -118,23 +118,23 @@ to as steps close; the Completed phases section is written at every transition.
 ```
 # Current phase
 
-- Active: phase 7 — <name>
+- Active: phase 8 — <name>
 - Started: YYYY-MM-DD
 - Status: in progress | blocked | complete
 
 ## Steps
-- [x] 7-a — <title> — <one-line outcome>
-- [ ] 7-b — <title>
-- [ ] 7-c — <title>
+- [x] 8-a — <title> — <one-line outcome>
+- [ ] 8-b — <title>
+- [ ] 8-c — <title>
 
 ## Decisions carried forward
 Decisions from the active phase that outlive it. One line each, with the
 affected path.
 
 ## Completed phases
-### Phase 6 — <name> (YYYY-MM-DD → YYYY-MM-DD)
+### Phase 7 — <name> (YYYY-MM-DD → YYYY-MM-DD)
 What shipped, what was decided, what was deliberately deferred, what is
-still owed. Written at closing time — once the phase-6 files are deleted
+still owed. Written at closing time — once the phase-7 files are deleted
 this paragraph is all that survives of them.
 ```
 
@@ -159,7 +159,7 @@ What is deliberately not in this phase.
 To be resolved during the phase.
 ```
 
-Steps are planned upfront but not frozen. Adding `7-d` mid-phase is fine —
+Steps are planned upfront but not frozen. Adding `8-d` mid-phase is fine —
 record it in both this file and `current-phase.md`.
 
 ### `phase-N-x.md`
