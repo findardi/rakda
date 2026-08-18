@@ -133,7 +133,7 @@
 									>
 										{t('doc.upload.repick')}
 									</button>
-								{:else if item.status === 'error'}
+								{:else if item.status === 'error' && !item.terminal}
 									<button
 										type="button"
 										onclick={() => uploadQueue.retry(item.id)}

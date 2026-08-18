@@ -87,6 +87,10 @@
 		if (key === 'can_download_original' && value) {
 			next.can_download = true;
 			next.can_view = true;
+			next.can_watermark = false;
+		}
+		if (key === 'can_watermark' && value) {
+			next.can_download_original = false;
 		}
 		return next;
 	}
@@ -384,6 +388,7 @@
 			</div>
 		</div>
 	</div>
+	<p class="mt-2 text-[0.6875rem] text-muted">{t('facc.cap.exclusive')}</p>
 {/snippet}
 
 {#snippet wmMark()}

@@ -67,22 +67,10 @@
 
 	let downloadingId = $state<string | null>(null);
 
-	async function download(v: VersionData): Promise<void> {
+	function download(v: VersionData): void {
 		downloadingId = v.id;
-		try {
-			const q = new URLSearchParams({ workspaceId, documentId, version: v.id });
-			const res = await fetch(`/api/content/download?${q}`);
-			if (!res.ok) {
-				showToast(await messageOf(res), 'error');
-				return;
-			}
-			const { download_url } = (await res.json()) as { download_url: string };
-			window.location.href = download_url;
-		} catch {
-			showToast(t('err.network'), 'error');
-		} finally {
-			downloadingId = null;
-		}
+		const q = new URLSearchParams({ workspaceId, documentId, version: v.id });
+		window.location.href = `/api/content/download?${q}`;
 	}
 
 	// --- restore -----------------------------------------------------------

@@ -30,10 +30,16 @@ export const load: PageServerLoad = async ({ locals, params, parent, url }) => {
 		// Guest whose group has no view access on this folder — or a guest who
 		// hand-edited `?version=` to a version that is not the current one.
 		if (res.status === 403)
-			return { meta: null, versions: [], forbidden: true, notViewable: false };
-		// Download-only formats (spreadsheets, video, archives) have no rendition.
-		if (res.status === 422)
-			return { meta: null, versions: [], forbidden: false, notViewable: true };
+			return { meta: null, versions: [], forbidden: true, notViewable: false, failed: false };
+		// 422 covers two honest states: an unsupported file type (notViewable)
+		// and a file whose content could not be converted (failed, retryable by
+		// owner). The server tells them apart by its sentinel message — brittle
+		// but the only signal carried by the shared status code.
+		if (res.status === 422) {
+			const failed = res.message?.includes('could not be prepared') ?? false;
+			const versions: VersionData[] = verRes?.ok ? (verRes.data ?? []) : [];
+			return { meta: null, versions, forbidden: false, notViewable: !failed, failed };
+		}
 		if (res.status === 404) error(404, t('doc.view.err.notFound'));
 		error(res.status || 500, t('doc.view.err.load'));
 	}
@@ -42,5 +48,5 @@ export const load: PageServerLoad = async ({ locals, params, parent, url }) => {
 	// still opens, just without the switcher.
 	const versions: VersionData[] = verRes?.ok ? (verRes.data ?? []) : [];
 
-	return { meta: res.data, versions, forbidden: false, notViewable: false };
+	return { meta: res.data, versions, forbidden: false, notViewable: false, failed: false };
 };

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 
 	activityservice "github.com/findardi/Riksa-App/server/internal/activity/service"
 	"github.com/findardi/Riksa-App/server/internal/content/dto"
@@ -21,11 +22,13 @@ type Viewer struct {
 	Converter convert.Converter
 	Renderer  render.Render
 	Watermark watermark.Watermarker
+	PDFStamp  watermark.PDFStamper
 	DPI       int
 }
 
 type viewAccess struct {
 	canView             bool
+	canDownload         bool
 	canDownloadOriginal bool
 	canWatermark        bool
 }
@@ -46,6 +49,7 @@ func (s *ContentService) resolveViewAccess(ctx context.Context, workspaceID, fol
 	if actor.bypassesContentAccess() {
 		return viewAccess{
 			canView:             true,
+			canDownload:         true,
 			canDownloadOriginal: true,
 			canWatermark:        false,
 		}, nil
@@ -58,6 +62,7 @@ func (s *ContentService) resolveViewAccess(ctx context.Context, workspaceID, fol
 
 	return viewAccess{
 		canView:             row.CanView,
+		canDownload:         row.CanDownload,
 		canDownloadOriginal: row.CanDownloadOriginal,
 		canWatermark:        row.CanWatermark,
 	}, nil
@@ -125,7 +130,15 @@ func (s *ContentService) getDocumentScoped(ctx context.Context, workspaceID, doc
 }
 
 func (s *ContentService) ensureRendition(ctx context.Context, workspaceID string, doc contentdb.Document, version contentdb.DocumentVersion) (string, int, error) {
+	if version.RenditionFailedAt.Valid {
+		return "", 0, ErrRenditionFailed
+	}
+
 	if version.RenditionKey != nil && version.PageCount != nil {
+		if int(*version.PageCount) > maxRenditionPages {
+			return "", 0, fmt.Errorf("%w: %d, max %d", ErrTooManyPages, *version.PageCount, maxRenditionPages)
+		}
+
 		return *version.RenditionKey, int(*version.PageCount), nil
 	}
 
@@ -147,7 +160,7 @@ func (s *ContentService) ensureRendition(ctx context.Context, workspaceID string
 
 		pageCount, err = s.viewer.Renderer.PageCount(ctx, pdf)
 		if err != nil {
-			return "", 0, fmt.Errorf("page count: %w", err)
+			return "", 0, s.markRenditionFailed(ctx, version.ID, err)
 		}
 	} else {
 		renditionKey = renditionPDFKey(workspaceID, versionID)
@@ -164,7 +177,7 @@ func (s *ContentService) ensureRendition(ctx context.Context, workspaceID string
 				return "", 0, ErrNotViewable
 			}
 
-			return "", 0, fmt.Errorf("convert to pdf: %w", err)
+			return "", 0, s.markRenditionFailed(ctx, version.ID, err)
 		}
 		defer pdf.Close()
 
@@ -179,7 +192,7 @@ func (s *ContentService) ensureRendition(ctx context.Context, workspaceID string
 
 		pageCount, err = s.viewer.Renderer.PageCount(ctx, bytes.NewReader(buf))
 		if err != nil {
-			return "", 0, fmt.Errorf("page count: %w", err)
+			return "", 0, s.markRenditionFailed(ctx, version.ID, err)
 		}
 	}
 
@@ -192,7 +205,23 @@ func (s *ContentService) ensureRendition(ctx context.Context, workspaceID string
 		return "", 0, fmt.Errorf("set rendition: %w", err)
 	}
 
+	if pageCount > maxRenditionPages {
+		return "", 0, fmt.Errorf("%w: %d, max %d", ErrTooManyPages, pageCount, maxRenditionPages)
+	}
+
 	return renditionKey, pageCount, nil
+}
+
+func (s *ContentService) markRenditionFailed(ctx context.Context, versionID pgtype.UUID, cause error) error {
+	msg := cause.Error()
+	if err := s.repo.SetVersionRenditionFailure(ctx, contentdb.SetVersionRenditionFailureParams{
+		RenditionError: &msg,
+		ID:             versionID,
+	}); err != nil {
+		log.Printf("record rendition failure: %v", err)
+	}
+
+	return ErrRenditionFailed
 }
 
 func (s *ContentService) GetViewMeta(ctx context.Context, workspaceID, documentID, versionID string, actor Actor) (dto.ViewMetaResponse, error) {
@@ -234,6 +263,7 @@ func (s *ContentService) GetViewMeta(ctx context.Context, workspaceID, documentI
 		VersionID:           uuidString(version.ID),
 		VersionNo:           version.VersionNo,
 		PageCount:           pageCount,
+		CanDownload:         access.canDownload,
 		CanDownloadOriginal: access.canDownloadOriginal,
 	}, nil
 }

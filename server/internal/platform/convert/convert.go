@@ -19,6 +19,7 @@ type Converter interface {
 
 var convertible = map[string]struct{}{
 	".doc": {}, ".docx": {}, ".odt": {}, ".rtf": {}, ".txt": {},
+	".xls": {}, ".xlsx": {}, ".xlsm": {}, ".ods": {}, ".csv": {},
 	".ppt": {}, ".pptx": {}, ".odp": {},
 	".jpg": {}, ".jpeg": {}, ".png": {}, ".gif": {},
 	".bmp": {}, ".tif": {}, ".tiff": {}, ".svg": {},

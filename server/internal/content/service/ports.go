@@ -34,6 +34,8 @@ type ContentRepository interface {
 	GetVersionByID(ctx context.Context, id pgtype.UUID) (contentdb.DocumentVersion, error)
 	GetCurrentVersion(ctx context.Context, id pgtype.UUID) (contentdb.DocumentVersion, error)
 	SetVersionRendition(ctx context.Context, arg contentdb.SetVersionRenditionParams) error
+	SetVersionRenditionFailure(ctx context.Context, arg contentdb.SetVersionRenditionFailureParams) error
+	ClearVersionRenditionFailure(ctx context.Context, id pgtype.UUID) error
 	MoveDocument(ctx context.Context, arg contentdb.MoveDocumentParams) error
 
 	ListFolderAccess(ctx context.Context, arg contentdb.ListFolderAccessParams) ([]contentdb.ListFolderAccessRow, error)

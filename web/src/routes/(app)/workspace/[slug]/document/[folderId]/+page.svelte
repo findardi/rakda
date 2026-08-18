@@ -54,26 +54,10 @@
 
 	let downloadingId = $state<string | null>(null);
 
-	async function download(doc: DocumentData) {
+	function download(doc: DocumentData) {
 		downloadingId = doc.id;
-		try {
-			const q = new URLSearchParams({ workspaceId: workspace.id, documentId: doc.id });
-			const res = await fetch(`/api/content/download?${q}`);
-			if (res.status === 403) {
-				showToast(t('doc.docs.err.forbiddenDownload'), 'error');
-				return;
-			}
-			if (!res.ok) {
-				showToast(t('err.generic'), 'error');
-				return;
-			}
-			const { download_url } = (await res.json()) as { download_url: string };
-			window.location.href = download_url;
-		} catch {
-			showToast(t('err.network'), 'error');
-		} finally {
-			downloadingId = null;
-		}
+		const q = new URLSearchParams({ workspaceId: workspace.id, documentId: doc.id });
+		window.location.href = `/api/content/download?${q}`;
 	}
 	const canDelete = $derived(perms.includes('document:delete'));
 	const canEditDoc = $derived(perms.includes('document:edit'));

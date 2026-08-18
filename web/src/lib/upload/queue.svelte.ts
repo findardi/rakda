@@ -29,6 +29,10 @@ export interface UploadItem {
 	progress: number;
 	status: UploadStatus;
 	message: string | null;
+	// A rejection that no retry can ever fix (client-side gate, or a 415/413
+	// from the server): the queue refuses to re-run it and the panel hides the
+	// retry button for it.
+	terminal: boolean;
 	workspaceId: string;
 	folderId: string;
 	folderName: string;
@@ -39,6 +43,25 @@ export interface UploadItem {
 // Files at or above this go through multipart. The threshold is the client's
 // call — the server does not enforce it — but part size is dictated by `init`.
 const MULTIPART_THRESHOLD = 16 * 1024 * 1024;
+
+// Cermin dari `convertible` di server/internal/platform/convert/convert.go.
+// Server tetap otoritas; ini hanya supaya penolakan terjadi sebelum byte bergerak.
+const UPLOADABLE_EXT = new Set([
+	'pdf',
+	'doc', 'docx', 'odt', 'rtf', 'txt',
+	'xls', 'xlsx', 'xlsm', 'ods', 'csv',
+	'ppt', 'pptx', 'odp',
+	'jpg', 'jpeg', 'png', 'gif', 'bmp', 'tif', 'tiff', 'svg'
+]);
+const MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
+
+function rejectReason(file: File): string | null {
+	const dot = file.name.lastIndexOf('.');
+	const ext = dot > 0 ? file.name.slice(dot + 1).toLowerCase() : '';
+	if (!UPLOADABLE_EXT.has(ext)) return t('upload.err.type', { ext: ext || '—' });
+	if (file.size > MAX_UPLOAD_BYTES) return t('upload.err.tooLarge');
+	return null;
+}
 const MAX_CONCURRENT = 3;
 // Parts in flight within a single file. Three keeps a fat pipe busy without
 // making one upload starve the other two files.
@@ -119,6 +142,7 @@ function restore(): void {
 			...s,
 			progress: 0,
 			status: 'stalled' as const,
+			terminal: false,
 			message: s.resume || s.storageKey ? t('doc.upload.status.stalled') : null
 		}));
 	} catch {
@@ -139,13 +163,22 @@ async function messageOf(res: Response): Promise<string> {
 	return body?.message || t('err.generic');
 }
 
+// A rejection the server will never withdraw: the file type cannot produce a
+// PDF (415) or the file exceeds the size cap (413). Retrying it only re-uploads
+// the same rejected bytes.
+class TerminalUploadError extends Error {}
+
 async function postJson<T>(url: string, body: unknown, method = 'POST'): Promise<T> {
 	const res = await fetch(url, {
 		method,
 		headers: { 'content-type': 'application/json' },
 		body: JSON.stringify(body)
 	});
-	if (!res.ok) throw new Error(await messageOf(res));
+	if (!res.ok) {
+		const msg = await messageOf(res);
+		if (res.status === 415 || res.status === 413) throw new TerminalUploadError(msg);
+		throw new Error(msg);
+	}
 	return (await res.json()) as T;
 }
 
@@ -436,6 +469,7 @@ async function run(id: string): Promise<void> {
 		if (latest && latest.status !== 'canceled') {
 			latest.status = 'error';
 			latest.message = e instanceof Error ? e.message : t('err.generic');
+			latest.terminal = e instanceof TerminalUploadError;
 		}
 	} finally {
 		requests.delete(id);
@@ -514,6 +548,24 @@ export const uploadQueue = {
 
 		for (const file of files) {
 			const id = crypto.randomUUID();
+			const reason = rejectReason(file);
+			if (reason) {
+				items.push({
+					id,
+					name: file.name,
+					size: file.size,
+					progress: 0,
+					status: 'error',
+					message: reason,
+					terminal: true,
+					workspaceId,
+					folderId,
+					folderName,
+					resume: null,
+					storageKey: null
+				});
+				continue;
+			}
 			pendingFiles.set(id, file);
 			items.push({
 				id,
@@ -522,6 +574,7 @@ export const uploadQueue = {
 				progress: 0,
 				status: 'pending',
 				message: null,
+				terminal: false,
 				workspaceId,
 				folderId,
 				folderName,
@@ -570,6 +623,7 @@ export const uploadQueue = {
 	retry(id: string): void {
 		const item = find(id);
 		if (!item) return;
+		if (item.terminal) return;
 		if (!pendingFiles.has(id)) {
 			if (item.resume || item.storageKey) item.status = 'stalled';
 			return;
