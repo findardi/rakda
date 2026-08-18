@@ -50,3 +50,17 @@ dipakai orang setiap hari, bukan brosur penjualan.
 
 WCAG AA sebagai baseline: kontras cukup untuk membaca dokumen/data panjang,
 dukungan `prefers-reduced-motion`, dan navigasi keyboard-first untuk power user.
+
+## Keamanan unduhan (batas yang diketahui)
+
+Unduhan selalu dilayani sebagai PDF — ber-watermark untuk `can_download`, bersih
+untuk `can_download_original` — dan byte native tidak pernah keluar. Tanda air di
+**PDF unduhan** bersifat deterensi, bukan proteksi: ia objek teks vektor di atas
+konten, sehingga bisa dihapus dengan alat PDF gratis (mis. `pdfcpu watermark
+remove`, Acrobat) dalam hitungan detik sampai menit. Tanda air di **viewer**
+(dibakar ke piksel PNG) tidak bisa dihapus bersih, jadi bocor lewat foto/crop
+layar tetap teratribusi. Pemegang `can_download_original` menerima PDF tanpa
+tanda — keputusan produk, bukan celah teknis. Ditetapkan 2026-08-18: keterbatasan
+ini diterima untuk tier saat ini; bila atribusi kebocoran menjadi kebutuhan nyata,
+solusinya adalah PDF terenkripsi per-unduhan (pola iDeals), bukan menebalkan
+tanda air.

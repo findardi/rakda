@@ -11,6 +11,7 @@ import (
 )
 
 type Querier interface {
+	ClearVersionRenditionFailure(ctx context.Context, id pgtype.UUID) error
 	CreateDefaultFolder(ctx context.Context, arg CreateDefaultFolderParams) (Folder, error)
 	CreateDocument(ctx context.Context, arg CreateDocumentParams) (Document, error)
 	CreateDocumentVersion(ctx context.Context, arg CreateDocumentVersionParams) (DocumentVersion, error)
@@ -57,6 +58,7 @@ type Querier interface {
 	SetCurrentVersion(ctx context.Context, arg SetCurrentVersionParams) error
 	SetFolderAccess(ctx context.Context, arg SetFolderAccessParams) (FolderAccess, error)
 	SetVersionRendition(ctx context.Context, arg SetVersionRenditionParams) error
+	SetVersionRenditionFailure(ctx context.Context, arg SetVersionRenditionFailureParams) error
 	SoftDeleteDocument(ctx context.Context, arg SoftDeleteDocumentParams) error
 	SoftDeleteDocumentsForFolderRoot(ctx context.Context, arg SoftDeleteDocumentsForFolderRootParams) error
 	SoftDeleteFolderSubtree(ctx context.Context, arg SoftDeleteFolderSubtreeParams) error

@@ -71,23 +71,6 @@ func (s *ContentService) requireFolderView(ctx context.Context, workspaceID, fol
 	return nil
 }
 
-func (s *ContentService) requireFolderDownloadOriginal(ctx context.Context, workspaceID, folderID string, actor Actor) error {
-	if actor.bypassesContentAccess() {
-		return nil
-	}
-
-	row, err := s.resolveFolderAccess(ctx, workspaceID, folderID, actor)
-	if err != nil {
-		return err
-	}
-
-	if !row.CanDownloadOriginal {
-		return ErrContentForbidden
-	}
-
-	return nil
-}
-
 func (s *ContentService) SetFolderAccess(ctx context.Context, req dto.SetFolderAccessRequest, actor Actor) error {
 	var wID, fID, gID pgtype.UUID
 	if err := wID.Scan(req.WorkspaceID); err != nil {
@@ -113,6 +96,10 @@ func (s *ContentService) SetFolderAccess(ctx context.Context, req dto.SetFolderA
 
 	if folder.WorkspaceID != wID {
 		return ErrFolderNotFound
+	}
+
+	if req.CanWatermark && req.CanDownloadOriginal {
+		return ErrAccessFlagsConflict
 	}
 
 	canDownload := req.CanDownload || req.CanDownloadOriginal

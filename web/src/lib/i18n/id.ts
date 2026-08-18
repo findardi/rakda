@@ -287,6 +287,8 @@ export const id = {
 	'doc.upload.allDone': '{n} berkas terunggah',
 	'doc.upload.clear': 'Bersihkan',
 	'doc.upload.retry': 'Ulangi',
+	'upload.err.type': 'Tipe berkas .{ext} tidak bisa diubah menjadi PDF, jadi tidak bisa diunggah.',
+	'upload.err.tooLarge': 'Berkas melebihi batas 500 MB.',
 	'doc.upload.remove': 'Hapus {name} dari daftar',
 	'doc.upload.progressOf': 'Kemajuan unggahan {name}',
 	'doc.upload.status.canceled': 'Dibatalkan',
@@ -419,10 +421,16 @@ export const id = {
 	'doc.view.forbidden.title': 'Anda tidak punya akses',
 	'doc.view.forbidden.body':
 		'Grup Anda tidak diberi izin melihat dokumen ini. Minta pemilik ruang membukanya untuk grup Anda.',
-	'doc.view.downloadOnly.title': 'Dokumen ini hanya bisa diunduh',
-	'doc.view.downloadOnly.body':
-		'Format ini — seperti spreadsheet, video, atau arsip — tidak dapat ditampilkan di penampil. Unduh untuk membukanya di aplikasi Anda.',
-	'doc.view.downloadOnly.noPerm': 'Grup Anda tidak diberi izin mengunduh dokumen ini.',
+	'doc.view.downloadMarked': 'Unduh PDF',
+	'doc.view.downloadClean': 'Unduh PDF tanpa tanda air',
+	'doc.view.unsupported.title': 'Dokumen ini tidak bisa ditampilkan',
+	'doc.view.unsupported.body':
+		'Tipe berkas ini tidak bisa diubah menjadi PDF, jadi tidak bisa dibuka maupun diunduh. Minta pengelola ruangan mengunggahnya ulang dalam format lain.',
+	'doc.view.failed.title': 'Dokumen ini gagal disiapkan',
+	'doc.view.failed.body':
+		'Isi berkasnya tidak bisa diubah menjadi PDF — biasanya karena berkas rusak, terkunci kata sandi, atau isinya tidak cocok dengan ekstensinya.',
+	'doc.view.failed.retry': 'Coba siapkan ulang',
+	'doc.view.failed.noPerm': 'Hanya pengelola ruangan yang bisa menyiapkan ulang dokumen ini.',
 	'doc.view.emptyPages': 'Dokumen ini tidak punya halaman untuk ditampilkan.',
 	'doc.view.err.notFound': 'Dokumen itu sudah tidak ada.',
 	'doc.view.err.load': 'Gagal memuat dokumen.',
@@ -594,10 +602,13 @@ export const id = {
 	'facc.cap.download': 'Unduh',
 	'facc.cap.watermark': 'Watermark',
 	'facc.cap.watermarkHint': 'Dokumen yang dibuka grup ini diberi watermark identitas mereka.',
-	'facc.cap.downloadOriginal': 'Unduh file asli',
+	'facc.cap.downloadOriginal': 'Unduh PDF tanpa tanda air',
 	'facc.cap.downloadOriginalHint':
-		'Grup ini bisa mengunduh file asli tanpa perubahan, melewati viewer ber-watermark.',
-	'facc.cap.rule': 'Unduh file asli menyalakan Unduh; Unduh dan watermark menyalakan Lihat.',
+		'Grup ini mengunduh PDF tanpa tanda air. Berkas asli tidak pernah keluar.',
+	'facc.cap.rule':
+		'Unduh PDF tanpa tanda air menyalakan Unduh; Unduh dan watermark menyalakan Lihat.',
+	'facc.cap.exclusive':
+		'Watermark dan unduh tanpa tanda air tidak bisa menyala bersamaan: menandai layar sambil melepas berkas bersih tidak melindungi apa pun.',
 
 	'facc.flow':
 		'Akses mengalir ke seluruh isi folder ini, termasuk subfolder — kecuali subfolder yang punya aturannya sendiri.',
@@ -628,7 +639,7 @@ export const id = {
 	'facc.will.blockSub':
 		'{group} tidak akan bisa melihat folder ini maupun {n} subfolder di dalamnya.',
 	'facc.will.wmOn': 'Dokumen diberi watermark saat dibuka {group}.',
-	'facc.will.origOn': '{group} bisa mengunduh file aslinya.',
+	'facc.will.origOn': '{group} bisa mengunduh PDF tanpa tanda air.',
 	'facc.revoke.back': 'Setelah dicabut, {group} kembali mewarisi {level} dari {name}.',
 	'facc.revoke.gone': '{group} tidak akan punya akses ke folder ini lagi.',
 

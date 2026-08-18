@@ -29,10 +29,6 @@ type VersionResponse struct {
 	CreatedAt      time.Time `json:"created_at"`
 }
 
-type DownloadURLResponse struct {
-	DownloadURL string `json:"download_url"`
-}
-
 type ViewMetaResponse struct {
 	DocumentID          string `json:"document_id"`
 	Name                string `json:"name"`
@@ -40,6 +36,7 @@ type ViewMetaResponse struct {
 	VersionID           string `json:"version_id"`
 	VersionNo           int32  `json:"version_no"`
 	PageCount           int    `json:"page_count"`
+	CanDownload         bool   `json:"can_download"`
 	CanDownloadOriginal bool   `json:"can_download_original"`
 }
 

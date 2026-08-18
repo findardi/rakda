@@ -56,6 +56,7 @@ func main() {
 		Converter: convert.NewGotenberg(viewerCfg),
 		Renderer:  renderer,
 		Watermark: wm,
+		PDFStamp:  watermark.NewPDFStamp(),
 		DPI:       viewerCfg.DPI,
 	}
 
