@@ -84,6 +84,10 @@ Prerequisites: `configs/.env` (gitignored, `include`d by the Makefile as shell v
 - Guests belong to exactly one group; folder permissions are boolean flags on `folder_access` per group, resolved by walking up the folder tree.
 - Root level holds folders only; a default non-deletable `General` folder (`is_default`) catches root-level drops.
 - Documents are versioned; `current` version is a pointer (restore = pointer flip, `current` ≠ max version_no).
+- **Content delivery is Model B: native bytes never leave the server, for anyone.** Every download is served as the PDF rendition — `can_download` gets it watermarked, `can_download_original` gets it clean. "Original" means the *unmarked rendition*, **not** the uploaded file; no flag combination and no role (owner/admin included) delivers the source bytes. Downloads stream through the API — nothing is presigned from object storage any more.
+- `can_watermark` and `can_download_original` are **mutually exclusive** per group per folder (rejected in `SetFolderAccess` with 400, plus a DB check constraint): marking the screen while handing out a clean file protects nothing. The cascade `orig ⇒ download ⇒ view` and `watermark ⇒ view` still applies.
+- **Uploads are gated to what can become a PDF**: the extension allowlist in `platform/convert` (PDF, Office incl. spreadsheets, images), 500 MB per file, 750 pages per rendition — refused at `InitMultipart`/`CompletedUpload` (415/413). The gate is name-based, so content that only fails at conversion is caught later, recorded on the version row (`rendition_error`, `rendition_failed_at`), returned as 422, and never retried until an owner triggers a retry.
+- The **download** watermark is deterrence, not protection — a vector stamp any PDF tool can strip. The **viewer** watermark is burned into the page raster and is the one that survives. Details in `web/PRODUCT.md`.
 - Audit trail is two separate tables, never merged: `activity_logs` (one row per action, chronological timeline) vs `content_events` (per-page, high volume, aggregation only). Both are append-only — never UPDATE audit rows. Visible to owner/admin only; guests never see any activity, including their own. Owner/admin generate no `content_events` (filtered at write time); `activity_logs` covers every role.
 
 ## UI design constraints (must follow)
@@ -114,9 +118,9 @@ and `brainstorm-folder/` holds files for the active phase only.
 ```
 brainstorm-folder/
   current-phase.md          # permanent. index + history. never deleted.
-  phase-8-description.md    # scope of the active phase
-  phase-8-a.md              # step notes, in order
-  phase-8-b.md
+  phase-9-description.md    # scope of the active phase
+  phase-9-a.md              # step notes, in order
+  phase-9-b.md
 ```
 
 Flat — no subfolders, no files for past or future phases. Create the folder if
@@ -130,23 +134,23 @@ to as steps close; the Completed phases section is written at every transition.
 ```
 # Current phase
 
-- Active: phase 8 — <name>
+- Active: phase 9 — <name>
 - Started: YYYY-MM-DD
 - Status: in progress | blocked | complete
 
 ## Steps
-- [x] 8-a — <title> — <one-line outcome>
-- [ ] 8-b — <title>
-- [ ] 8-c — <title>
+- [x] 9-a — <title> — <one-line outcome>
+- [ ] 9-b — <title>
+- [ ] 9-c — <title>
 
 ## Decisions carried forward
 Decisions from the active phase that outlive it. One line each, with the
 affected path.
 
 ## Completed phases
-### Phase 7 — <name> (YYYY-MM-DD → YYYY-MM-DD)
+### Phase 8 — <name> (YYYY-MM-DD → YYYY-MM-DD)
 What shipped, what was decided, what was deliberately deferred, what is
-still owed. Written at closing time — once the phase-7 files are deleted
+still owed. Written at closing time — once the phase-8 files are deleted
 this paragraph is all that survives of them.
 ```
 
@@ -171,7 +175,7 @@ What is deliberately not in this phase.
 To be resolved during the phase.
 ```
 
-Steps are planned upfront but not frozen. Adding `8-d` mid-phase is fine —
+Steps are planned upfront but not frozen. Adding `9-d` mid-phase is fine —
 record it in both this file and `current-phase.md`.
 
 ### `phase-N-x.md`
