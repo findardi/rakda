@@ -175,6 +175,30 @@ func (h *ContentHandler) SearchContent(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, http.StatusOK, "search success", res)
 }
 
+func (h *ContentHandler) SearchContentPages(w http.ResponseWriter, r *http.Request) {
+	wID := chi.URLParam(r, "workspaceID")
+
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	res, err := h.svc.SearchContentPages(r.Context(), wID, r.URL.Query().Get("documentId"), r.URL.Query().Get("q"), actor)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrContentForbidden):
+			response.Error(w, http.StatusForbidden, err.Error(), nil)
+		default:
+			log.Printf("search content pages internal error: %v", err)
+			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
+		}
+		return
+	}
+
+	response.Success(w, http.StatusOK, "search content pages success", res)
+}
+
 func (h *ContentHandler) LogSearch(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 

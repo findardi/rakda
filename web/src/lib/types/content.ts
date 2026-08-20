@@ -252,4 +252,25 @@ export interface SearchDocumentItem {
 export interface SearchData {
 	folders: SearchFolderItem[];
 	documents: SearchDocumentItem[];
+	content: SearchContentHit[];
+}
+
+// Level 1 of content results: one row per document.
+export interface SearchContentHit {
+	document_id: string;
+	document_name: string;
+	folder_id: string;
+	breadcrumb: string;
+	page_count: number;
+	hit_count: number;
+}
+
+// Level 2: the pages that matched inside one document.
+export interface SearchContentPage {
+	page_no: number;
+	snippet: string;
+}
+
+export interface SearchContentPagesData {
+	pages: SearchContentPage[];
 }

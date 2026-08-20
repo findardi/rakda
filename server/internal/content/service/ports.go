@@ -71,6 +71,10 @@ type ContentRepository interface {
 	SearchVisibleDocuments(ctx context.Context, arg contentdb.SearchVisibleDocumentsParams) ([]contentdb.SearchVisibleDocumentsRow, error)
 	SearchAllFolderBreadcrumbs(ctx context.Context, folderIds []pgtype.UUID) ([]contentdb.SearchAllFolderBreadcrumbsRow, error)
 	SearchVisibleFolderBreadcrumbs(ctx context.Context, arg contentdb.SearchVisibleFolderBreadcrumbsParams) ([]contentdb.SearchVisibleFolderBreadcrumbsRow, error)
+	SearchAllContent(ctx context.Context, arg contentdb.SearchAllContentParams) ([]contentdb.SearchAllContentRow, error)
+	SearchVisibleContent(ctx context.Context, arg contentdb.SearchVisibleContentParams) ([]contentdb.SearchVisibleContentRow, error)
+	SearchAllContentPages(ctx context.Context, arg contentdb.SearchAllContentPagesParams) ([]contentdb.SearchAllContentPagesRow, error)
+	SearchVisibleContentPages(ctx context.Context, arg contentdb.SearchVisibleContentPagesParams) ([]contentdb.SearchVisibleContentPagesRow, error)
 
 	ExecTx(ctx context.Context, fn func(*contentdb.Queries) error) error
 	ExecTxTx(ctx context.Context, fn func(*contentdb.Queries, pgx.Tx) error) error
