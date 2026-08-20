@@ -191,3 +191,206 @@ chain as (
 select root_id, name, visible
 from chain
 order by root_id, depth desc;
+
+-- name: SearchVisibleContent :many
+with recursive granted as (
+    select
+        f.id,
+        f.parent_id,
+        f.name,
+        f.position,
+        f.is_default,
+        f.deleted_at,
+        fa.can_view
+    from folders f
+    join folder_access fa on fa.folder_id = f.id
+    join workspace_group_members gm on gm.group_id = fa.group_id
+    join workspace_members m on m.id = gm.member_id
+    where f.workspace_id = sqlc.arg(workspace_id)
+      and m.workspace_id = sqlc.arg(workspace_id)
+      and m.user_id = sqlc.arg(user_id)
+
+    union all
+
+    select
+        c.id,
+        c.parent_id,
+        c.name,
+        c.position,
+        c.is_default,
+        c.deleted_at,
+        g.can_view
+    from folders c
+    join granted g on c.parent_id = g.id
+    where not exists (
+        select 1
+        from folder_access fa2
+        join workspace_group_members gm2 on gm2.group_id = fa2.group_id
+        join workspace_members m2 on m2.id = gm2.member_id
+        where fa2.folder_id = c.id
+          and m2.workspace_id = sqlc.arg(workspace_id)
+          and m2.user_id = sqlc.arg(user_id)
+    )
+),
+q as (
+    select
+        websearch_to_tsquery('indonesian', sqlc.arg(query)) as idq,
+        websearch_to_tsquery('english', sqlc.arg(query)) as enq
+)
+select
+    d.id as document_id,
+    d.name as document_name,
+    d.folder_id,
+    g.name as folder_name,
+    v.page_count,
+    count(*) as hit_count,
+    max(greatest(ts_rank(pt.tsv_id, q.idq), ts_rank(pt.tsv_en, q.enq)))::float4 as rank
+from granted g
+join documents d on d.folder_id = g.id
+    and d.deleted_at is null
+    and g.deleted_at is null
+join document_versions v on v.id = d.current_version_id
+join document_page_texts pt on pt.version_id = v.id
+cross join q
+where g.can_view
+  and (pt.tsv_id @@ q.idq or pt.tsv_en @@ q.enq)
+group by d.id, d.name, d.folder_id, g.name, v.page_count
+order by rank desc, d.name
+limit sqlc.arg(limit_count);
+
+-- name: SearchAllContent :many
+with q as (
+    select
+        websearch_to_tsquery('indonesian', sqlc.arg(query)) as idq,
+        websearch_to_tsquery('english', sqlc.arg(query)) as enq
+)
+select
+    d.id as document_id,
+    d.name as document_name,
+    d.folder_id,
+    f.name as folder_name,
+    v.page_count,
+    count(*) as hit_count,
+    max(greatest(ts_rank(pt.tsv_id, q.idq), ts_rank(pt.tsv_en, q.enq)))::float4 as rank
+from documents d
+join folders f on f.id = d.folder_id
+join document_versions v on v.id = d.current_version_id
+join document_page_texts pt on pt.version_id = v.id
+cross join q
+where d.workspace_id = sqlc.arg(workspace_id)
+  and d.deleted_at is null
+  and (pt.tsv_id @@ q.idq or pt.tsv_en @@ q.enq)
+group by d.id, d.name, d.folder_id, f.name, v.page_count
+order by rank desc, d.name
+limit sqlc.arg(limit_count);
+
+-- name: SearchVisibleContentPages :many
+with recursive granted as (
+    select
+        f.id,
+        f.parent_id,
+        f.name,
+        f.position,
+        f.is_default,
+        f.deleted_at,
+        fa.can_view
+    from folders f
+    join folder_access fa on fa.folder_id = f.id
+    join workspace_group_members gm on gm.group_id = fa.group_id
+    join workspace_members m on m.id = gm.member_id
+    where f.workspace_id = sqlc.arg(workspace_id)
+      and m.workspace_id = sqlc.arg(workspace_id)
+      and m.user_id = sqlc.arg(user_id)
+
+    union all
+
+    select
+        c.id,
+        c.parent_id,
+        c.name,
+        c.position,
+        c.is_default,
+        c.deleted_at,
+        g.can_view
+    from folders c
+    join granted g on c.parent_id = g.id
+    where not exists (
+        select 1
+        from folder_access fa2
+        join workspace_group_members gm2 on gm2.group_id = fa2.group_id
+        join workspace_members m2 on m2.id = gm2.member_id
+        where fa2.folder_id = c.id
+          and m2.workspace_id = sqlc.arg(workspace_id)
+          and m2.user_id = sqlc.arg(user_id)
+    )
+),
+q as (
+    select
+        websearch_to_tsquery('indonesian', sqlc.arg(query)) as idq,
+        websearch_to_tsquery('english', sqlc.arg(query)) as enq
+)
+select
+    f.page_no,
+    case
+        when f.rank_id >= f.rank_en
+            then ts_headline('indonesian', f.content, f.idq,
+                'MaxFragments=1, MaxWords=30, MinWords=10')
+        else ts_headline('english', f.content, f.enq,
+            'MaxFragments=1, MaxWords=30, MinWords=10')
+    end::text as snippet
+from (
+    select
+        pt.page_no,
+        pt.content,
+        ts_rank(pt.tsv_id, q.idq) as rank_id,
+        ts_rank(pt.tsv_en, q.enq) as rank_en,
+        greatest(ts_rank(pt.tsv_id, q.idq), ts_rank(pt.tsv_en, q.enq))::float4 as rank,
+        q.idq,
+        q.enq
+    from granted g
+    join documents d on d.folder_id = g.id
+        and d.deleted_at is null
+        and g.deleted_at is null
+    join document_page_texts pt on pt.version_id = d.current_version_id
+    cross join q
+    where g.can_view
+      and d.id = sqlc.arg(document_id)
+      and (pt.tsv_id @@ q.idq or pt.tsv_en @@ q.enq)
+    order by rank desc
+    limit sqlc.arg(limit_count)
+) f
+order by f.rank desc;
+
+-- name: SearchAllContentPages :many
+with q as (
+    select
+        websearch_to_tsquery('indonesian', sqlc.arg(query)) as idq,
+        websearch_to_tsquery('english', sqlc.arg(query)) as enq
+)
+select
+    f.page_no,
+    case
+        when f.rank_id >= f.rank_en
+            then ts_headline('indonesian', f.content, f.idq,
+                'MaxFragments=1, MaxWords=30, MinWords=10')
+        else ts_headline('english', f.content, f.enq,
+            'MaxFragments=1, MaxWords=30, MinWords=10')
+    end::text as snippet
+from (
+    select
+        pt.page_no,
+        pt.content,
+        ts_rank(pt.tsv_id, q.idq) as rank_id,
+        ts_rank(pt.tsv_en, q.enq) as rank_en,
+        greatest(ts_rank(pt.tsv_id, q.idq), ts_rank(pt.tsv_en, q.enq))::float4 as rank,
+        q.idq,
+        q.enq
+    from document_page_texts pt
+    join documents d on d.current_version_id = pt.version_id
+    cross join q
+    where d.id = sqlc.arg(document_id)
+      and (pt.tsv_id @@ q.idq or pt.tsv_en @@ q.enq)
+    order by rank desc
+    limit sqlc.arg(limit_count)
+) f
+order by f.rank desc;

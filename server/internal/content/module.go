@@ -96,6 +96,7 @@ func (m *Module) RegisterRoutes(r chi.Router) {
 			r.Use(m.mw.RequireMember("workspaceID", m.workspaceMember))
 
 			r.Get("/search", m.handler.SearchContent)
+			r.Get("/search/content/pages", m.handler.SearchContentPages)
 			r.Post("/search/log", m.handler.LogSearch)
 
 			r.Route("/folders", func(r chi.Router) {

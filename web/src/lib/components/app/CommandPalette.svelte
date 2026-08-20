@@ -2,7 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { t } from '$lib/i18n';
-	import type { SearchData } from '$lib/types/content';
+	import type { SearchContentHit, SearchData } from '$lib/types/content';
 
 	type Props = {
 		open: boolean;
@@ -23,16 +23,18 @@
 	let controller: AbortController | null = null;
 
 	type Item = {
-		kind: 'folder' | 'document';
+		kind: 'folder' | 'document' | 'hit';
 		id: string;
 		name: string;
 		folderId: string;
 		breadcrumb: string;
+		pageCount?: number;
+		hitCount?: number;
 	};
 
 	const flat = $derived.by(() => {
 		const list: Item[] = [];
-		const order: ('folder' | 'document')[] = [];
+		const order: ('folder' | 'document' | 'hit')[] = [];
 		for (const f of results?.folders ?? []) {
 			list.push({ kind: 'folder', id: f.id, name: f.name, folderId: '', breadcrumb: f.breadcrumb });
 			if (order[order.length - 1] !== 'folder') order.push('folder');
@@ -46,6 +48,18 @@
 				breadcrumb: d.breadcrumb
 			});
 			if (order[order.length - 1] !== 'document') order.push('document');
+		}
+		for (const h of results?.content ?? []) {
+			list.push({
+				kind: 'hit',
+				id: h.document_id,
+				name: h.document_name,
+				folderId: h.folder_id,
+				breadcrumb: h.breadcrumb,
+				pageCount: h.page_count,
+				hitCount: h.hit_count
+			});
+			if (order[order.length - 1] !== 'hit') order.push('hit');
 		}
 		return list;
 	});
@@ -79,19 +93,14 @@
 		controller = new AbortController();
 
 		const timer = setTimeout(async () => {
+			const params = `workspaceId=${encodeURIComponent(workspaceId)}&q=${encodeURIComponent(q)}`;
 			try {
-				const res = await fetch(
-					`/api/search?workspaceId=${encodeURIComponent(workspaceId)}&q=${encodeURIComponent(q)}`,
-					{
-						signal: controller?.signal
-					}
-				);
+				const res = await fetch(`/api/search?${params}`, { signal: controller?.signal });
 				if (!res.ok) {
 					failed = true;
 					return;
 				}
-				const data = (await res.json()) as SearchData;
-				results = data;
+				results = (await res.json()) as SearchData;
 				selected = 0;
 			} catch (err) {
 				if (err instanceof DOMException && err.name === 'AbortError') return;
@@ -131,15 +140,25 @@
 		dialog?.close();
 		if (item.kind === 'folder') {
 			goto(resolve('/(app)/workspace/[slug]/document/[folderId]', { slug, folderId: item.id }));
-		} else {
-			goto(
-				resolve('/(app)/workspace/[slug]/view/[folderId]/[documentId]', {
-					slug,
-					folderId: item.folderId,
-					documentId: item.id
-				})
-			);
+			return;
 		}
+
+		// Content hits stay compact here — the results page owns the L2 pages
+		// detail (keputusan 9-d: "⌘K ringkas + halaman hasil").
+		if (item.kind === 'hit') {
+			goto(
+				`${resolve('/(app)/workspace/[slug]/search', { slug })}?q=${encodeURIComponent(query.trim())}`
+			);
+			return;
+		}
+
+		goto(
+			resolve('/(app)/workspace/[slug]/view/[folderId]/[documentId]', {
+				slug,
+				folderId: item.folderId,
+				documentId: item.id
+			})
+		);
 	}
 
 	function onKeydown(e: KeyboardEvent) {
@@ -232,7 +251,11 @@
 								role="presentation"
 								class="px-3 pt-3 pb-1 text-xs font-medium text-muted first:pt-1"
 							>
-								{item.kind === 'folder' ? t('app.search.folders') : t('app.search.documents')}
+								{item.kind === 'folder'
+									? t('app.search.folders')
+									: item.kind === 'document'
+										? t('app.search.documents')
+										: t('app.search.content')}
 							</li>
 						{/if}
 						<li role="option" id="search-item-{i}" aria-selected={i === selected}>
@@ -280,8 +303,17 @@
 								</span>
 								<span class="min-w-0 flex-1">
 									<span class="block truncate text-sm text-base-content">{item.name}</span>
-									{#if item.breadcrumb}
-										<span class="block truncate text-xs text-muted">{item.breadcrumb}</span>
+									{#if item.breadcrumb || item.kind === 'hit'}
+										<span class="block truncate text-xs text-muted">
+											{#if item.breadcrumb}{item.breadcrumb}{/if}
+											{#if item.kind === 'hit'}
+												{item.breadcrumb ? ' · ' : ''}
+												{t('app.search.hits', { n: item.hitCount ?? 0 })}
+												{#if (item.pageCount ?? 0) > 750}
+													{' · ' + t('app.search.tooLarge')}
+												{/if}
+											{/if}
+										</span>
 									{/if}
 								</span>
 							</button>

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"unicode"
 
 	activityservice "github.com/findardi/Riksa-App/server/internal/activity/service"
 	"github.com/findardi/Riksa-App/server/internal/content/dto"
@@ -14,12 +15,18 @@ import (
 const (
 	searchQueryMaxLength = 100
 	searchResultLimit    = 20
+	contentResultLimit   = 20
+	contentPagesLimit    = 10
 )
 
 func (s *ContentService) SearchContent(ctx context.Context, workspaceID, query string, actor Actor) (dto.SearchResponse, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
-		return dto.SearchResponse{Folders: []dto.SearchFolderItem{}, Documents: []dto.SearchDocumentItem{}}, nil
+		return dto.SearchResponse{
+			Folders:   []dto.SearchFolderItem{},
+			Documents: []dto.SearchDocumentItem{},
+			Content:   []dto.SearchContentHit{},
+		}, nil
 	}
 	if len([]rune(query)) > searchQueryMaxLength {
 		query = string([]rune(query)[:searchQueryMaxLength])
@@ -57,7 +64,12 @@ func (s *ContentService) SearchContent(ctx context.Context, workspaceID, query s
 			return dto.SearchResponse{}, err
 		}
 
-		return dto.SearchResponse{Folders: folders, Documents: documents}, nil
+		content, err := s.searchContentL1(ctx, wID, query, actor)
+		if err != nil {
+			return dto.SearchResponse{}, err
+		}
+
+		return dto.SearchResponse{Folders: folders, Documents: documents, Content: content}, nil
 	}
 
 	var uID pgtype.UUID
@@ -91,7 +103,126 @@ func (s *ContentService) SearchContent(ctx context.Context, workspaceID, query s
 		return dto.SearchResponse{}, err
 	}
 
-	return dto.SearchResponse{Folders: folders, Documents: documents}, nil
+	content, err := s.searchContentL1(ctx, wID, query, actor)
+	if err != nil {
+		return dto.SearchResponse{}, err
+	}
+
+	return dto.SearchResponse{Folders: folders, Documents: documents, Content: content}, nil
+}
+
+// searchContentL1 — hasil isi level 1: satu baris per dokumen, peringkat =
+// max skor halaman (bukan sum), hit_count = jumlah halaman yang kena.
+func (s *ContentService) searchContentL1(ctx context.Context, wID pgtype.UUID, query string, actor Actor) ([]dto.SearchContentHit, error) {
+	searchQuery := buildSearchQuery(query)
+	if searchQuery == "" {
+		return []dto.SearchContentHit{}, nil
+	}
+
+	limit := int32(contentResultLimit)
+
+	var rows []contentHitRow
+	if actor.bypassesContentAccess() {
+		all, err := s.repo.SearchAllContent(ctx, contentdb.SearchAllContentParams{
+			WorkspaceID: wID,
+			Query:       searchQuery,
+			LimitCount:  limit,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("search all content: %w", err)
+		}
+		rows = toContentHits(all)
+	} else {
+		var uID pgtype.UUID
+		if err := uID.Scan(actor.UserID); err != nil {
+			return nil, ErrContentForbidden
+		}
+
+		visible, err := s.repo.SearchVisibleContent(ctx, contentdb.SearchVisibleContentParams{
+			WorkspaceID: wID,
+			UserID:      uID,
+			Query:       searchQuery,
+			LimitCount:  limit,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("search visible content: %w", err)
+		}
+		rows = toContentHitsVisible(visible)
+	}
+
+	return s.buildContentHits(ctx, wID, rows, actor)
+}
+
+// SearchContentPages — hasil isi level 2: halaman-halaman kena di dalam satu
+// dokumen, dengan cuplikan ts_headline memakai konfigurasi yang benar-benar
+// cocok (kalau dua-duanya cocok, ikut skor tertinggi). Filter izin tetap di
+// dalam query, jadi dokumen yang tidak terlihat pemanggil mengembalikan nol
+// halaman, bukan galat.
+func (s *ContentService) SearchContentPages(ctx context.Context, workspaceID, documentID, query string, actor Actor) (dto.SearchContentPagesResponse, error) {
+	empty := dto.SearchContentPagesResponse{Pages: []dto.SearchContentPage{}}
+
+	query = strings.TrimSpace(query)
+	searchQuery := buildSearchQuery(query)
+	if searchQuery == "" {
+		return empty, nil
+	}
+
+	var wID, dID pgtype.UUID
+	if err := wID.Scan(workspaceID); err != nil {
+		return empty, fmt.Errorf("parse workspace id: %w", err)
+	}
+	if err := dID.Scan(documentID); err != nil {
+		return empty, ErrDocumentNotFound
+	}
+
+	limit := int32(contentPagesLimit)
+
+	if actor.bypassesContentAccess() {
+		all, err := s.repo.SearchAllContentPages(ctx, contentdb.SearchAllContentPagesParams{
+			DocumentID: dID,
+			Query:      searchQuery,
+			LimitCount: limit,
+		})
+		if err != nil {
+			return empty, fmt.Errorf("search all content pages: %w", err)
+		}
+
+		pages := make([]dto.SearchContentPage, 0, len(all))
+		for _, r := range all {
+			pages = append(pages, dto.SearchContentPage{PageNo: r.PageNo, Snippet: stripHeadlineMarkup(r.Snippet)})
+		}
+		return dto.SearchContentPagesResponse{Pages: pages}, nil
+	}
+
+	var uID pgtype.UUID
+	if err := uID.Scan(actor.UserID); err != nil {
+		return empty, ErrContentForbidden
+	}
+
+	visible, err := s.repo.SearchVisibleContentPages(ctx, contentdb.SearchVisibleContentPagesParams{
+		WorkspaceID: wID,
+		UserID:      uID,
+		DocumentID:  dID,
+		Query:       searchQuery,
+		LimitCount:  limit,
+	})
+	if err != nil {
+		return empty, fmt.Errorf("search visible content pages: %w", err)
+	}
+
+	pages := make([]dto.SearchContentPage, 0, len(visible))
+	for _, r := range visible {
+		pages = append(pages, dto.SearchContentPage{PageNo: r.PageNo, Snippet: stripHeadlineMarkup(r.Snippet)})
+	}
+	return dto.SearchContentPagesResponse{Pages: pages}, nil
+}
+
+// stripHeadlineMarkup membuang tag <b>/</b> yang ditambahkan ts_headline —
+// snippet yang dikirim ke klien teks polos, bukan HTML.
+func stripHeadlineMarkup(s string) string {
+	s = strings.ReplaceAll(s, "<b>", "")
+	s = strings.ReplaceAll(s, "</b>", "")
+	return s
 }
 
 // LogSearch mencatat kata kunci ke activity_logs ("search", keyword).
@@ -108,37 +239,167 @@ func (s *ContentService) LogSearch(ctx context.Context, workspaceID, query strin
 		"", query, nil))
 }
 
+type contentHitRow struct {
+	documentID   string
+	documentName string
+	folderID     string
+	pageCount    *int32
+	hitCount     int64
+}
+
+func toContentHits(rows []contentdb.SearchAllContentRow) []contentHitRow {
+	hits := make([]contentHitRow, 0, len(rows))
+	for _, r := range rows {
+		hits = append(hits, contentHitRow{
+			documentID:   uuidString(r.DocumentID),
+			documentName: r.DocumentName,
+			folderID:     uuidString(r.FolderID),
+			pageCount:    r.PageCount,
+			hitCount:     r.HitCount,
+		})
+	}
+	return hits
+}
+
+func toContentHitsVisible(rows []contentdb.SearchVisibleContentRow) []contentHitRow {
+	hits := make([]contentHitRow, 0, len(rows))
+	for _, r := range rows {
+		hits = append(hits, contentHitRow{
+			documentID:   uuidString(r.DocumentID),
+			documentName: r.DocumentName,
+			folderID:     uuidString(r.FolderID),
+			pageCount:    r.PageCount,
+			hitCount:     r.HitCount,
+		})
+	}
+	return hits
+}
+
+func (s *ContentService) buildContentHits(ctx context.Context, wID pgtype.UUID, rows []contentHitRow, actor Actor) ([]dto.SearchContentHit, error) {
+	folderIDs := make([]string, 0, len(rows))
+	for _, r := range rows {
+		folderIDs = append(folderIDs, r.folderID)
+	}
+
+	bc, err := s.breadcrumbMap(ctx, wID, folderIDs, actor)
+	if err != nil {
+		return nil, err
+	}
+
+	hits := make([]dto.SearchContentHit, 0, len(rows))
+	for _, r := range rows {
+		pageCount := int32(0)
+		if r.pageCount != nil {
+			pageCount = *r.pageCount
+		}
+
+		hits = append(hits, dto.SearchContentHit{
+			DocumentID:   r.documentID,
+			DocumentName: r.documentName,
+			FolderID:     r.folderID,
+			Breadcrumb:   bc[r.folderID],
+			PageCount:    pageCount,
+			HitCount:     r.hitCount,
+		})
+	}
+
+	return hits, nil
+}
+
+// buildSearchQuery menyaring stopword Indonesia dan menyisakan token bersih
+// yang diteruskan ke websearch_to_tsquery di SQL. Konfigurasi `indonesian`
+// tidak punya daftar stopword (keputusan 9-a), jadi penyaringan ada di sisi
+// query; `english` menyaring stopwordnya sendiri di Postgres. `to_tsquery`
+// dilarang di sini: ia melempar galat pada input wajar (kurung tak seimbang,
+// `&`) — websearch_to_tsquery tidak.
+func buildSearchQuery(raw string) string {
+	parts := make([]string, 0, 8)
+	for _, word := range strings.FieldsFunc(raw, func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	}) {
+		w := strings.ToLower(word)
+		if _, stop := idStopwords[w]; stop {
+			continue
+		}
+		if len(w) < 2 {
+			continue
+		}
+		parts = append(parts, w)
+	}
+
+	return strings.Join(parts, " ")
+}
+
+// idStopwords — daftar kata fungsi bahasa Indonesia, disaring saat query
+// karena konfigurasi FTS `indonesian` tidak menyediakannya.
+var idStopwords = map[string]struct{}{
+	"yang": {}, "dan": {}, "di": {}, "ke": {}, "dari": {}, "dengan": {}, "untuk": {},
+	"pada": {}, "atau": {}, "ini": {}, "itu": {}, "akan": {}, "juga": {}, "oleh": {},
+	"saya": {}, "kami": {}, "kita": {}, "anda": {}, "mereka": {}, "adalah": {},
+	"ada": {}, "tidak": {}, "bukan": {}, "dalam": {}, "sebagai": {}, "karena": {},
+	"jika": {}, "maka": {}, "saat": {}, "setelah": {}, "sebelum": {}, "tentang": {},
+	"terhadap": {}, "antara": {}, "melalui": {}, "per": {}, "para": {}, "seperti": {},
+	"begitu": {}, "agar": {}, "supaya": {}, "sehingga": {}, "tetapi": {}, "namun": {},
+	"walaupun": {}, "meskipun": {}, "tanpa": {}, "sampai": {}, "hingga": {}, "kepada": {},
+	"bagi": {}, "olehnya": {}, "selama": {}, "sejak": {}, "kapan": {}, "mana": {},
+	"apa": {}, "siapa": {}, "kenapa": {}, "mengapa": {}, "bagaimana": {}, "bila": {},
+	"apakah": {}, "yakni": {}, "yaitu": {}, "misalnya": {}, "contoh": {}, "dll": {},
+	"dst": {}, "dsb": {}, "hal": {}, "ialah": {}, "atas": {},
+	"bawah": {}, "sekitar": {}, "hampir": {}, "selalu": {}, "sering": {}, "kadang": {},
+	"pun": {}, "lah": {}, "kah": {}, "kan": {}, "nya": {}, "ku": {}, "mu": {},
+}
+
 type breadcrumbNode struct {
 	name    string
 	visible bool
 }
 
 func (s *ContentService) attachBreadcrumbs(ctx context.Context, wID pgtype.UUID, folders []dto.SearchFolderItem, documents []dto.SearchDocumentItem, actor Actor) error {
-	folderIDs := make([]pgtype.UUID, 0, len(folders)+len(documents))
+	ids := make([]string, 0, len(folders)+len(documents))
 	for _, f := range folders {
-		var id pgtype.UUID
-		if err := id.Scan(f.ID); err != nil {
-			return fmt.Errorf("parse folder id: %w", err)
-		}
-		folderIDs = append(folderIDs, id)
+		ids = append(ids, f.ID)
 	}
 	for _, d := range documents {
-		var id pgtype.UUID
-		if err := id.Scan(d.FolderID); err != nil {
-			return fmt.Errorf("parse document folder id: %w", err)
-		}
-		folderIDs = append(folderIDs, id)
+		ids = append(ids, d.FolderID)
 	}
 
-	if len(folderIDs) == 0 {
-		return nil
+	bc, err := s.breadcrumbMap(ctx, wID, ids, actor)
+	if err != nil {
+		return err
+	}
+
+	for i := range folders {
+		folders[i].Breadcrumb = bc[folders[i].ID]
+	}
+	for i := range documents {
+		documents[i].Breadcrumb = bc[documents[i].FolderID]
+	}
+
+	return nil
+}
+
+func (s *ContentService) breadcrumbMap(ctx context.Context, wID pgtype.UUID, folderIDs []string, actor Actor) (map[string]string, error) {
+	ids := make([]pgtype.UUID, 0, len(folderIDs))
+	for _, id := range folderIDs {
+		if id == "" {
+			continue
+		}
+		var u pgtype.UUID
+		if err := u.Scan(id); err != nil {
+			return nil, fmt.Errorf("parse folder id: %w", err)
+		}
+		ids = append(ids, u)
+	}
+
+	if len(ids) == 0 {
+		return map[string]string{}, nil
 	}
 
 	var rows []breadcrumbRow
 	if actor.bypassesContentAccess() {
-		all, err := s.repo.SearchAllFolderBreadcrumbs(ctx, folderIDs)
+		all, err := s.repo.SearchAllFolderBreadcrumbs(ctx, ids)
 		if err != nil {
-			return fmt.Errorf("breadcrumbs all: %w", err)
+			return nil, fmt.Errorf("breadcrumbs all: %w", err)
 		}
 		rows = make([]breadcrumbRow, len(all))
 		for i, r := range all {
@@ -147,16 +408,16 @@ func (s *ContentService) attachBreadcrumbs(ctx context.Context, wID pgtype.UUID,
 	} else {
 		var uID pgtype.UUID
 		if err := uID.Scan(actor.UserID); err != nil {
-			return ErrContentForbidden
+			return nil, ErrContentForbidden
 		}
 
 		visible, err := s.repo.SearchVisibleFolderBreadcrumbs(ctx, contentdb.SearchVisibleFolderBreadcrumbsParams{
 			WorkspaceID: wID,
 			UserID:      uID,
-			FolderIds:   folderIDs,
+			FolderIds:   ids,
 		})
 		if err != nil {
-			return fmt.Errorf("breadcrumbs visible: %w", err)
+			return nil, fmt.Errorf("breadcrumbs visible: %w", err)
 		}
 		rows = make([]breadcrumbRow, len(visible))
 		for i, r := range visible {
@@ -169,14 +430,12 @@ func (s *ContentService) attachBreadcrumbs(ctx context.Context, wID pgtype.UUID,
 		byRoot[r.rootID] = append(byRoot[r.rootID], breadcrumbNode{name: r.name, visible: r.visible})
 	}
 
-	for i := range folders {
-		folders[i].Breadcrumb = joinBreadcrumb(byRoot[folders[i].ID])
-	}
-	for i := range documents {
-		documents[i].Breadcrumb = joinBreadcrumb(byRoot[documents[i].FolderID])
+	out := make(map[string]string, len(ids))
+	for root, nodes := range byRoot {
+		out[root] = joinBreadcrumb(nodes)
 	}
 
-	return nil
+	return out, nil
 }
 
 // joinBreadcrumb merangkai path root→folder dan berhenti sebelum leluhur

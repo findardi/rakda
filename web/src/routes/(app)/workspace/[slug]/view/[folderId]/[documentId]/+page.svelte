@@ -124,6 +124,31 @@
 		}, 250);
 	}
 
+	// A content-search hit deep-links to its page (?page=N). The page element
+	// registers only after its image arrives, so retry until it exists.
+	let pageJumped = false;
+	function jumpToPage(n: number) {
+		const target = Math.min(Math.max(1, n), pageCount);
+		let tries = 0;
+		const attempt = () => {
+			if (pageEls.has(target) || tries >= 10) {
+				scrollToPage(target);
+				return;
+			}
+			tries += 1;
+			setTimeout(attempt, 200);
+		};
+		attempt();
+	}
+
+	$effect(() => {
+		if (pageJumped || !meta?.version_id || pageCount === 0) return;
+		const p = Number(page.url.searchParams.get('page'));
+		if (!Number.isInteger(p) || p < 1) return;
+		pageJumped = true;
+		jumpToPage(p);
+	});
+
 	// --- read-duration beacon ---
 	// Guests feed this and nobody else: their reading is the signal the room owner
 	// opened the document for, while the room's own managers are not readers.
