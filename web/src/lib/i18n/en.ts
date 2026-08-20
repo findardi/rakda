@@ -292,6 +292,8 @@ export const en: Record<keyof Dict, string> = {
 	'doc.upload.allDone': '{n} files uploaded',
 	'doc.upload.clear': 'Clear',
 	'doc.upload.retry': 'Retry',
+	'upload.err.type': 'A .{ext} file cannot be converted to PDF, so it cannot be uploaded.',
+	'upload.err.tooLarge': 'This file is over the 500 MB limit.',
 	'doc.upload.remove': 'Remove {name} from the list',
 	'doc.upload.progressOf': 'Upload progress for {name}',
 	'doc.upload.status.canceled': 'Canceled',
@@ -423,11 +425,16 @@ export const en: Record<keyof Dict, string> = {
 	'doc.view.forbidden.title': 'You do not have access',
 	'doc.view.forbidden.body':
 		'Your group has not been given permission to view this document. Ask the room owner to open it up to your group.',
-	'doc.view.downloadOnly.title': 'This document can only be downloaded',
-	'doc.view.downloadOnly.body':
-		'This format — such as a spreadsheet, video, or archive — cannot be shown in the viewer. Download it to open in your own app.',
-	'doc.view.downloadOnly.noPerm':
-		'Your group has not been given permission to download this document.',
+	'doc.view.downloadMarked': 'Download PDF',
+	'doc.view.downloadClean': 'Download clean PDF',
+	'doc.view.unsupported.title': 'This document cannot be displayed',
+	'doc.view.unsupported.body':
+		'This file type cannot be converted to PDF, so it can be neither opened nor downloaded. Ask a room manager to re-upload it in another format.',
+	'doc.view.failed.title': 'This document failed to prepare',
+	'doc.view.failed.body':
+		'Its content could not be converted to PDF — usually because the file is corrupt, password-protected, or its content does not match its extension.',
+	'doc.view.failed.retry': 'Try preparing again',
+	'doc.view.failed.noPerm': 'Only a room manager can prepare this document again.',
 	'doc.view.emptyPages': 'This document has no pages to display.',
 	'doc.view.err.notFound': 'That document no longer exists.',
 	'doc.view.err.load': 'Could not load the document.',
@@ -600,10 +607,13 @@ export const en: Record<keyof Dict, string> = {
 	'facc.cap.download': 'Download',
 	'facc.cap.watermark': 'Watermark',
 	'facc.cap.watermarkHint': 'Documents this group opens are stamped with their identity watermark.',
-	'facc.cap.downloadOriginal': 'Download original',
+	'facc.cap.downloadOriginal': 'Download clean PDF',
 	'facc.cap.downloadOriginalHint':
-		'This group can download the untouched original file, bypassing the watermarked viewer.',
-	'facc.cap.rule': 'Download original turns on Download; Download and watermark turn on View.',
+		'This group downloads the PDF without a watermark. The original file never leaves.',
+	'facc.cap.rule':
+		'Clean PDF download turns on Download; Download and watermark turn on View.',
+	'facc.cap.exclusive':
+		'Watermark and clean download cannot both be on: marking the screen while handing out a clean file protects nothing.',
 
 	'facc.flow':
 		'Access flows down to everything inside this folder, subfolders included — except a subfolder that sets a rule of its own.',
@@ -634,7 +644,7 @@ export const en: Record<keyof Dict, string> = {
 	'facc.will.blockSub':
 		'{group} will not be able to see this folder or the {n} subfolders inside it.',
 	'facc.will.wmOn': 'Documents are watermarked when {group} opens them.',
-	'facc.will.origOn': '{group} can download the original files.',
+	'facc.will.origOn': '{group} can download clean PDFs.',
 	'facc.revoke.back': 'Once revoked, {group} goes back to inheriting {level} from {name}.',
 	'facc.revoke.gone': '{group} will no longer have any access to this folder.',
 

@@ -51,10 +51,6 @@ export interface UploadUrlData {
 	storage_key: string;
 }
 
-export interface DownloadUrlData {
-	download_url: string;
-}
-
 export interface ViewMetaData {
 	document_id: string;
 	name: string;
@@ -62,6 +58,7 @@ export interface ViewMetaData {
 	version_id: string;
 	version_no: number;
 	page_count: number;
+	can_download: boolean;
 	can_download_original: boolean;
 }
 

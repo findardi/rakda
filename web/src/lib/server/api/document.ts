@@ -5,7 +5,6 @@ import type {
 	CompleteUploadPayload,
 	CompleteVersionPayload,
 	DocumentData,
-	DownloadUrlData,
 	InitMultipartData,
 	InitMultipartPayload,
 	MoveDocumentPayload,
@@ -58,15 +57,19 @@ export function completeUpload(
 const versionQuery = (versionId?: string) =>
 	versionId ? `?version=${encodeURIComponent(versionId)}` : '';
 
-export function getDownloadUrl(
+// Raw upstream response for the download proxy. This endpoint streams a PDF
+// (Content-Type application/pdf, Content-Disposition attachment) — watermarked
+// for `can_download`, clean for `can_download_original` — not a JSON envelope,
+// so it bypasses the typed client entirely.
+export function downloadDocument(
 	token: string,
 	workspaceId: string,
 	documentId: string,
 	versionId?: string
-): Promise<ApiResult<DownloadUrlData>> {
-	return get<DownloadUrlData>(
-		`${documentsBase(workspaceId)}/${documentId}/download${versionQuery(versionId)}`,
-		token
+): Promise<Response> {
+	return fetch(
+		`${API_URL}${documentsBase(workspaceId)}/${documentId}/download${versionQuery(versionId)}`,
+		{ headers: { authorization: `Bearer ${token}` } }
 	);
 }
 
@@ -146,6 +149,21 @@ export function restoreVersion(
 ): Promise<ApiResult<DocumentData>> {
 	return post<DocumentData>(
 		`${versionsBase(workspaceId, documentId)}/${versionId}/restore`,
+		undefined,
+		token
+	);
+}
+
+// Clears a recorded rendition failure so the next open retries the conversion.
+// Owner/admin only upstream; the UI never offers it to guests.
+export function retryRendition(
+	token: string,
+	workspaceId: string,
+	documentId: string,
+	versionId: string
+): Promise<ApiResult<null>> {
+	return post<null>(
+		`${versionsBase(workspaceId, documentId)}/${versionId}/retry-rendition`,
 		undefined,
 		token
 	);

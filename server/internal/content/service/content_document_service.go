@@ -4,12 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 	"sort"
 
 	activityservice "github.com/findardi/Riksa-App/server/internal/activity/service"
 	"github.com/findardi/Riksa-App/server/internal/content/dto"
 	contentdb "github.com/findardi/Riksa-App/server/internal/content/repository/sqlc"
 	"github.com/findardi/Riksa-App/server/internal/platform/storage"
+	"github.com/findardi/Riksa-App/server/internal/platform/watermark"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -77,9 +81,23 @@ func (s *ContentService) CompletedUpload(ctx context.Context, req dto.CompleteUp
 		return dto.DocumentResponse{}, ErrFolderNotFound
 	}
 
+	if err := validateStorageKey(req.StorageKey, req.WorkspaceID, req.FolderID); err != nil {
+		return dto.DocumentResponse{}, err
+	}
+
+	if err := assertUploadable(req.Name); err != nil {
+		_ = s.store.Delete(ctx, req.StorageKey)
+		return dto.DocumentResponse{}, err
+	}
+
 	size, mime, err := s.store.Stat(ctx, req.StorageKey)
 	if err != nil {
 		return dto.DocumentResponse{}, ErrUploadNotFound
+	}
+
+	if err := assertUploadSize(size); err != nil {
+		_ = s.store.Delete(ctx, req.StorageKey)
+		return dto.DocumentResponse{}, err
 	}
 
 	var doc contentdb.Document
@@ -202,6 +220,11 @@ func (s *ContentService) CompletedVersion(ctx context.Context, req dto.CompleteV
 	size, mime, err := s.store.Stat(ctx, req.StorageKey)
 	if err != nil {
 		return dto.DocumentResponse{}, ErrUploadNotFound
+	}
+
+	if err := assertUploadSize(size); err != nil {
+		_ = s.store.Delete(ctx, req.StorageKey)
+		return dto.DocumentResponse{}, err
 	}
 
 	var ver contentdb.DocumentVersion
@@ -330,33 +353,172 @@ func (s *ContentService) ListVersions(ctx context.Context, workspaceID, document
 	return vers, nil
 }
 
-func (s *ContentService) GetDownloadURL(ctx context.Context, workspaceID, documentID, versionID string, actor Actor) (dto.DownloadURLResponse, error) {
+func (s *ContentService) DownloadDocument(ctx context.Context, workspaceID, documentID, versionID string, actor Actor, mark watermark.Mark) (io.ReadCloser, string, error) {
 	doc, err := s.getDocumentScoped(ctx, workspaceID, documentID)
 	if err != nil {
-		return dto.DownloadURLResponse{}, err
+		return nil, "", err
 	}
 
-	if err := s.requireFolderDownloadOriginal(ctx, workspaceID, uuidString(doc.FolderID), actor); err != nil {
-		return dto.DownloadURLResponse{}, err
+	access, err := s.resolveViewAccess(ctx, workspaceID, uuidString(doc.FolderID), actor)
+	if err != nil {
+		return nil, "", err
+	}
+
+	clean := access.canDownloadOriginal
+	if !clean && !access.canDownload {
+		return nil, "", ErrContentForbidden
 	}
 
 	version, err := s.resolveRequestVersion(ctx, doc, versionID, actor)
 	if err != nil {
-		return dto.DownloadURLResponse{}, err
+		return nil, "", err
 	}
 
-	url, err := s.store.PresignedGet(ctx, version.StorageKey, doc.Name, downloadURLTTL)
+	renditionKey, _, err := s.ensureRendition(ctx, workspaceID, doc, version)
 	if err != nil {
-		return dto.DownloadURLResponse{}, fmt.Errorf("presign get: %w", err)
+		return nil, "", err
+	}
+
+	src, err := s.store.Get(ctx, renditionKey)
+	if err != nil {
+		return nil, "", fmt.Errorf("get rendition: %w", err)
+	}
+
+	variant := "clean"
+	body := src
+
+	if !clean {
+		body, err = s.stampPDF(src, mark)
+		if err != nil {
+			return nil, "", fmt.Errorf("%w: %v", ErrStampFailed, err)
+		}
+		variant = "watermarked"
 	}
 
 	s.activity.Record(ctx, s.activityEntry(workspaceID, actor,
 		activityservice.ActionDocumentDownloaded, activityservice.TargetDocument,
-		documentID, doc.Name, map[string]any{"version_no": version.VersionNo}))
+		documentID, doc.Name, map[string]any{"version_no": version.VersionNo, "variant": variant}))
 
-	return dto.DownloadURLResponse{
-		DownloadURL: url,
-	}, nil
+	return body, downloadName(doc.Name), nil
+}
+
+func (s *ContentService) RetryRendition(ctx context.Context, workspaceID, documentID, versionID string, actor Actor) error {
+	if !actor.managesRoom() {
+		return ErrContentForbidden
+	}
+
+	doc, err := s.getDocumentScoped(ctx, workspaceID, documentID)
+	if err != nil {
+		return err
+	}
+
+	version, err := s.resolveRequestVersion(ctx, doc, versionID, actor)
+	if err != nil {
+		return err
+	}
+
+	if err := s.repo.ClearVersionRenditionFailure(ctx, version.ID); err != nil {
+		return fmt.Errorf("clear rendition failure: %w", err)
+	}
+
+	s.activity.Record(ctx, s.activityEntry(workspaceID, actor,
+		activityservice.ActionRenditionRetried, activityservice.TargetVersion,
+		versionID, doc.Name, map[string]any{"version_no": version.VersionNo}))
+
+	return nil
+}
+
+type spooledReadCloser struct {
+	file *os.File
+	dir  string
+}
+
+func (r *spooledReadCloser) Read(p []byte) (int, error) {
+	return r.file.Read(p)
+}
+
+func (r *spooledReadCloser) Close() error {
+	err := r.file.Close()
+	if rmErr := os.RemoveAll(r.dir); rmErr != nil && err == nil {
+		err = rmErr
+	}
+	return err
+}
+
+func writeToFile(r io.Reader, path string) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("temp file: %w", err)
+	}
+
+	if _, err := io.Copy(f, r); err != nil {
+		f.Close()
+		return fmt.Errorf("spool pdf: %w", err)
+	}
+
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("close temp: %w", err)
+	}
+
+	return nil
+}
+
+func (s *ContentService) stampPDF(src io.ReadCloser, mark watermark.Mark) (io.ReadCloser, error) {
+	dir, err := os.MkdirTemp("", "riksa-stamp-*")
+	if err != nil {
+		src.Close()
+		return nil, fmt.Errorf("temp dir: %w", err)
+	}
+
+	removeAll := func() { os.RemoveAll(dir) }
+
+	inPath := filepath.Join(dir, "in.pdf")
+	if err := writeToFile(src, inPath); err != nil {
+		src.Close()
+		removeAll()
+		return nil, err
+	}
+	src.Close()
+
+	in, err := os.Open(inPath)
+	if err != nil {
+		removeAll()
+		return nil, fmt.Errorf("open spooled pdf: %w", err)
+	}
+
+	outPath := filepath.Join(dir, "out.pdf")
+	out, err := os.Create(outPath)
+	if err != nil {
+		in.Close()
+		removeAll()
+		return nil, fmt.Errorf("create output: %w", err)
+	}
+
+	if err := s.viewer.PDFStamp.Stamp(in, out, mark); err != nil {
+		in.Close()
+		out.Close()
+		removeAll()
+		return nil, err
+	}
+
+	if err := in.Close(); err != nil {
+		out.Close()
+		removeAll()
+		return nil, fmt.Errorf("close input: %w", err)
+	}
+
+	if err := out.Close(); err != nil {
+		removeAll()
+		return nil, fmt.Errorf("close output: %w", err)
+	}
+
+	f, err := os.Open(outPath)
+	if err != nil {
+		removeAll()
+		return nil, fmt.Errorf("open stamped pdf: %w", err)
+	}
+
+	return &spooledReadCloser{file: f, dir: dir}, nil
 }
 
 func (s *ContentService) DeleteDocument(ctx context.Context, workspaceID, documentID string, actor Actor) error {
@@ -528,6 +690,14 @@ func (s *ContentService) assertFolderInWorkspace(ctx context.Context, workspaceI
 
 func (s *ContentService) InitMultipart(ctx context.Context, req dto.InitMultipartRequest) (dto.InitMultipartResponse, error) {
 	if err := s.assertFolderInWorkspace(ctx, req.WorkspaceID, req.FolderID); err != nil {
+		return dto.InitMultipartResponse{}, err
+	}
+
+	if err := assertUploadable(req.Name); err != nil {
+		return dto.InitMultipartResponse{}, err
+	}
+
+	if err := assertUploadSize(req.Size); err != nil {
 		return dto.InitMultipartResponse{}, err
 	}
 

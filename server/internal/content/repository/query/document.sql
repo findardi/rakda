@@ -62,6 +62,18 @@ set rendition_key = sqlc.arg(rendition_key),
     page_count = sqlc.arg(page_count)
 where id = sqlc.arg(id);
 
+-- name: SetVersionRenditionFailure :exec
+update document_versions
+set rendition_error = sqlc.arg(rendition_error),
+    rendition_failed_at = now()
+where id = sqlc.arg(id);
+
+-- name: ClearVersionRenditionFailure :exec
+update document_versions
+set rendition_error = null,
+    rendition_failed_at = null
+where id = sqlc.arg(id);
+
 -- name: GetMaxPosition :one
 select coalesce(max(position), -1)::int as max_position
 from documents

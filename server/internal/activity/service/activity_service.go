@@ -27,6 +27,7 @@ const (
 	ActionDocumentViewed      = "document_viewed"
 	ActionVersionUploaded     = "version_uploaded"
 	ActionVersionRestored     = "version_restored"
+	ActionRenditionRetried    = "rendition_retried"
 	ActionInviteSent          = "invite_sent"
 	ActionInviteAccepted      = "invite_accepted"
 	ActionInviteRejected      = "invite_rejected"

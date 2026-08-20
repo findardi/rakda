@@ -127,6 +127,7 @@ func (m *Module) RegisterRoutes(r chi.Router) {
 				r.With(m.mw.RequirePermission(permission.PermDocumentEdit)).Patch("/move", m.handler.MoveDocument)
 				r.With(m.mw.RequirePermission(permission.PermDocumentDelete)).Delete("/", m.handler.DeleteDocument)
 				r.With(m.mw.RequirePermission(permission.PermDocumentEdit)).Post("/versions/{versionID}/restore", m.handler.RestoreVersion)
+				r.With(m.mw.RequirePermission(permission.PermDocumentEdit)).Post("/versions/{versionID}/retry-rendition", m.handler.RetryRendition)
 			})
 
 			r.Route("/trash", func(r chi.Router) {

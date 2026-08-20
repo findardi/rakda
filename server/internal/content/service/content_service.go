@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -11,6 +12,7 @@ import (
 	activityservice "github.com/findardi/Riksa-App/server/internal/activity/service"
 	"github.com/findardi/Riksa-App/server/internal/content/dto"
 	contentdb "github.com/findardi/Riksa-App/server/internal/content/repository/sqlc"
+	"github.com/findardi/Riksa-App/server/internal/platform/convert"
 	"github.com/findardi/Riksa-App/server/internal/platform/storage"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -21,11 +23,12 @@ import (
 const (
 	maxFolderDepth     = 32
 	uploadURLTTL       = 15 * time.Minute
-	downloadURLTTL     = 5 * time.Minute
 	maxBulkFolderNodes = 500
 	multipartPartSize  = 8 << 20
 	maxMultipartParts  = 1000
 	maxPartURLsPerCall = 100
+	maxUploadBytes     = 500 << 20
+	maxRenditionPages  = 750
 )
 
 var (
@@ -40,8 +43,13 @@ var (
 	ErrDeleteDefault        = errors.New("folder is default by system, cant deleted")
 	ErrMoveDefault          = errors.New("folder is default by system, cant moved")
 	ErrAccessTargetInvalid  = errors.New("group or access level not found in this workspace")
+	ErrAccessFlagsConflict  = errors.New("watermark and clean download cannot both be enabled for one group")
 	ErrContentForbidden     = errors.New("no access to this content")
 	ErrNotViewable          = errors.New("file type cannot be viewed, download only")
+	ErrNotUploadable        = errors.New("file type cannot be stored, no PDF can be produced")
+	ErrTooManyPages         = errors.New("document has too many pages to view")
+	ErrStampFailed          = errors.New("cannot produce a watermarked copy of this document")
+	ErrRenditionFailed      = errors.New("this document could not be prepared for viewing")
 	ErrPageOutOfRange       = errors.New("page out of range")
 	ErrBulkTooManyFolders   = errors.New("too many folders in one request")
 	ErrBulkTooDeep          = errors.New("folder tree in request is too deep")
@@ -175,6 +183,31 @@ func validateStorageKey(key, workspaceID, folderID string) error {
 	}
 
 	return nil
+}
+
+func assertUploadable(name string) error {
+	if convert.Viewable(name) {
+		return nil
+	}
+
+	ext := strings.ToLower(filepath.Ext(name))
+	if ext == "" {
+		ext = "(no extension)"
+	}
+
+	return fmt.Errorf("%w: %s", ErrNotUploadable, ext)
+}
+
+func assertUploadSize(size int64) error {
+	if size > maxUploadBytes {
+		return fmt.Errorf("%w: %d MB, max %d MB", ErrUploadTooLarge, size>>20, maxUploadBytes>>20)
+	}
+
+	return nil
+}
+
+func downloadName(name string) string {
+	return strings.TrimSuffix(name, filepath.Ext(name)) + ".pdf"
 }
 
 func (s *ContentService) CreateFolder(ctx context.Context, req dto.CreateFolderRequest, actor Actor) (dto.FolderResponse, error) {

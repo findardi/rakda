@@ -6,7 +6,6 @@
 	import { canManageAccess } from '$lib/access/roles';
 	import { createDwellTracker, type DwellTracker } from '$lib/activity/dwell';
 	import { DocumentEngagement, ViewerPage } from '$lib/components/app';
-	import { showToast } from '$lib/components/common';
 	import { formatDate } from '$lib/format';
 	import { t } from '$lib/i18n';
 	import type { WorkspaceData, MyAccessWorkspace } from '$lib/types/workspace';
@@ -16,6 +15,7 @@
 	const meta = $derived(data.meta);
 	const forbidden = $derived(data.forbidden);
 	const notViewable = $derived(data.notViewable);
+	const failed = $derived(data.failed);
 
 	// Empty for guests (upstream withholds history from them) and for documents
 	// that never got a second version.
@@ -27,7 +27,6 @@
 
 	const workspace = $derived((page.data as { workspace: WorkspaceData }).workspace);
 	const access = $derived((page.data as { access?: MyAccessWorkspace }).access);
-	const perms = $derived(access?.permissions ?? []);
 	// Owner/admin manage the room: they may read the engagement panel, and their
 	// own reading is never recorded — here or upstream.
 	const managesRoom = $derived(canManageAccess(access?.role ?? ''));
@@ -189,34 +188,43 @@
 
 	// --- download (view-and-download access) ---
 	let downloading = $state(false);
-	async function download() {
+	function download() {
 		downloading = true;
-		try {
-			// Download what is on screen, not whatever became current since.
-			const q = new URLSearchParams(
-				meta?.version_id
-					? { workspaceId: workspace.id, documentId, version: meta.version_id }
-					: { workspaceId: workspace.id, documentId }
-			);
-			const res = await fetch(`/api/content/download?${q}`);
-			if (res.status === 403) {
-				showToast(t('doc.docs.err.forbiddenDownload'), 'error');
-				return;
-			}
-			if (!res.ok) {
-				showToast(t('err.generic'), 'error');
-				return;
-			}
-			const { download_url } = (await res.json()) as { download_url: string };
-			window.location.href = download_url;
-		} catch {
-			showToast(t('err.network'), 'error');
-		} finally {
-			downloading = false;
-		}
+		// Download what is on screen, not whatever became current since.
+		const q = new URLSearchParams(
+			meta?.version_id
+				? { workspaceId: workspace.id, documentId, version: meta.version_id }
+				: { workspaceId: workspace.id, documentId }
+		);
+		window.location.href = `/api/content/download?${q}`;
 	}
 
-	const canDownloadOnly = $derived(perms.includes('document:download'));
+	const canDownload = $derived(!!meta && (meta.can_download || meta.can_download_original));
+	const downloadLabel = $derived(
+		meta?.can_download_original ? t('doc.view.downloadClean') : t('doc.view.downloadMarked')
+	);
+
+	// --- rendition failure (owner-only retry) ---
+	// The failing version is the one the URL pins, or the current one when
+	// unpinned; history is only ever loaded for owner/admin.
+	let retrying = $state(false);
+	const retryVersionId = $derived(page.url.searchParams.get('version') ?? current?.id);
+	function retryRendition() {
+		if (!retryVersionId) return;
+		retrying = true;
+		fetch('/api/content/versions/retry-rendition', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ workspaceId: workspace.id, documentId, versionId: retryVersionId })
+		})
+			.then((res) => {
+				if (!res.ok) throw new Error(String(res.status));
+				window.location.reload();
+			})
+			.catch(() => {
+				retrying = false;
+			});
+	}
 </script>
 
 <svelte:head>
@@ -412,11 +420,12 @@
 				</button>
 			{/if}
 
-			{#if meta.can_download_original}
+			{#if canDownload}
 				<button
 					type="button"
 					onclick={download}
 					disabled={downloading}
+					aria-label={downloadLabel}
 					class="btn btn-ghost btn-sm flex-none gap-1.5"
 				>
 					{#if downloading}
@@ -436,7 +445,7 @@
 							<path d="M5 19h14" />
 						</svg>
 					{/if}
-					<span class="hidden sm:inline">{t('doc.docs.download')}</span>
+					<span class="hidden sm:inline">{downloadLabel}</span>
 				</button>
 			{/if}
 		{/if}
@@ -516,40 +525,49 @@
 				>
 					<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
 					<path d="M14 3v5h5" />
-					<path d="M12 12v5M9.5 14.5 12 17l2.5-2.5" />
+					<path d="M12 10v4" />
+					<path d="M12 17.5h.01" />
 				</svg>
 				<div>
-					<p class="text-[0.9375rem] font-medium">{t('doc.view.downloadOnly.title')}</p>
-					<p class="mt-1 text-sm text-muted text-pretty">{t('doc.view.downloadOnly.body')}</p>
+					<p class="text-[0.9375rem] font-medium">{t('doc.view.unsupported.title')}</p>
+					<p class="mt-1 text-sm text-muted text-pretty">{t('doc.view.unsupported.body')}</p>
 				</div>
-				{#if canDownloadOnly}
+			</div>
+		</div>
+	{:else if failed}
+		<div class="flex flex-1 items-center justify-center overflow-y-auto px-6 py-16">
+			<div class="flex max-w-sm flex-col items-center gap-4 text-center">
+				<svg
+					class="h-9 w-9 text-muted/70"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="1.4"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					aria-hidden="true"
+				>
+					<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+					<path d="M14 3v5h5" />
+					<path d="M12 10v4" />
+					<path d="M12 17.5h.01" />
+				</svg>
+				<div>
+					<p class="text-[0.9375rem] font-medium">{t('doc.view.failed.title')}</p>
+					<p class="mt-1 text-sm text-muted text-pretty">{t('doc.view.failed.body')}</p>
+				</div>
+				{#if managesRoom && retryVersionId}
 					<button
 						type="button"
-						onclick={download}
-						disabled={downloading}
+						onclick={retryRendition}
+						disabled={retrying}
 						class="btn btn-primary btn-sm gap-1.5"
 					>
-						{#if downloading}
+						{#if retrying}
 							<span class="loading loading-spinner loading-xs"></span>
-						{:else}
-							<svg
-								class="h-4 w-4"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="1.8"
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								aria-hidden="true"
-							>
-								<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5" />
-								<path d="M5 19h14" />
-							</svg>
 						{/if}
-						{t('doc.docs.download')}
+						{t('doc.view.failed.retry')}
 					</button>
-				{:else}
-					<p class="text-xs text-muted text-pretty">{t('doc.view.downloadOnly.noPerm')}</p>
 				{/if}
 			</div>
 		</div>
@@ -562,7 +580,7 @@
 				class="min-h-0 flex-1 overflow-y-auto {panelOpen ? 'hidden lg:block' : ''}"
 				aria-label={meta.name}
 			>
-				<div class="mx-auto flex max-w-[820px] flex-col gap-4 px-3 py-6 sm:px-4">
+				<div class="mx-auto flex max-w-205 flex-col gap-4 px-3 py-6 sm:px-4">
 					<!-- Keyed by version too: switching must remount the pages rather than
 					     leave the previous version's images on screen while they reload. -->
 					{#each pages as n (`${meta.version_id}-${n}`)}

@@ -3,6 +3,8 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -13,6 +15,7 @@ import (
 	"github.com/findardi/Riksa-App/server/internal/platform/middleware"
 	"github.com/findardi/Riksa-App/server/internal/platform/response"
 	"github.com/findardi/Riksa-App/server/internal/platform/validation"
+	"github.com/findardi/Riksa-App/server/internal/platform/watermark"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -266,8 +269,13 @@ func (h *ContentHandler) CompletedUpload(w http.ResponseWriter, r *http.Request)
 		switch {
 		case errors.Is(err, service.ErrFolderNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
-		case errors.Is(err, service.ErrUploadNotFound):
+		case errors.Is(err, service.ErrUploadNotFound),
+			errors.Is(err, service.ErrInvalidStorageKey):
 			response.Error(w, http.StatusBadRequest, err.Error(), nil)
+		case errors.Is(err, service.ErrNotUploadable):
+			response.Error(w, http.StatusUnsupportedMediaType, err.Error(), nil)
+		case errors.Is(err, service.ErrUploadTooLarge):
+			response.Error(w, http.StatusRequestEntityTooLarge, err.Error(), nil)
 		default:
 			log.Printf("complete upload internal error: %v", err)
 			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
@@ -382,6 +390,8 @@ func (h *ContentHandler) CompletedVersionUpload(w http.ResponseWriter, r *http.R
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
 		case errors.Is(err, service.ErrUploadNotFound):
 			response.Error(w, http.StatusBadRequest, err.Error(), nil)
+		case errors.Is(err, service.ErrUploadTooLarge):
+			response.Error(w, http.StatusRequestEntityTooLarge, err.Error(), nil)
 		default:
 			log.Printf("complete version internal error: %v", err)
 			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
@@ -397,27 +407,76 @@ func (h *ContentHandler) GetDownloadURL(w http.ResponseWriter, r *http.Request) 
 	dID := chi.URLParam(r, "documentID")
 	versionID := r.URL.Query().Get("version")
 
+	claims, ok := middleware.ClaimsFromContext(r.Context())
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
 	actor, ok := actorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
 	}
 
-	res, err := h.svc.GetDownloadURL(r.Context(), wID, dID, versionID, actor)
+	mark := watermark.Mark{
+		Primary:   claims.Email,
+		Secondary: time.Now().UTC().Format("2006-01-02 15:04 MST") + " · " + middleware.ClientIP(r),
+	}
+
+	body, name, err := h.svc.DownloadDocument(r.Context(), wID, dID, versionID, actor, mark)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrContentForbidden):
 			response.Error(w, http.StatusForbidden, err.Error(), nil)
 		case errors.Is(err, service.ErrDocumentNotFound), errors.Is(err, service.ErrVersionNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
+		case errors.Is(err, service.ErrNotViewable), errors.Is(err, service.ErrStampFailed),
+			errors.Is(err, service.ErrRenditionFailed), errors.Is(err, service.ErrTooManyPages):
+			response.Error(w, http.StatusUnprocessableEntity, err.Error(), nil)
 		default:
 			log.Printf("get download url internal error: %v", err)
 			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
 		}
 		return
 	}
+	defer body.Close()
 
-	response.Success(w, http.StatusOK, "get download url success", res)
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, name))
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusOK)
+
+	if _, err := io.Copy(w, body); err != nil {
+		log.Printf("stream download body: %v", err)
+	}
+}
+
+func (h *ContentHandler) RetryRendition(w http.ResponseWriter, r *http.Request) {
+	wID := chi.URLParam(r, "workspaceID")
+	dID := chi.URLParam(r, "documentID")
+	vID := chi.URLParam(r, "versionID")
+
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	if err := h.svc.RetryRendition(r.Context(), wID, dID, vID, actor); err != nil {
+		switch {
+		case errors.Is(err, service.ErrContentForbidden):
+			response.Error(w, http.StatusForbidden, err.Error(), nil)
+		case errors.Is(err, service.ErrDocumentNotFound), errors.Is(err, service.ErrVersionNotFound):
+			response.Error(w, http.StatusNotFound, err.Error(), nil)
+		default:
+			log.Printf("retry rendition internal error: %v", err)
+			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
+		}
+		return
+	}
+
+	response.Success(w, http.StatusOK, "retry rendition success", nil)
 }
 
 func (h *ContentHandler) DeleteDocument(w http.ResponseWriter, r *http.Request) {
@@ -590,7 +649,8 @@ func (h *ContentHandler) SetFolderAccess(w http.ResponseWriter, r *http.Request)
 		switch {
 		case errors.Is(err, service.ErrFolderNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
-		case errors.Is(err, service.ErrAccessTargetInvalid):
+		case errors.Is(err, service.ErrAccessTargetInvalid),
+			errors.Is(err, service.ErrAccessFlagsConflict):
 			response.Error(w, http.StatusBadRequest, err.Error(), nil)
 		default:
 			log.Printf("set folder access internal error: %v", err)
@@ -647,7 +707,8 @@ func (h *ContentHandler) GetViewMeta(w http.ResponseWriter, r *http.Request) {
 			response.Error(w, http.StatusForbidden, err.Error(), nil)
 		case errors.Is(err, service.ErrDocumentNotFound), errors.Is(err, service.ErrVersionNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
-		case errors.Is(err, service.ErrNotViewable):
+		case errors.Is(err, service.ErrNotViewable), errors.Is(err, service.ErrRenditionFailed),
+			errors.Is(err, service.ErrTooManyPages):
 			response.Error(w, http.StatusUnprocessableEntity, err.Error(), nil)
 		default:
 			log.Printf("get view meta internal error: %v", err)
@@ -698,7 +759,8 @@ func (h *ContentHandler) GetViewPage(w http.ResponseWriter, r *http.Request) {
 			response.Error(w, http.StatusForbidden, err.Error(), nil)
 		case errors.Is(err, service.ErrDocumentNotFound), errors.Is(err, service.ErrPageOutOfRange), errors.Is(err, service.ErrVersionNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
-		case errors.Is(err, service.ErrNotViewable):
+		case errors.Is(err, service.ErrNotViewable), errors.Is(err, service.ErrRenditionFailed),
+			errors.Is(err, service.ErrTooManyPages):
 			response.Error(w, http.StatusUnprocessableEntity, err.Error(), nil)
 		default:
 			log.Printf("get view page internal error: %v", err)
@@ -804,6 +866,8 @@ func (h *ContentHandler) InitMultipart(w http.ResponseWriter, r *http.Request) {
 			response.Error(w, http.StatusRequestEntityTooLarge, err.Error(), nil)
 		case errors.Is(err, service.ErrDocumentNameTaken):
 			response.Error(w, http.StatusConflict, err.Error(), nil)
+		case errors.Is(err, service.ErrNotUploadable):
+			response.Error(w, http.StatusUnsupportedMediaType, err.Error(), nil)
 		default:
 			log.Printf("init multipart internal error: %v", err)
 			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
@@ -908,6 +972,10 @@ func (h *ContentHandler) CompleteMultipart(w http.ResponseWriter, r *http.Reques
 		case errors.Is(err, service.ErrInvalidStorageKey),
 			errors.Is(err, service.ErrUploadNotFound):
 			response.Error(w, http.StatusBadRequest, err.Error(), nil)
+		case errors.Is(err, service.ErrNotUploadable):
+			response.Error(w, http.StatusUnsupportedMediaType, err.Error(), nil)
+		case errors.Is(err, service.ErrUploadTooLarge):
+			response.Error(w, http.StatusRequestEntityTooLarge, err.Error(), nil)
 		default:
 			log.Printf("complete multipart internal error: %v", err)
 			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
