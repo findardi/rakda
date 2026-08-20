@@ -65,6 +65,13 @@ type ContentRepository interface {
 	SetVersionTextExtracted(ctx context.Context, id pgtype.UUID) error
 	SetVersionTextFailure(ctx context.Context, arg contentdb.SetVersionTextFailureParams) error
 
+	SearchAllFolders(ctx context.Context, arg contentdb.SearchAllFoldersParams) ([]contentdb.SearchAllFoldersRow, error)
+	SearchAllDocuments(ctx context.Context, arg contentdb.SearchAllDocumentsParams) ([]contentdb.SearchAllDocumentsRow, error)
+	SearchVisibleFolders(ctx context.Context, arg contentdb.SearchVisibleFoldersParams) ([]contentdb.SearchVisibleFoldersRow, error)
+	SearchVisibleDocuments(ctx context.Context, arg contentdb.SearchVisibleDocumentsParams) ([]contentdb.SearchVisibleDocumentsRow, error)
+	SearchAllFolderBreadcrumbs(ctx context.Context, folderIds []pgtype.UUID) ([]contentdb.SearchAllFolderBreadcrumbsRow, error)
+	SearchVisibleFolderBreadcrumbs(ctx context.Context, arg contentdb.SearchVisibleFolderBreadcrumbsParams) ([]contentdb.SearchVisibleFolderBreadcrumbsRow, error)
+
 	ExecTx(ctx context.Context, fn func(*contentdb.Queries) error) error
 	ExecTxTx(ctx context.Context, fn func(*contentdb.Queries, pgx.Tx) error) error
 }

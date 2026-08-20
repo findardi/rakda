@@ -42,6 +42,7 @@ const (
 	ActionGroupUnassigned     = "group_unassigned"
 	ActionFolderAccessChanged = "folder_access_changed"
 	ActionFolderAccessRemoved = "folder_access_removed"
+	ActionSearchPerformed     = "search_performed"
 )
 
 const (
@@ -52,6 +53,7 @@ const (
 	TargetGroup        = "group"
 	TargetInvitation   = "invitation"
 	TargetFolderAccess = "folder_access"
+	TargetSearch       = "search"
 )
 
 const (

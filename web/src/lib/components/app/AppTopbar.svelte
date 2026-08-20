@@ -1,12 +1,33 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import { Brand, LanguageSwitcher } from '$lib/components/common';
 	import { t } from '$lib/i18n';
 	import type { MeData } from '$lib/types';
+	import CommandPalette from './CommandPalette.svelte';
 
 	type Props = { user: MeData | null; onMenuToggle: () => void };
 	let { user, onMenuToggle }: Props = $props();
 
+	// Inside a room the palette searches that room; elsewhere there is no
+	// permission context, so the trigger stays disabled.
+	const room = $derived((page.data as { workspace?: { id: string; slug: string } }).workspace);
+	let paletteOpen = $state(false);
+
 	const initial = $derived((user?.username ?? '?').charAt(0).toUpperCase());
+
+	$effect(() => {
+		const handler = (e: KeyboardEvent) => {
+			if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+				if (!room) return;
+				const t = e.target as HTMLElement | null;
+				if (t?.matches('input, textarea, [contenteditable="true"]')) return;
+				e.preventDefault();
+				paletteOpen = !paletteOpen;
+			}
+		};
+		window.addEventListener('keydown', handler);
+		return () => window.removeEventListener('keydown', handler);
+	});
 </script>
 
 <header
@@ -35,12 +56,14 @@
 		<Brand size={26} />
 	</a>
 
-	<!-- Command palette trigger — not wired yet. -->
+	<!-- Command palette: opens a room-scoped search (⌘K / Ctrl+K). -->
 	<button
 		type="button"
-		disabled
-		title={t('app.nav.soon')}
-		class="ml-3 hidden max-w-xs flex-1 cursor-not-allowed items-center gap-2 rounded-field border border-base-content/10 bg-base-200 px-3 py-1.5 text-sm text-muted md:flex"
+		onclick={() => (paletteOpen = true)}
+		disabled={!room}
+		title={room ? t('app.search.open') : t('app.nav.soon')}
+		aria-label={room ? t('app.search.open') : t('app.nav.soon')}
+		class="ml-3 hidden max-w-xs flex-1 items-center gap-2 rounded-field border border-base-content/10 bg-base-200 px-3 py-1.5 text-sm text-muted enabled:cursor-pointer enabled:hover:border-base-content/20 disabled:cursor-not-allowed md:flex"
 	>
 		<svg
 			class="h-4 w-4 flex-none"
@@ -61,6 +84,15 @@
 			>⌘K</kbd
 		>
 	</button>
+
+	{#if room}
+		<CommandPalette
+			open={paletteOpen}
+			workspaceId={room.id}
+			slug={room.slug}
+			onclose={() => (paletteOpen = false)}
+		/>
+	{/if}
 
 	<div class="dropdown dropdown-end ml-auto">
 		<button

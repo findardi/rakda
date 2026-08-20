@@ -91,6 +91,18 @@ export const en: Record<keyof Dict, string> = {
 	'app.nav.settings': 'Settings',
 	'app.nav.soon': 'Soon',
 	'app.search.placeholder': 'Search…',
+	'app.search.open': 'Search the data room (⌘K)',
+	'app.search.title': 'Search folders and documents',
+	'app.search.hint': 'Type at least 2 characters to search.',
+	'app.search.loading': 'Searching…',
+	'app.search.error': 'Search failed. Try again.',
+	'app.search.none': 'No results for “{q}”.',
+	'app.search.noneHint': 'Check the spelling or try another word.',
+	'app.search.folders': 'Folders',
+	'app.search.documents': 'Documents',
+	'app.search.navigate': 'select',
+	'app.search.enter': 'open',
+	'app.search.onlyVisible': 'Results are limited to what you can see.',
 	'app.menu.open': 'Open navigation menu',
 	'app.account.signedInAs': 'Signed in as',
 	'app.account.logout': 'Sign out',
@@ -610,8 +622,7 @@ export const en: Record<keyof Dict, string> = {
 	'facc.cap.downloadOriginal': 'Download clean PDF',
 	'facc.cap.downloadOriginalHint':
 		'This group downloads the PDF without a watermark. The original file never leaves.',
-	'facc.cap.rule':
-		'Clean PDF download turns on Download; Download and watermark turn on View.',
+	'facc.cap.rule': 'Clean PDF download turns on Download; Download and watermark turn on View.',
 	'facc.cap.exclusive':
 		'Watermark and clean download cannot both be on: marking the screen while handing out a clean file protects nothing.',
 
