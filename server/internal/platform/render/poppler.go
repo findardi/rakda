@@ -24,7 +24,7 @@ type PopplerRenderer struct {
 }
 
 func NewPoppler(cfg config.ViewerConfig) (*PopplerRenderer, error) {
-	for _, bin := range []string{"pdfinfo", "pdftoppm"} {
+	for _, bin := range []string{"pdfinfo", "pdftoppm", "pdftotext"} {
 		if _, err := exec.LookPath(bin); err != nil {
 			return nil, fmt.Errorf("poppler: %s not found in PATH: %w", bin, err)
 		}
@@ -173,4 +173,19 @@ func (p *PopplerRenderer) run(ctx context.Context, name string, args ...string) 
 	}
 
 	return stdout.Bytes(), nil
+}
+
+func (p *PopplerRenderer) ExtractText(ctx context.Context, pdf io.Reader) (string, error) {
+	work, cleanup, err := spool(pdf)
+	if err != nil {
+		return "", err
+	}
+	defer cleanup()
+
+	out, err := p.run(ctx, "pdftotext", work.pdf, "-")
+	if err != nil {
+		return "", err
+	}
+
+	return string(out), nil
 }

@@ -40,6 +40,7 @@ type App struct {
 	router chi.Router
 	addr   string
 	reap   func(ctx context.Context)
+	sweep  func(ctx context.Context)
 }
 
 func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.Storage, viewer contentservice.Viewer) *App {
@@ -68,6 +69,18 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 	if err != nil {
 		log.Printf("invalid REAPER_INTERVAL, fallback to 1h: %v", err)
 		reaperInterval = time.Hour
+	}
+
+	textSweepInterval, err := config.GetEnvDuration("TEXT_SWEEP_INTERVAL", time.Minute)
+	if err != nil {
+		log.Printf("invalid TEXT_SWEEP_INTERVAL, fallback to 1m: %v", err)
+		textSweepInterval = time.Minute
+	}
+
+	textSweepBatch, err := config.GetEnvInt("TEXT_SWEEP_BATCH", 10)
+	if err != nil {
+		log.Printf("invalid TEXT_SWEEP_BATCH, fallback to 10: %v", err)
+		textSweepBatch = 10
 	}
 
 	activitysvc := activityservice.NewActivityService(activityrepo.New(pool))
@@ -102,6 +115,9 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 		reap: func(ctx context.Context) {
 			contentSvc.RunReaper(ctx, reaperInterval)
 		},
+		sweep: func(ctx context.Context) {
+			contentSvc.RunTextSweeper(ctx, textSweepInterval, textSweepBatch)
+		},
 	}
 }
 
@@ -110,6 +126,7 @@ func (a *App) Run() error {
 	defer stopReaper()
 
 	go a.reap(reaperCtx)
+	go a.sweep(reaperCtx)
 
 	srv := &http.Server{
 		Addr:    a.addr,

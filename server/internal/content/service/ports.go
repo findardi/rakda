@@ -59,6 +59,12 @@ type ContentRepository interface {
 	PurgeFolder(ctx context.Context, id pgtype.UUID) error
 	PurgeDocument(ctx context.Context, id pgtype.UUID) error
 
+	ListPendingTextExtraction(ctx context.Context, limit int32) ([]contentdb.ListPendingTextExtractionRow, error)
+	DeleteVersionPageText(ctx context.Context, versionID pgtype.UUID) error
+	InsertPageText(ctx context.Context, arg contentdb.InsertPageTextParams) error
+	SetVersionTextExtracted(ctx context.Context, id pgtype.UUID) error
+	SetVersionTextFailure(ctx context.Context, arg contentdb.SetVersionTextFailureParams) error
+
 	ExecTx(ctx context.Context, fn func(*contentdb.Queries) error) error
 	ExecTxTx(ctx context.Context, fn func(*contentdb.Queries, pgx.Tx) error) error
 }

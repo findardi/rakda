@@ -70,7 +70,7 @@ insert into document_versions
     (document_id, version_no, mime, size, storage_key, uploaded_by)
 values 
     ($1, $2, $3, $4, $5, $6)
-returning id, document_id, version_no, mime, size, storage_key, uploaded_by, created_at, rendition_key, page_count, rendition_error, rendition_failed_at
+returning id, document_id, version_no, mime, size, storage_key, uploaded_by, created_at, rendition_key, page_count, rendition_error, rendition_failed_at, text_extracted_at, text_error, text_failed_at
 `
 
 type CreateDocumentVersionParams struct {
@@ -105,12 +105,15 @@ func (q *Queries) CreateDocumentVersion(ctx context.Context, arg CreateDocumentV
 		&i.PageCount,
 		&i.RenditionError,
 		&i.RenditionFailedAt,
+		&i.TextExtractedAt,
+		&i.TextError,
+		&i.TextFailedAt,
 	)
 	return i, err
 }
 
 const getCurrentVersion = `-- name: GetCurrentVersion :one
-select v.id, v.document_id, v.version_no, v.mime, v.size, v.storage_key, v.uploaded_by, v.created_at, v.rendition_key, v.page_count, v.rendition_error, v.rendition_failed_at from document_versions v 
+select v.id, v.document_id, v.version_no, v.mime, v.size, v.storage_key, v.uploaded_by, v.created_at, v.rendition_key, v.page_count, v.rendition_error, v.rendition_failed_at, v.text_extracted_at, v.text_error, v.text_failed_at from document_versions v 
 join documents d on d.current_version_id = v.id
 where d.id = $1
 `
@@ -131,6 +134,9 @@ func (q *Queries) GetCurrentVersion(ctx context.Context, id pgtype.UUID) (Docume
 		&i.PageCount,
 		&i.RenditionError,
 		&i.RenditionFailedAt,
+		&i.TextExtractedAt,
+		&i.TextError,
+		&i.TextFailedAt,
 	)
 	return i, err
 }
@@ -238,7 +244,7 @@ func (q *Queries) GetTrashedDocumentByID(ctx context.Context, id pgtype.UUID) (D
 }
 
 const getVersionByID = `-- name: GetVersionByID :one
-select id, document_id, version_no, mime, size, storage_key, uploaded_by, created_at, rendition_key, page_count, rendition_error, rendition_failed_at from document_versions where id = $1
+select id, document_id, version_no, mime, size, storage_key, uploaded_by, created_at, rendition_key, page_count, rendition_error, rendition_failed_at, text_extracted_at, text_error, text_failed_at from document_versions where id = $1
 `
 
 func (q *Queries) GetVersionByID(ctx context.Context, id pgtype.UUID) (DocumentVersion, error) {
@@ -257,6 +263,9 @@ func (q *Queries) GetVersionByID(ctx context.Context, id pgtype.UUID) (DocumentV
 		&i.PageCount,
 		&i.RenditionError,
 		&i.RenditionFailedAt,
+		&i.TextExtractedAt,
+		&i.TextError,
+		&i.TextFailedAt,
 	)
 	return i, err
 }
@@ -405,7 +414,7 @@ func (q *Queries) ListTrashDocuments(ctx context.Context, workspaceID pgtype.UUI
 }
 
 const listVersionByDocument = `-- name: ListVersionByDocument :many
-select id, document_id, version_no, mime, size, storage_key, uploaded_by, created_at, rendition_key, page_count, rendition_error, rendition_failed_at from document_versions where document_id = $1 order by version_no desc
+select id, document_id, version_no, mime, size, storage_key, uploaded_by, created_at, rendition_key, page_count, rendition_error, rendition_failed_at, text_extracted_at, text_error, text_failed_at from document_versions where document_id = $1 order by version_no desc
 `
 
 func (q *Queries) ListVersionByDocument(ctx context.Context, documentID pgtype.UUID) ([]DocumentVersion, error) {
@@ -430,6 +439,9 @@ func (q *Queries) ListVersionByDocument(ctx context.Context, documentID pgtype.U
 			&i.PageCount,
 			&i.RenditionError,
 			&i.RenditionFailedAt,
+			&i.TextExtractedAt,
+			&i.TextError,
+			&i.TextFailedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -443,7 +455,7 @@ func (q *Queries) ListVersionByDocument(ctx context.Context, documentID pgtype.U
 
 const listVersionsWithUploader = `-- name: ListVersionsWithUploader :many
 select
-    v.id, v.document_id, v.version_no, v.mime, v.size, v.storage_key, v.uploaded_by, v.created_at, v.rendition_key, v.page_count, v.rendition_error, v.rendition_failed_at,
+    v.id, v.document_id, v.version_no, v.mime, v.size, v.storage_key, v.uploaded_by, v.created_at, v.rendition_key, v.page_count, v.rendition_error, v.rendition_failed_at, v.text_extracted_at, v.text_error, v.text_failed_at,
     coalesce(u.username, u.email)::text as uploaded_by_name,
     coalesce(d.current_version_id = v.id, false)::bool as is_current
 from document_versions v
@@ -466,6 +478,9 @@ type ListVersionsWithUploaderRow struct {
 	PageCount         *int32             `json:"page_count"`
 	RenditionError    *string            `json:"rendition_error"`
 	RenditionFailedAt pgtype.Timestamptz `json:"rendition_failed_at"`
+	TextExtractedAt   pgtype.Timestamptz `json:"text_extracted_at"`
+	TextError         *string            `json:"text_error"`
+	TextFailedAt      pgtype.Timestamptz `json:"text_failed_at"`
 	UploadedByName    string             `json:"uploaded_by_name"`
 	IsCurrent         bool               `json:"is_current"`
 }
@@ -494,6 +509,9 @@ func (q *Queries) ListVersionsWithUploader(ctx context.Context, documentID pgtyp
 			&i.PageCount,
 			&i.RenditionError,
 			&i.RenditionFailedAt,
+			&i.TextExtractedAt,
+			&i.TextError,
+			&i.TextFailedAt,
 			&i.UploadedByName,
 			&i.IsCurrent,
 		); err != nil {

@@ -53,11 +53,12 @@ func main() {
 	}
 
 	viewer := contentservice.Viewer{
-		Converter: convert.NewGotenberg(viewerCfg),
-		Renderer:  renderer,
-		Watermark: wm,
-		PDFStamp:  watermark.NewPDFStamp(),
-		DPI:       viewerCfg.DPI,
+		Converter:     convert.NewGotenberg(viewerCfg),
+		Renderer:      renderer,
+		Watermark:     wm,
+		PDFStamp:      watermark.NewPDFStamp(),
+		TextExtractor: renderer,
+		DPI:           viewerCfg.DPI,
 	}
 
 	otpSecret := config.GetEnv("OTP_SECRET", "")
