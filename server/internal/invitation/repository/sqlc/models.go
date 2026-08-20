@@ -51,6 +51,14 @@ type Document struct {
 	DeletedRootFolderID pgtype.UUID        `json:"deleted_root_folder_id"`
 }
 
+type DocumentPageText struct {
+	VersionID pgtype.UUID `json:"version_id"`
+	PageNo    int32       `json:"page_no"`
+	Content   string      `json:"content"`
+	TsvID     interface{} `json:"tsv_id"`
+	TsvEn     interface{} `json:"tsv_en"`
+}
+
 type DocumentVersion struct {
 	ID                pgtype.UUID        `json:"id"`
 	DocumentID        pgtype.UUID        `json:"document_id"`
@@ -64,6 +72,9 @@ type DocumentVersion struct {
 	PageCount         *int32             `json:"page_count"`
 	RenditionError    *string            `json:"rendition_error"`
 	RenditionFailedAt pgtype.Timestamptz `json:"rendition_failed_at"`
+	TextExtractedAt   pgtype.Timestamptz `json:"text_extracted_at"`
+	TextError         *string            `json:"text_error"`
+	TextFailedAt      pgtype.Timestamptz `json:"text_failed_at"`
 }
 
 type Folder struct {

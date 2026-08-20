@@ -19,11 +19,12 @@ import (
 )
 
 type Viewer struct {
-	Converter convert.Converter
-	Renderer  render.Render
-	Watermark watermark.Watermarker
-	PDFStamp  watermark.PDFStamper
-	DPI       int
+	Converter     convert.Converter
+	Renderer      render.Render
+	Watermark     watermark.Watermarker
+	PDFStamp      watermark.PDFStamper
+	TextExtractor render.TextExtractor
+	DPI           int
 }
 
 type viewAccess struct {

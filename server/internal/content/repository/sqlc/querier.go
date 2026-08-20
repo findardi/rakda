@@ -16,6 +16,7 @@ type Querier interface {
 	CreateDocument(ctx context.Context, arg CreateDocumentParams) (Document, error)
 	CreateDocumentVersion(ctx context.Context, arg CreateDocumentVersionParams) (DocumentVersion, error)
 	CreateFolder(ctx context.Context, arg CreateFolderParams) (Folder, error)
+	DeleteVersionPageText(ctx context.Context, versionID pgtype.UUID) error
 	GetCurrentVersion(ctx context.Context, id pgtype.UUID) (DocumentVersion, error)
 	GetDefaultFolder(ctx context.Context, workspaceID pgtype.UUID) (Folder, error)
 	GetDocumentByID(ctx context.Context, id pgtype.UUID) (Document, error)
@@ -29,10 +30,12 @@ type Querier interface {
 	GetTrashedDocumentByID(ctx context.Context, id pgtype.UUID) (Document, error)
 	GetTrashedFolderByID(ctx context.Context, id pgtype.UUID) (Folder, error)
 	GetVersionByID(ctx context.Context, id pgtype.UUID) (DocumentVersion, error)
+	InsertPageText(ctx context.Context, arg InsertPageTextParams) error
 	ListDocumentsByFolder(ctx context.Context, folderID pgtype.UUID) ([]ListDocumentsByFolderRow, error)
 	ListExpiredTrashDocuments(ctx context.Context, cutoff pgtype.Timestamptz) ([]ListExpiredTrashDocumentsRow, error)
 	ListExpiredTrashFolders(ctx context.Context, cutoff pgtype.Timestamptz) ([]ListExpiredTrashFoldersRow, error)
 	ListFolderAccess(ctx context.Context, arg ListFolderAccessParams) ([]ListFolderAccessRow, error)
+	ListPendingTextExtraction(ctx context.Context, limit int32) ([]ListPendingTextExtractionRow, error)
 	ListTrashDocuments(ctx context.Context, workspaceID pgtype.UUID) ([]ListTrashDocumentsRow, error)
 	ListTrashFolders(ctx context.Context, workspaceID pgtype.UUID) ([]ListTrashFoldersRow, error)
 	ListVersionByDocument(ctx context.Context, documentID pgtype.UUID) ([]DocumentVersion, error)
@@ -59,6 +62,8 @@ type Querier interface {
 	SetFolderAccess(ctx context.Context, arg SetFolderAccessParams) (FolderAccess, error)
 	SetVersionRendition(ctx context.Context, arg SetVersionRenditionParams) error
 	SetVersionRenditionFailure(ctx context.Context, arg SetVersionRenditionFailureParams) error
+	SetVersionTextExtracted(ctx context.Context, id pgtype.UUID) error
+	SetVersionTextFailure(ctx context.Context, arg SetVersionTextFailureParams) error
 	SoftDeleteDocument(ctx context.Context, arg SoftDeleteDocumentParams) error
 	SoftDeleteDocumentsForFolderRoot(ctx context.Context, arg SoftDeleteDocumentsForFolderRootParams) error
 	SoftDeleteFolderSubtree(ctx context.Context, arg SoftDeleteFolderSubtreeParams) error

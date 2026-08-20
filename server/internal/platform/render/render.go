@@ -15,3 +15,7 @@ type Render interface {
 	PageCount(ctx context.Context, pdf io.Reader) (int, error)
 	RenderPage(ctx context.Context, pdf io.Reader, page int) ([]byte, error)
 }
+
+type TextExtractor interface {
+	ExtractText(ctx context.Context, pdf io.Reader) (string, error)
+}
