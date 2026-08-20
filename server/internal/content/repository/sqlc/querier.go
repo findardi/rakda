@@ -58,6 +58,12 @@ type Querier interface {
 	RestoreDocumentsSweptBy(ctx context.Context, deletedRootFolderID pgtype.UUID) error
 	RestoreFolderRoot(ctx context.Context, arg RestoreFolderRootParams) error
 	RestoreFoldersSweptBy(ctx context.Context, deletedRootFolderID pgtype.UUID) error
+	SearchAllDocuments(ctx context.Context, arg SearchAllDocumentsParams) ([]SearchAllDocumentsRow, error)
+	SearchAllFolderBreadcrumbs(ctx context.Context, folderIds []pgtype.UUID) ([]SearchAllFolderBreadcrumbsRow, error)
+	SearchAllFolders(ctx context.Context, arg SearchAllFoldersParams) ([]SearchAllFoldersRow, error)
+	SearchVisibleDocuments(ctx context.Context, arg SearchVisibleDocumentsParams) ([]SearchVisibleDocumentsRow, error)
+	SearchVisibleFolderBreadcrumbs(ctx context.Context, arg SearchVisibleFolderBreadcrumbsParams) ([]SearchVisibleFolderBreadcrumbsRow, error)
+	SearchVisibleFolders(ctx context.Context, arg SearchVisibleFoldersParams) ([]SearchVisibleFoldersRow, error)
 	SetCurrentVersion(ctx context.Context, arg SetCurrentVersionParams) error
 	SetFolderAccess(ctx context.Context, arg SetFolderAccessParams) (FolderAccess, error)
 	SetVersionRendition(ctx context.Context, arg SetVersionRenditionParams) error

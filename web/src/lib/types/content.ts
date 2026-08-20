@@ -233,3 +233,23 @@ export interface FolderAccessPanel {
 	direct: DirectFolderAccess[];
 	inherited: InheritedFolderAccess[];
 }
+
+export interface SearchFolderItem {
+	id: string;
+	name: string;
+	parent_id: string;
+	breadcrumb: string;
+}
+
+export interface SearchDocumentItem {
+	id: string;
+	name: string;
+	folder_id: string;
+	breadcrumb: string;
+	mime: string;
+}
+
+export interface SearchData {
+	folders: SearchFolderItem[];
+	documents: SearchDocumentItem[];
+}
