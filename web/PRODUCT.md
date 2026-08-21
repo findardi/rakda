@@ -65,3 +65,13 @@ teks** (tak bisa diseleksi, disalin, di-Ctrl+F, atau dibaca pembaca layar),
 ukurannya membengkak, dan CPU dibayar tiap unduhan karena tandanya unik per
 permintaan. Pemegang `can_download_original` menerima PDF tanpa tanda dan tanpa
 perubahan — keputusan produk, bukan celah teknis.
+
+**Unduhan ber-watermark dibatasi 150 halaman.** Di atas itu tombol unduhnya mati
+dan menjelaskan alasannya dengan dua angka — batasnya, dan jumlah halaman
+dokumen itu — lalu mengarahkan ke viewer. Batas ini ongkos, bukan izin:
+merakit PDF raster menahan sekitar 10 MB piksel per halaman, dan proxy web
+memutus permintaan di 300 detik. Pemegang `can_download_original` tidak kena
+batas ini sama sekali — berkasnya cuma disalin, tidak dirakit ulang.
+
+Angka 150 dikirim server ke klien, tidak ditulis di kode web. Kalau batasnya
+berubah, UI ikut tanpa perlu disentuh.

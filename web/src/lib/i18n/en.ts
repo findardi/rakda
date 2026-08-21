@@ -456,7 +456,7 @@ export const en: Record<keyof Dict, string> = {
 		'Your group has not been given permission to view this document. Ask the room owner to open it up to your group.',
 	'doc.view.downloadMarked': 'Download PDF',
 	'doc.view.downloadMarkedHint':
-		'Watermarked PDF without a text layer — cannot be selected, copied, or searched.',
+		'Watermarked PDF without a text layer — cannot be selected, copied, or searched. Documents over {max} pages cannot be downloaded and are viewer-only.',
 	'doc.view.downloadClean': 'Download clean PDF',
 	'doc.view.downloadPreparing': 'Preparing PDF… this can take a few minutes',
 	'doc.view.downloadTooLargeHint':

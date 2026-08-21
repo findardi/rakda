@@ -452,7 +452,7 @@ export const id = {
 		'Grup Anda tidak diberi izin melihat dokumen ini. Minta pemilik ruang membukanya untuk grup Anda.',
 	'doc.view.downloadMarked': 'Unduh PDF',
 	'doc.view.downloadMarkedHint':
-		'PDF ber-watermark tanpa lapisan teks — tidak bisa diseleksi, disalin, atau dicari.',
+		'PDF ber-watermark tanpa lapisan teks — tidak bisa diseleksi, disalin, atau dicari. Dokumen di atas {max} halaman tidak bisa diunduh, hanya bisa dibaca di viewer.',
 	'doc.view.downloadClean': 'Unduh PDF tanpa tanda air',
 	'doc.view.downloadPreparing': 'Menyiapkan PDF… bisa beberapa menit',
 	'doc.view.downloadTooLargeHint':
