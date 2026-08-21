@@ -22,7 +22,6 @@ type Viewer struct {
 	Converter     convert.Converter
 	Renderer      render.Render
 	Watermark     watermark.Watermarker
-	PDFStamp      watermark.PDFStamper
 	TextExtractor render.TextExtractor
 	WordBoxes     render.WordBoxExtractor
 	OCR           render.OCR
@@ -347,6 +346,20 @@ func (s *ContentService) loadOrRenderPage(ctx context.Context, workspaceID, vers
 		}
 	}
 
+	img, err := s.renderPage(ctx, renditionKey, page)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.store.Put(ctx, key, bytes.NewReader(img), int64(len(img)), "image/png"); err != nil {
+		return nil, fmt.Errorf("cache page: %w", err)
+	}
+
+	return img, nil
+}
+
+// renderPage merender satu halaman tanpa menyentuh cache PNG Minio.
+func (s *ContentService) renderPage(ctx context.Context, renditionKey string, page int) ([]byte, error) {
 	pdf, err := s.store.Get(ctx, renditionKey)
 	if err != nil {
 		return nil, fmt.Errorf("get rendition: %w", err)
@@ -361,9 +374,23 @@ func (s *ContentService) loadOrRenderPage(ctx context.Context, workspaceID, vers
 		return nil, fmt.Errorf("render page: %w", err)
 	}
 
-	if err := s.store.Put(ctx, key, bytes.NewReader(img), int64(len(img)), "image/png"); err != nil {
-		return nil, fmt.Errorf("cache page: %w", err)
+	return img, nil
+}
+
+// pageForDownload memakai cache PNG bila ada dan merender ke berkas
+// sementara bila tidak — unduhan menyentuh semua halaman termasuk yang tak
+// pernah dibaca, dan cache tidak punya penghapus untuk dokumen hidup, jadi
+// jalur ini tidak pernah mengisi cache (aturan 9-e / keputusan 9-g).
+func (s *ContentService) pageForDownload(ctx context.Context, workspaceID, versionID, renditionKey string, page int) ([]byte, error) {
+	key := renditionPageKey(workspaceID, versionID, page, s.viewer.DPI)
+
+	if r, err := s.store.Get(ctx, key); err == nil {
+		b, rerr := io.ReadAll(r)
+		r.Close()
+		if rerr == nil && len(b) > 0 {
+			return b, nil
+		}
 	}
 
-	return img, nil
+	return s.renderPage(ctx, renditionKey, page)
 }

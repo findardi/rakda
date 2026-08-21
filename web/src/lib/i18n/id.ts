@@ -447,6 +447,8 @@ export const id = {
 	'doc.view.forbidden.body':
 		'Grup Anda tidak diberi izin melihat dokumen ini. Minta pemilik ruang membukanya untuk grup Anda.',
 	'doc.view.downloadMarked': 'Unduh PDF',
+	'doc.view.downloadMarkedHint':
+		'PDF ber-watermark tanpa lapisan teks — tidak bisa diseleksi, disalin, atau dicari.',
 	'doc.view.downloadClean': 'Unduh PDF tanpa tanda air',
 	'doc.view.unsupported.title': 'Dokumen ini tidak bisa ditampilkan',
 	'doc.view.unsupported.body':
