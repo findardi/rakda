@@ -30,14 +30,15 @@ type VersionResponse struct {
 }
 
 type ViewMetaResponse struct {
-	DocumentID          string `json:"document_id"`
-	Name                string `json:"name"`
-	Mime                string `json:"mime"`
-	VersionID           string `json:"version_id"`
-	VersionNo           int32  `json:"version_no"`
-	PageCount           int    `json:"page_count"`
-	CanDownload         bool   `json:"can_download"`
-	CanDownloadOriginal bool   `json:"can_download_original"`
+	DocumentID                string `json:"document_id"`
+	Name                      string `json:"name"`
+	Mime                      string `json:"mime"`
+	VersionID                 string `json:"version_id"`
+	VersionNo                 int32  `json:"version_no"`
+	PageCount                 int    `json:"page_count"`
+	CanDownload               bool   `json:"can_download"`
+	CanDownloadOriginal       bool   `json:"can_download_original"`
+	WatermarkDownloadMaxPages int    `json:"watermark_download_max_pages"`
 }
 
 type InitMultipartResponse struct {

@@ -122,10 +122,10 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 		pageCacheSweepInterval = time.Hour
 	}
 
-	downloadStampConcurrency, err := config.GetEnvInt("DOWNLOAD_STAMP_CONCURRENCY", 2)
+	downloadStampConcurrency, err := config.GetEnvInt("DOWNLOAD_STAMP_CONCURRENCY", 1)
 	if err != nil {
-		log.Printf("invalid DOWNLOAD_STAMP_CONCURRENCY, fallback to 2: %v", err)
-		downloadStampConcurrency = 2
+		log.Printf("invalid DOWNLOAD_STAMP_CONCURRENCY, fallback to 1: %v", err)
+		downloadStampConcurrency = 1
 	}
 
 	// Kosong = XFF tidak pernah dipercaya (perilaku aman: IP proxy, bukan IP

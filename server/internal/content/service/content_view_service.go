@@ -285,14 +285,15 @@ func (s *ContentService) GetViewMeta(ctx context.Context, workspaceID, documentI
 		documentID, doc.Name, map[string]any{"version_no": version.VersionNo}))
 
 	return dto.ViewMetaResponse{
-		DocumentID:          uuidString(doc.ID),
-		Name:                doc.Name,
-		Mime:                version.Mime,
-		VersionID:           uuidString(version.ID),
-		VersionNo:           version.VersionNo,
-		PageCount:           pageCount,
-		CanDownload:         access.canDownload,
-		CanDownloadOriginal: access.canDownloadOriginal,
+		DocumentID:                uuidString(doc.ID),
+		Name:                      doc.Name,
+		Mime:                      version.Mime,
+		VersionID:                 uuidString(version.ID),
+		VersionNo:                 version.VersionNo,
+		PageCount:                 pageCount,
+		CanDownload:               access.canDownload,
+		CanDownloadOriginal:       access.canDownloadOriginal,
+		WatermarkDownloadMaxPages: maxWatermarkDownloadPages,
 	}, nil
 }
 
