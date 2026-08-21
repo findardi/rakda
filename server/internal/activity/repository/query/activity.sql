@@ -11,16 +11,28 @@ values
     ($1, $2, $3, $4, $5, $6, $7, $8, $9);
 
 -- name: ListActivityLogs :many
-select * from activity_logs
+select
+    a.*,
+    coalesce(d.id, dv.id) as link_document_id,
+    coalesce(d.folder_id, dv.folder_id, f.id) as link_folder_id
+from activity_logs a
+left join documents d
+    on a.target_type = 'document' and d.id = a.target_id and d.deleted_at is null
+left join document_versions v
+    on a.target_type = 'version' and v.id = a.target_id
+left join documents dv
+    on dv.id = v.document_id and dv.deleted_at is null
+left join folders f
+    on a.target_type = 'folder' and f.id = a.target_id and f.deleted_at is null
 where
-    workspace_id = @workspace_id
+    a.workspace_id = @workspace_id
     and (sqlc.narg('cursor_created_at')::timestamptz is null
-        or (created_at, id) < (sqlc.narg('cursor_created_at')::timestamptz, sqlc.narg('cursor_id')::uuid))
-    and (sqlc.narg('from_time')::timestamptz is null or created_at >= sqlc.narg('from_time'))
-    and (sqlc.narg('to_time')::timestamptz is null or created_at <= sqlc.narg('to_time'))
-    and (sqlc.narg('actor_id')::uuid is null or actor_id = sqlc.narg('actor_id'))
-    and (sqlc.narg('action')::text is null or action = sqlc.narg('action'))
-order by created_at desc, id desc
+        or (a.created_at, a.id) < (sqlc.narg('cursor_created_at')::timestamptz, sqlc.narg('cursor_id')::uuid))
+    and (sqlc.narg('from_time')::timestamptz is null or a.created_at >= sqlc.narg('from_time'))
+    and (sqlc.narg('to_time')::timestamptz is null or a.created_at <= sqlc.narg('to_time'))
+    and (sqlc.narg('actor_id')::uuid is null or a.actor_id = sqlc.narg('actor_id'))
+    and (sqlc.narg('action')::text is null or a.action = sqlc.narg('action'))
+order by a.created_at desc, a.id desc
 limit @page_size;
 
 -- name: GetDocumentForEvent :one

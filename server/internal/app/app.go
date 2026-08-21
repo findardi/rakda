@@ -36,6 +36,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+const defaultTrashRetention = 30 * 24 * time.Hour
+
 type App struct {
 	router         chi.Router
 	addr           string
@@ -62,10 +64,10 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 	}
 
 	webURL := config.GetEnv("WEB_URL", "http://localhost:5173")
-	trashRetention, err := config.GetEnvDuration("TRASH_RETENTION", 15*time.Hour)
+	trashRetention, err := config.GetEnvDuration("TRASH_RETENTION", defaultTrashRetention)
 	if err != nil {
-		log.Printf("invalid TRASH_RETENTION, fallback to 15h: %v", err)
-		trashRetention = 15 * time.Hour
+		log.Printf("invalid TRASH_RETENTION, fallback to %s: %v", defaultTrashRetention, err)
+		trashRetention = defaultTrashRetention
 	}
 
 	reaperInterval, err := config.GetEnvDuration("REAPER_INTERVAL", time.Hour)

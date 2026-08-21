@@ -8,6 +8,7 @@
 	import { DocumentVersions } from '$lib/components/app';
 	import { Alert, Button, showToast } from '$lib/components/common';
 	import { DOCUMENT_MIME, filesFrom, treeFromInput } from '$lib/dnd';
+	import { downloadRendition } from '$lib/download';
 	import { formatBytes, formatDate, formatDateTime } from '$lib/format';
 	import { t } from '$lib/i18n';
 	import { findNode } from '$lib/tree';
@@ -15,6 +16,7 @@
 	import type { MyAccessWorkspace } from '$lib/types/workspace';
 	import { uploadQueue } from '$lib/upload/queue.svelte';
 	import { uploadTree } from '$lib/upload/tree';
+	import { SvelteSet } from 'svelte/reactivity';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -52,18 +54,56 @@
 	// Picking a folder creates subfolders, so it needs more than upload rights.
 	const canCreate = $derived(perms.includes('folder:create') && !forbidden);
 
-	let downloadingId = $state<string | null>(null);
+	const downloading = new SvelteSet<string>();
+	const downloadAbort = new AbortController();
+	$effect(() => () => downloadAbort.abort());
 
-	function download(doc: DocumentData) {
-		downloadingId = doc.id;
-		const q = new URLSearchParams({ workspaceId: workspace.id, documentId: doc.id });
-		window.location.href = `/api/content/download?${q}`;
+	async function download(doc: DocumentData) {
+		if (downloading.has(doc.id)) return;
+		downloading.add(doc.id);
+		const outcome = await downloadRendition(
+			{ workspaceId: workspace.id, documentId: doc.id, fallbackName: doc.name },
+			downloadAbort.signal
+		);
+		downloading.delete(doc.id);
+		if (!outcome.ok) showToast(outcome.message, 'error');
 	}
 	const canDelete = $derived(perms.includes('document:delete'));
 	const canEditDoc = $derived(perms.includes('document:edit'));
 	// Version history is owner/admin upstream regardless of `document:view`, so a
 	// guest never sees the disclosure rather than opening it into a 403.
 	const canSeeVersions = $derived(role === 'owner' || role === 'admin');
+
+	const notReady = $derived(documents.filter((d) => d.rendition_status !== 'ready').length);
+
+	const retrying = new SvelteSet<string>();
+
+	async function retryRendition(doc: DocumentData) {
+		if (retrying.has(doc.id)) return;
+		retrying.add(doc.id);
+		try {
+			const res = await fetch('/api/content/versions/retry-rendition', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					workspaceId: workspace.id,
+					documentId: doc.id,
+					versionId: doc.current_version_id
+				})
+			});
+			if (!res.ok) {
+				const body = (await res.json().catch(() => null)) as { message?: string } | null;
+				showToast(body?.message || t('err.generic'), 'error');
+				return;
+			}
+			showToast(t('doc.docs.rendition.retried', { name: doc.name }), 'success');
+			await invalidateAll();
+		} catch {
+			showToast(t('err.network'), 'error');
+		} finally {
+			retrying.delete(doc.id);
+		}
+	}
 
 	// One row's history open at a time: two panels of near-identical numbers
 	// invite comparing the wrong pair.
@@ -386,6 +426,11 @@
 						n: documents.length
 					})}
 				</span>
+				{#if notReady > 0}
+					<span class="flex-none font-mono text-xs text-warning-ink">
+						· {t('doc.docs.rendition.notReady', { n: notReady })}
+					</span>
+				{/if}
 			{/if}
 			<span
 				class="flex-none rounded-selector bg-base-content/5 px-1.5 py-0.5 text-[0.6875rem] text-muted"
@@ -608,6 +653,35 @@
 						</span>
 					{/if}
 
+					{#if doc.rendition_status === 'pending'}
+						<span
+							class="flex flex-none items-center gap-1 text-[0.6875rem] text-warning-ink"
+							title={t('doc.docs.rendition.pendingTitle')}
+						>
+							<span class="loading loading-spinner loading-xs" aria-hidden="true"></span>
+							{t('doc.docs.rendition.pending')}
+						</span>
+					{:else if doc.rendition_status === 'failed'}
+						<span
+							class="flex flex-none items-center gap-1.5 text-[0.6875rem] text-error"
+							title={t('doc.docs.rendition.failedTitle')}
+						>
+							{t('doc.docs.rendition.failed')}
+							{#if canSeeVersions}
+								<button
+									type="button"
+									onclick={() => void retryRendition(doc)}
+									disabled={retrying.has(doc.id)}
+									aria-busy={retrying.has(doc.id)}
+									aria-label={t('doc.docs.rendition.retryOf', { name: doc.name })}
+									class="underline underline-offset-2 hover:text-base-content disabled:opacity-50"
+								>
+									{t('doc.docs.rendition.retry')}
+								</button>
+							{/if}
+						</span>
+					{/if}
+
 					<span
 						class="hidden w-20 flex-none text-right font-mono text-xs text-muted tabular-nums md:inline"
 					>
@@ -628,14 +702,15 @@
 						{#if canDownload}
 							<button
 								type="button"
-								onclick={() => download(doc)}
-								disabled={downloadingId === doc.id}
+								onclick={() => void download(doc)}
+								disabled={downloading.has(doc.id)}
+								aria-busy={downloading.has(doc.id)}
 								draggable="false"
 								title={t('doc.docs.download')}
 								aria-label={t('doc.docs.downloadOf', { name: doc.name })}
 								class="grid h-8 w-8 place-items-center rounded-field text-muted transition-colors hover:bg-base-content/5 hover:text-base-content disabled:pointer-events-none disabled:opacity-50 pointer-coarse:h-11 pointer-coarse:w-11"
 							>
-								{#if downloadingId === doc.id}
+								{#if downloading.has(doc.id)}
 									<span class="loading loading-spinner loading-xs"></span>
 								{:else}
 									<svg

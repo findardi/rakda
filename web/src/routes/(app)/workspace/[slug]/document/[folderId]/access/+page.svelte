@@ -4,6 +4,9 @@
 	import { resolve } from '$app/paths';
 	import { navigating, page } from '$app/state';
 	import type { SubmitFunction } from '@sveltejs/kit';
+	import { cubicOut } from 'svelte/easing';
+	import { prefersReducedMotion } from 'svelte/motion';
+	import { slide } from 'svelte/transition';
 	import { Alert, Button } from '$lib/components/common';
 	import { t } from '$lib/i18n';
 	import { findNode } from '$lib/tree';
@@ -27,6 +30,9 @@
 
 	const direct = $derived(data.panel.direct);
 	const inherited = $derived(data.panel.inherited);
+	const maxPages = $derived(data.watermarkMaxPages);
+
+	const limitedByWatermark = (c: Caps) => c.can_download && c.can_watermark;
 
 	type Caps = {
 		can_view: boolean;
@@ -175,6 +181,9 @@
 			base = n ? t('facc.will.viewSub', { group, n }) : t('facc.will.view', { group });
 		}
 		if (caps.can_view && caps.can_watermark) base += ' ' + t('facc.will.wmOn', { group });
+		if (limitedByWatermark(caps) && maxPages !== null) {
+			base += ' ' + t('facc.will.wmLimit', { max: maxPages });
+		}
 		if (caps.can_download_original) base += ' ' + t('facc.will.origOn', { group });
 		return base;
 	}
@@ -389,12 +398,40 @@
 		</div>
 	</div>
 	<p class="mt-2 text-[0.6875rem] text-muted">{t('facc.cap.exclusive')}</p>
+	{#if limitedByWatermark(caps)}
+		<p
+			role="status"
+			transition:slide={{ duration: prefersReducedMotion.current ? 0 : 180, easing: cubicOut }}
+			class="mt-2 flex max-w-prose items-start gap-1.5 text-xs text-warning-ink text-pretty"
+		>
+			<svg
+				class="mt-0.5 h-3.5 w-3.5 flex-none"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="1.8"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				aria-hidden="true"
+			>
+				<path d="M12 3 2.5 19.5h19z" />
+				<path d="M12 9.5v4.5M12 16.5h.01" />
+			</svg>
+			<span>
+				{maxPages !== null
+					? t('facc.cap.wmLimit', { max: maxPages })
+					: t('facc.cap.wmLimitUnknown')}
+			</span>
+		</p>
+	{/if}
 {/snippet}
 
-{#snippet wmMark()}
+{#snippet wmMark(limited: boolean)}
 	<span
 		class="flex-none rounded-selector bg-base-content/5 px-1.5 py-0.5 text-[0.6875rem] text-muted"
-		title={t('facc.cap.watermarkHint')}
+		title={limited && maxPages !== null
+			? `${t('facc.cap.watermarkHint')} ${t('facc.cap.wmLimitChip', { max: maxPages })}`
+			: t('facc.cap.watermarkHint')}
 	>
 		{t('facc.cap.watermark')}
 	</span>
@@ -752,7 +789,7 @@
 										</p>
 									</div>
 									<span class="flex-none text-sm font-medium">{capsLabel(row)}</span>
-									{#if row.can_watermark}{@render wmMark()}{/if}
+									{#if row.can_watermark}{@render wmMark(row.can_download)}{/if}
 									{#if row.can_download_original}{@render origMark()}{/if}
 									<button
 										type="button"

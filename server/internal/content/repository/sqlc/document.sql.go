@@ -281,7 +281,9 @@ select
     d.updated_at,
     v.version_no,
     v.mime,
-    v.size
+    v.size,
+    v.rendition_key,
+    v.rendition_failed_at
 from documents d
 join document_versions v on v.id = d.current_version_id
 where d.folder_id = $1 and d.deleted_at is null
@@ -289,16 +291,18 @@ order by d.position, d.name, d.created_at
 `
 
 type ListDocumentsByFolderRow struct {
-	ID               pgtype.UUID        `json:"id"`
-	Name             string             `json:"name"`
-	FolderID         pgtype.UUID        `json:"folder_id"`
-	CurrentVersionID pgtype.UUID        `json:"current_version_id"`
-	UploadedBy       pgtype.UUID        `json:"uploaded_by"`
-	CreatedAt        pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
-	VersionNo        int32              `json:"version_no"`
-	Mime             string             `json:"mime"`
-	Size             int64              `json:"size"`
+	ID                pgtype.UUID        `json:"id"`
+	Name              string             `json:"name"`
+	FolderID          pgtype.UUID        `json:"folder_id"`
+	CurrentVersionID  pgtype.UUID        `json:"current_version_id"`
+	UploadedBy        pgtype.UUID        `json:"uploaded_by"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	VersionNo         int32              `json:"version_no"`
+	Mime              string             `json:"mime"`
+	Size              int64              `json:"size"`
+	RenditionKey      *string            `json:"rendition_key"`
+	RenditionFailedAt pgtype.Timestamptz `json:"rendition_failed_at"`
 }
 
 func (q *Queries) ListDocumentsByFolder(ctx context.Context, folderID pgtype.UUID) ([]ListDocumentsByFolderRow, error) {
@@ -321,6 +325,8 @@ func (q *Queries) ListDocumentsByFolder(ctx context.Context, folderID pgtype.UUI
 			&i.VersionNo,
 			&i.Mime,
 			&i.Size,
+			&i.RenditionKey,
+			&i.RenditionFailedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -333,7 +339,7 @@ func (q *Queries) ListDocumentsByFolder(ctx context.Context, folderID pgtype.UUI
 }
 
 const listExpiredTrashDocuments = `-- name: ListExpiredTrashDocuments :many
-select id, workspace_id from documents
+select id, workspace_id, name from documents
 where deleted_at is not null
 and deleted_root_folder_id is null
 and deleted_at < $1
@@ -342,6 +348,7 @@ and deleted_at < $1
 type ListExpiredTrashDocumentsRow struct {
 	ID          pgtype.UUID `json:"id"`
 	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	Name        string      `json:"name"`
 }
 
 func (q *Queries) ListExpiredTrashDocuments(ctx context.Context, cutoff pgtype.Timestamptz) ([]ListExpiredTrashDocumentsRow, error) {
@@ -353,7 +360,7 @@ func (q *Queries) ListExpiredTrashDocuments(ctx context.Context, cutoff pgtype.T
 	var items []ListExpiredTrashDocumentsRow
 	for rows.Next() {
 		var i ListExpiredTrashDocumentsRow
-		if err := rows.Scan(&i.ID, &i.WorkspaceID); err != nil {
+		if err := rows.Scan(&i.ID, &i.WorkspaceID, &i.Name); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -367,10 +374,13 @@ func (q *Queries) ListExpiredTrashDocuments(ctx context.Context, cutoff pgtype.T
 const listTrashDocuments = `-- name: ListTrashDocuments :many
 select d.id, d.name, d.deleted_at,
     coalesce(u.username, u.email)::text as deleted_by_name,
-    v.mime, v.size
+    v.mime, v.size,
+    coalesce(p.name, '')::text as folder_name,
+    (p.id is null)::boolean as folder_gone
 from documents d
 join users u on u.id = d.deleted_by
 left join document_versions v on v.id = d.current_version_id
+left join folders p on p.id = d.folder_id and p.deleted_at is null
 where d.workspace_id = $1
     and d.deleted_at is not null
     and d.deleted_root_folder_id is null
@@ -384,6 +394,8 @@ type ListTrashDocumentsRow struct {
 	DeletedByName string             `json:"deleted_by_name"`
 	Mime          *string            `json:"mime"`
 	Size          *int64             `json:"size"`
+	FolderName    string             `json:"folder_name"`
+	FolderGone    bool               `json:"folder_gone"`
 }
 
 func (q *Queries) ListTrashDocuments(ctx context.Context, workspaceID pgtype.UUID) ([]ListTrashDocumentsRow, error) {
@@ -402,6 +414,8 @@ func (q *Queries) ListTrashDocuments(ctx context.Context, workspaceID pgtype.UUI
 			&i.DeletedByName,
 			&i.Mime,
 			&i.Size,
+			&i.FolderName,
+			&i.FolderGone,
 		); err != nil {
 			return nil, err
 		}

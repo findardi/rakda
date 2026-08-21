@@ -7,15 +7,23 @@ type UploadURLResponse struct {
 	StorageKey string `json:"storage_key"`
 }
 
+const (
+	RenditionPending = "pending"
+	RenditionReady   = "ready"
+	RenditionFailed  = "failed"
+)
+
 type DocumentResponse struct {
-	ID        string    `json:"id"`
-	FolderID  string    `json:"folder_id"`
-	Name      string    `json:"name"`
-	VersionNo int32     `json:"version_no"`
-	Mime      string    `json:"mime"`
-	Size      int64     `json:"size"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID               string    `json:"id"`
+	FolderID         string    `json:"folder_id"`
+	Name             string    `json:"name"`
+	VersionNo        int32     `json:"version_no"`
+	CurrentVersionID string    `json:"current_version_id"`
+	Mime             string    `json:"mime"`
+	Size             int64     `json:"size"`
+	RenditionStatus  string    `json:"rendition_status"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }
 
 type VersionResponse struct {
@@ -39,6 +47,10 @@ type ViewMetaResponse struct {
 	CanDownload               bool   `json:"can_download"`
 	CanDownloadOriginal       bool   `json:"can_download_original"`
 	WatermarkDownloadMaxPages int    `json:"watermark_download_max_pages"`
+}
+
+type DownloadLimitsResponse struct {
+	WatermarkDownloadMaxPages int `json:"watermark_download_max_pages"`
 }
 
 type InitMultipartResponse struct {

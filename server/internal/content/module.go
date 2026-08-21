@@ -98,6 +98,7 @@ func (m *Module) RegisterRoutes(r chi.Router) {
 			r.Get("/search", m.handler.SearchContent)
 			r.Get("/search/content/pages", m.handler.SearchContentPages)
 			r.Post("/search/log", m.handler.LogSearch)
+			r.Get("/download-limits", m.handler.GetDownloadLimits)
 
 			r.Route("/folders", func(r chi.Router) {
 				r.With(m.mw.RequirePermission(permission.PermFolderView)).Get("/", m.handler.GetFoldersTree)
