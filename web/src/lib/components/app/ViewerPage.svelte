@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
+	import type { SearchBox } from '$lib/types/content';
 
 	type Props = {
 		pageNumber: number;
@@ -10,9 +11,21 @@
 		onactive?: (page: number, coverage: number) => void;
 		/** Hand the wrapper element to the parent for jump/keyboard navigation. */
 		onregister?: (page: number, el: HTMLElement | null) => void;
+		/** In-document find overlay: normalized 0..1 boxes, coordinates only. */
+		boxes?: SearchBox[];
+		/** Which box in `boxes` is the navigated-to hit (stronger highlight). */
+		activeIndex?: number;
 	};
 
-	let { pageNumber, total, src, onactive, onregister }: Props = $props();
+	let {
+		pageNumber,
+		total,
+		src,
+		onactive,
+		onregister,
+		boxes = [],
+		activeIndex = undefined
+	}: Props = $props();
 
 	let el = $state<HTMLElement>();
 	let shouldLoad = $state(false);
@@ -104,6 +117,22 @@
 			}}
 			class="riksa-vp-img block h-auto w-full select-none {loaded ? 'is-loaded' : 'opacity-0'}"
 		/>
+	{/if}
+
+	<!-- In-document find overlay: coordinates only, never text (9-f). The
+	     page is a <img>, so boxes sit in percentage space and stay put at any
+	     render DPI. -->
+	{#if boxes.length > 0}
+		<div class="pointer-events-none absolute inset-0" aria-hidden="true">
+			{#each boxes as b, i (i)}
+				<span
+					class="absolute border {i === activeIndex
+						? 'border-primary bg-primary/25'
+						: 'border-primary/70 bg-primary/10'}"
+					style="left:{b.x * 100}%; top:{b.y * 100}%; width:{b.w * 100}%; height:{b.h * 100}%;"
+				></span>
+			{/each}
+		</div>
 	{/if}
 
 	{#if errored}

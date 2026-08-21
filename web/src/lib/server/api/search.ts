@@ -1,5 +1,5 @@
 import type { ApiResult } from '$lib/types';
-import type { SearchContentPagesData, SearchData } from '$lib/types/content';
+import type { SearchBoxesData, SearchContentPagesData, SearchData } from '$lib/types/content';
 import { get, post } from './client';
 
 export function searchContent(
@@ -9,6 +9,18 @@ export function searchContent(
 ): Promise<ApiResult<SearchData>> {
 	return get<SearchData>(
 		`/content/workspaces/${workspaceId}/search?q=${encodeURIComponent(query)}`,
+		token
+	);
+}
+
+export function searchWordBoxes(
+	token: string,
+	workspaceId: string,
+	documentId: string,
+	query: string
+): Promise<ApiResult<SearchBoxesData>> {
+	return get<SearchBoxesData>(
+		`/content/workspaces/${workspaceId}/documents/${encodeURIComponent(documentId)}/search-boxes?q=${encodeURIComponent(query)}`,
 		token
 	);
 }

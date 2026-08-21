@@ -41,6 +41,27 @@ type SearchContentPagesResponse struct {
 	Pages []SearchContentPage `json:"pages"`
 }
 
+// SearchBox — koordinat kata yang cocok, pecahan 0..1, tanpa satu pun string.
+type SearchBox struct {
+	X float64 `json:"x"`
+	Y float64 `json:"y"`
+	W float64 `json:"w"`
+	H float64 `json:"h"`
+}
+
+type SearchBoxPage struct {
+	PageNo int32       `json:"page_no"`
+	Boxes  []SearchBox `json:"boxes"`
+}
+
+// SearchBoxesResponse — kotak per halaman yang kena + halaman yang kena
+// secara semantik tapi koordinatnya belum siap (bukan "tidak ditemukan").
+type SearchBoxesResponse struct {
+	Matches []SearchBoxPage `json:"matches"`
+	Pending []int32         `json:"pending"`
+}
+
 type SearchLogRequest struct {
-	Query string `json:"query"`
+	Query      string `json:"query"`
+	DocumentID string `json:"document_id,omitempty"`
 }

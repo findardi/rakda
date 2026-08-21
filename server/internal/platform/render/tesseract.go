@@ -148,7 +148,7 @@ func (o *TesseractOCR) run(ctx context.Context, name string, args ...string) ([]
 func parseTesseractTSV(out []byte) (OCRResult, error) {
 	var (
 		pageW, pageH float64
-		words        []OCRWord
+		words        []Word
 		textParts    []string
 		lastLine     = -1
 		lineHasWord  bool
@@ -185,7 +185,7 @@ func parseTesseractTSV(out []byte) (OCRResult, error) {
 
 			conf, _ := strconv.ParseFloat(fields[10], 64)
 
-			words = append(words, OCRWord{
+			words = append(words, Word{
 				Text: text,
 				X:    left / pageW,
 				Y:    top / pageH,

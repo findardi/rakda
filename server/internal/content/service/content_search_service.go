@@ -114,7 +114,7 @@ func (s *ContentService) SearchContent(ctx context.Context, workspaceID, query s
 // searchContentL1 — hasil isi level 1: satu baris per dokumen, peringkat =
 // max skor halaman (bukan sum), hit_count = jumlah halaman yang kena.
 func (s *ContentService) searchContentL1(ctx context.Context, wID pgtype.UUID, query string, actor Actor) ([]dto.SearchContentHit, error) {
-	searchQuery := buildSearchQuery(query)
+	searchQuery, _ := buildSearchQuery(query)
 	if searchQuery == "" {
 		return []dto.SearchContentHit{}, nil
 	}
@@ -162,7 +162,7 @@ func (s *ContentService) SearchContentPages(ctx context.Context, workspaceID, do
 	empty := dto.SearchContentPagesResponse{Pages: []dto.SearchContentPage{}}
 
 	query = strings.TrimSpace(query)
-	searchQuery := buildSearchQuery(query)
+	searchQuery, _ := buildSearchQuery(query)
 	if searchQuery == "" {
 		return empty, nil
 	}
@@ -227,8 +227,9 @@ func stripHeadlineMarkup(s string) string {
 
 // LogSearch mencatat kata kunci ke activity_logs ("search", keyword).
 // GET /search wajib bebas efek samping, jadi commit-nya lewat endpoint
-// terpisah ini; pencarian yang nihil hasil tetap dicatat.
-func (s *ContentService) LogSearch(ctx context.Context, workspaceID, query string, actor Actor) {
+// terpisah ini; pencarian yang nihil hasil tetap dicatat. targetID mengisi
+// kolom nullable target_id — dipakai pencarian di dalam dokumen (9-f).
+func (s *ContentService) LogSearch(ctx context.Context, workspaceID, query, targetID string, actor Actor) {
 	query = strings.TrimSpace(query)
 	if query == "" || len([]rune(query)) > searchQueryMaxLength {
 		return
@@ -236,7 +237,87 @@ func (s *ContentService) LogSearch(ctx context.Context, workspaceID, query strin
 
 	s.activity.Record(ctx, s.activityEntry(workspaceID, actor,
 		activityservice.ActionSearchPerformed, activityservice.TargetSearch,
-		"", query, nil))
+		targetID, query, nil))
+}
+
+// SearchBoxes memulangkan kotak kata yang cocok untuk satu dokumen — larik
+// {x,y,w,h} pecahan 0..1, tanpa satu pun string (keputusan 9-f). Halaman
+// yang kena secara semantik tapi koordinatnya belum siap masuk ke `pending`,
+// bukan dijawab "tidak ditemukan".
+func (s *ContentService) SearchBoxes(ctx context.Context, workspaceID, documentID, query string, actor Actor) (dto.SearchBoxesResponse, error) {
+	empty := dto.SearchBoxesResponse{Matches: []dto.SearchBoxPage{}, Pending: []int32{}}
+
+	searchQuery, tokens := buildSearchQuery(query)
+	if searchQuery == "" {
+		return empty, nil
+	}
+
+	doc, err := s.getDocumentScoped(ctx, workspaceID, documentID)
+	if err != nil {
+		return empty, err
+	}
+
+	access, err := s.resolveViewAccess(ctx, workspaceID, uuidString(doc.FolderID), actor)
+	if err != nil {
+		return empty, err
+	}
+	if !access.canView {
+		return empty, ErrContentForbidden
+	}
+
+	var dID pgtype.UUID
+	if err := dID.Scan(documentID); err != nil {
+		return empty, ErrDocumentNotFound
+	}
+
+	pendingPages, err := s.repo.SearchPendingBoxPages(ctx, contentdb.SearchPendingBoxPagesParams{
+		DocumentID: dID,
+		Query:      searchQuery,
+	})
+	if err != nil {
+		return empty, fmt.Errorf("search pending box pages: %w", err)
+	}
+
+	boxRows, err := s.repo.SearchWordBoxes(ctx, contentdb.SearchWordBoxesParams{
+		DocumentID: dID,
+		Query:      searchQuery,
+		Tokens:     tokens,
+	})
+	if err != nil {
+		return empty, fmt.Errorf("search word boxes: %w", err)
+	}
+
+	boxesByPage := make(map[int32][]dto.SearchBox)
+	pageOrder := make([]int32, 0, len(boxRows))
+	for _, r := range boxRows {
+		if _, seen := boxesByPage[r.PageNo]; !seen {
+			pageOrder = append(pageOrder, r.PageNo)
+		}
+		boxesByPage[r.PageNo] = append(boxesByPage[r.PageNo], dto.SearchBox{
+			X: r.X,
+			Y: r.Y,
+			W: r.W,
+			H: r.H,
+		})
+	}
+
+	matches := make([]dto.SearchBoxPage, 0, len(pageOrder))
+	for _, pageNo := range pageOrder {
+		matches = append(matches, dto.SearchBoxPage{
+			PageNo: pageNo,
+			Boxes:  boxesByPage[pageNo],
+		})
+	}
+
+	pending := make([]int32, 0, len(pendingPages))
+	for _, p := range pendingPages {
+		if _, has := boxesByPage[p]; has {
+			continue
+		}
+		pending = append(pending, p)
+	}
+
+	return dto.SearchBoxesResponse{Matches: matches, Pending: pending}, nil
 }
 
 type contentHitRow struct {
@@ -311,8 +392,9 @@ func (s *ContentService) buildContentHits(ctx context.Context, wID pgtype.UUID, 
 // tidak punya daftar stopword (keputusan 9-a), jadi penyaringan ada di sisi
 // query; `english` menyaring stopwordnya sendiri di Postgres. `to_tsquery`
 // dilarang di sini: ia melempar galat pada input wajar (kurung tak seimbang,
-// `&`) — websearch_to_tsquery tidak.
-func buildSearchQuery(raw string) string {
+// `&`) — websearch_to_tsquery tidak. Tokens kedua dipakai SearchWordBoxes
+// untuk mencocokkan kotak per kata.
+func buildSearchQuery(raw string) (string, []string) {
 	parts := make([]string, 0, 8)
 	for _, word := range strings.FieldsFunc(raw, func(r rune) bool {
 		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
@@ -327,7 +409,7 @@ func buildSearchQuery(raw string) string {
 		parts = append(parts, w)
 	}
 
-	return strings.Join(parts, " ")
+	return strings.Join(parts, " "), parts
 }
 
 // idStopwords — daftar kata fungsi bahasa Indonesia, disaring saat query
