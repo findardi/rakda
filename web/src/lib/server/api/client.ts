@@ -1,9 +1,21 @@
 import { env } from '$env/dynamic/private';
 import { t } from '$lib/i18n';
+import { getClientIP } from '$lib/server/client-ip';
 import type { ApiResult, Envelope, FieldError } from '$lib/types';
 
 // Shared HTTP layer for every feature's API module.
 export const API_URL = env.AUTH_API_URL?.replace(/\/$/, '');
+
+// Headers untuk panggilan upstream. Dipakai `request()` dan fetch mentah yang
+// menstream berkas (PNG halaman, unduhan, ekspor) — keduanya butuh IP klien
+// di X-Forwarded-For supaya watermark dan rate limit memakai IP pembaca.
+export function upstreamHeaders(token?: string): Record<string, string> {
+	const headers: Record<string, string> = {};
+	if (token) headers.authorization = `Bearer ${token}`;
+	const ip = getClientIP();
+	if (ip) headers['x-forwarded-for'] = ip;
+	return headers;
+}
 
 // `token` attaches `Authorization: Bearer` for JWT-protected endpoints.
 async function request<T>(
@@ -12,8 +24,10 @@ async function request<T>(
 	body: unknown,
 	token?: string
 ): Promise<ApiResult<T>> {
-	const headers: Record<string, string> = { 'content-type': 'application/json' };
-	if (token) headers.authorization = `Bearer ${token}`;
+	const headers: Record<string, string> = {
+		'content-type': 'application/json',
+		...upstreamHeaders(token)
+	};
 
 	let res: Response;
 	try {

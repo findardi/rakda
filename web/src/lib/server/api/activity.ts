@@ -7,7 +7,7 @@ import type {
 	ReaderPages,
 	RecordDurationsPayload
 } from '$lib/types/activity';
-import { API_URL, get, post } from './client';
+import { API_URL, get, post, upstreamHeaders } from './client';
 
 export function listActivity(
 	token: string,

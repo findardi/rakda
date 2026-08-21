@@ -19,6 +19,7 @@ type Storage interface {
 	Delete(ctx context.Context, key string) error
 	Put(ctx context.Context, key string, r io.Reader, size int64, contentType string) error
 	DeletePrefix(ctx context.Context, prefix string) error
+	DeleteOlderThan(ctx context.Context, prefix string, olderThan time.Duration) (int, error)
 
 	InitMultipart(ctx context.Context, key string) (string, error)
 	PresignPart(ctx context.Context, key, uploadID string, partNumber int, expiry time.Duration) (string, error)

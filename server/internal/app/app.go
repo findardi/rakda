@@ -37,12 +37,13 @@ import (
 )
 
 type App struct {
-	router    chi.Router
-	addr      string
-	reap      func(ctx context.Context)
-	sweep     func(ctx context.Context)
-	ocrSweep  func(ctx context.Context)
-	bboxSweep func(ctx context.Context)
+	router         chi.Router
+	addr           string
+	reap           func(ctx context.Context)
+	sweep          func(ctx context.Context)
+	ocrSweep       func(ctx context.Context)
+	bboxSweep      func(ctx context.Context)
+	pageCacheSweep func(ctx context.Context)
 }
 
 func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.Storage, viewer contentservice.Viewer) *App {
@@ -109,6 +110,26 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 		bboxSweepBatch = 10
 	}
 
+	pageCacheTTL, err := config.GetEnvDuration("PAGE_CACHE_TTL", 7*24*time.Hour)
+	if err != nil {
+		log.Printf("invalid PAGE_CACHE_TTL, fallback to 168h: %v", err)
+		pageCacheTTL = 7 * 24 * time.Hour
+	}
+
+	pageCacheSweepInterval, err := config.GetEnvDuration("PAGE_CACHE_SWEEP_INTERVAL", time.Hour)
+	if err != nil {
+		log.Printf("invalid PAGE_CACHE_SWEEP_INTERVAL, fallback to 1h: %v", err)
+		pageCacheSweepInterval = time.Hour
+	}
+
+	// Kosong = XFF tidak pernah dipercaya (perilaku aman: IP proxy, bukan IP
+	// yang bisa dipalsukan). Diisi CIDR subnet docker saat stack Traefik ditulis.
+	trustedProxies, err := config.GetEnvCIDRList("TRUSTED_PROXY_CIDRS", nil)
+	if err != nil {
+		log.Printf("invalid TRUSTED_PROXY_CIDRS, X-Forwarded-For ignored: %v", err)
+		trustedProxies = nil
+	}
+
 	activitysvc := activityservice.NewActivityService(activityrepo.New(pool))
 	authsvc := authservice.NewAuthService(authrepo.New(pool), otpGen, jwtGen, mailer, nil)
 	accessSvc := accessservice.NewAccessService(accessrepo.New(pool), mailer, authsvc, otpGen, webURL, activitysvc)
@@ -122,7 +143,7 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 	activityModule := activity.NewModule(pool, jwtGen)
 
 	r := chi.NewRouter()
-	registerGlobalMiddleware(r)
+	registerGlobalMiddleware(r, trustedProxies)
 
 	r.Get("/check", func(w http.ResponseWriter, r *http.Request) {
 		response.Success(w, http.StatusOK, "Server Listen", nil)
@@ -150,6 +171,9 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 		bboxSweep: func(ctx context.Context) {
 			contentSvc.RunBBoxSweeper(ctx, bboxSweepInterval, bboxSweepBatch)
 		},
+		pageCacheSweep: func(ctx context.Context) {
+			contentSvc.RunPageCacheSweeper(ctx, pageCacheSweepInterval, pageCacheTTL)
+		},
 	}
 }
 
@@ -161,6 +185,7 @@ func (a *App) Run() error {
 	go a.sweep(reaperCtx)
 	go a.ocrSweep(reaperCtx)
 	go a.bboxSweep(reaperCtx)
+	go a.pageCacheSweep(reaperCtx)
 
 	srv := &http.Server{
 		Addr:    a.addr,
