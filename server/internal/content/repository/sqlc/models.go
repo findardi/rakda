@@ -52,11 +52,15 @@ type Document struct {
 }
 
 type DocumentPageText struct {
-	VersionID pgtype.UUID `json:"version_id"`
-	PageNo    int32       `json:"page_no"`
-	Content   string      `json:"content"`
-	TsvID     interface{} `json:"tsv_id"`
-	TsvEn     interface{} `json:"tsv_en"`
+	VersionID  pgtype.UUID        `json:"version_id"`
+	PageNo     int32              `json:"page_no"`
+	Content    string             `json:"content"`
+	TsvID      interface{}        `json:"tsv_id"`
+	TsvEn      interface{}        `json:"tsv_en"`
+	OcrAt      pgtype.Timestamptz `json:"ocr_at"`
+	OcrError   *string            `json:"ocr_error"`
+	TextSource string             `json:"text_source"`
+	Words      []byte             `json:"words"`
 }
 
 type DocumentVersion struct {

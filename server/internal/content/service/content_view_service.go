@@ -24,6 +24,7 @@ type Viewer struct {
 	Watermark     watermark.Watermarker
 	PDFStamp      watermark.PDFStamper
 	TextExtractor render.TextExtractor
+	OCR           render.OCR
 	DPI           int
 }
 

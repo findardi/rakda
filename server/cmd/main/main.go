@@ -47,6 +47,23 @@ func main() {
 		log.Fatal(err)
 	}
 
+	ocrDPI, err := config.GetEnvInt("OCR_DPI", viewerCfg.DPI)
+	if err != nil {
+		log.Printf("invalid OCR_DPI, fallback to viewer DPI: %v", err)
+		ocrDPI = viewerCfg.DPI
+	}
+
+	ocrConcurrency, err := config.GetEnvInt("OCR_CONCURRENCY", 1)
+	if err != nil {
+		log.Printf("invalid OCR_CONCURRENCY, fallback to 1: %v", err)
+		ocrConcurrency = 1
+	}
+
+	ocr, err := render.NewTesseract(ocrDPI, viewerCfg.RenderTimeout, ocrConcurrency)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	wm, err := watermark.New()
 	if err != nil {
 		log.Fatal(err)
@@ -58,6 +75,7 @@ func main() {
 		Watermark:     wm,
 		PDFStamp:      watermark.NewPDFStamp(),
 		TextExtractor: renderer,
+		OCR:           ocr,
 		DPI:           viewerCfg.DPI,
 	}
 

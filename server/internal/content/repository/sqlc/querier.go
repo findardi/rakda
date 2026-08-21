@@ -35,6 +35,7 @@ type Querier interface {
 	ListExpiredTrashDocuments(ctx context.Context, cutoff pgtype.Timestamptz) ([]ListExpiredTrashDocumentsRow, error)
 	ListExpiredTrashFolders(ctx context.Context, cutoff pgtype.Timestamptz) ([]ListExpiredTrashFoldersRow, error)
 	ListFolderAccess(ctx context.Context, arg ListFolderAccessParams) ([]ListFolderAccessRow, error)
+	ListPendingOCRPages(ctx context.Context, limitCount int32) ([]ListPendingOCRPagesRow, error)
 	ListPendingTextExtraction(ctx context.Context, limit int32) ([]ListPendingTextExtractionRow, error)
 	ListTrashDocuments(ctx context.Context, workspaceID pgtype.UUID) ([]ListTrashDocumentsRow, error)
 	ListTrashFolders(ctx context.Context, workspaceID pgtype.UUID) ([]ListTrashFoldersRow, error)
@@ -70,6 +71,8 @@ type Querier interface {
 	SearchVisibleFolders(ctx context.Context, arg SearchVisibleFoldersParams) ([]SearchVisibleFoldersRow, error)
 	SetCurrentVersion(ctx context.Context, arg SetCurrentVersionParams) error
 	SetFolderAccess(ctx context.Context, arg SetFolderAccessParams) (FolderAccess, error)
+	SetPageOCRFailure(ctx context.Context, arg SetPageOCRFailureParams) error
+	SetPageOCRResult(ctx context.Context, arg SetPageOCRResultParams) error
 	SetVersionRendition(ctx context.Context, arg SetVersionRenditionParams) error
 	SetVersionRenditionFailure(ctx context.Context, arg SetVersionRenditionFailureParams) error
 	SetVersionTextExtracted(ctx context.Context, id pgtype.UUID) error
