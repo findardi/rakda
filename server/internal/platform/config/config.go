@@ -3,6 +3,7 @@ package config
 import (
 	"bufio"
 	"fmt"
+	"net/netip"
 	"os"
 	"strconv"
 	"strings"
@@ -96,4 +97,30 @@ func GetEnvDuration(key string, fallback time.Duration) (time.Duration, error) {
 	}
 
 	return t, nil
+}
+
+// GetEnvCIDRList membaca daftar CIDR dipisah koma; entri kosong dilewati,
+// entri tidak valid → error (jangan diam-diam dilewati). Env tidak diset →
+// fallback.
+func GetEnvCIDRList(key string, fallback []netip.Prefix) ([]netip.Prefix, error) {
+	v, ok := os.LookupEnv(key)
+	if !ok {
+		return fallback, nil
+	}
+
+	var out []netip.Prefix
+	for _, raw := range strings.Split(v, ",") {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+
+		p, err := netip.ParsePrefix(raw)
+		if err != nil {
+			return nil, fmt.Errorf("invalid %s entry %q: %w", key, raw, err)
+		}
+		out = append(out, p)
+	}
+
+	return out, nil
 }

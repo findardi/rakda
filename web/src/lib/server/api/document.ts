@@ -15,7 +15,7 @@ import type {
 	VersionData,
 	ViewMetaData
 } from '$lib/types/content';
-import { API_URL, del, get, patch, post } from './client';
+import { API_URL, del, get, patch, post, upstreamHeaders } from './client';
 
 const foldersBase = (workspaceId: string) => `/content/workspaces/${workspaceId}/folders`;
 const documentsBase = (workspaceId: string) => `/content/workspaces/${workspaceId}/documents`;

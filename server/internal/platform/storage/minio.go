@@ -215,6 +215,34 @@ func (m *MinioStorage) DeletePrefix(ctx context.Context, prefix string) error {
 	return nil
 }
 
+func (m *MinioStorage) DeleteOlderThan(ctx context.Context, prefix string, olderThan time.Duration) (int, error) {
+	cutoff := time.Now().Add(-olderThan)
+	deleted := 0
+
+	objects := m.client.ListObjects(ctx, m.bucket, minio.ListObjectsOptions{
+		Prefix:    prefix,
+		Recursive: true,
+	})
+
+	for obj := range objects {
+		if obj.Err != nil {
+			return deleted, fmt.Errorf("list objects: %w", obj.Err)
+		}
+
+		if obj.LastModified.After(cutoff) {
+			continue
+		}
+
+		if err := m.client.RemoveObject(ctx, m.bucket, obj.Key, minio.RemoveObjectOptions{}); err != nil {
+			return deleted, fmt.Errorf("delete object %s: %w", obj.Key, err)
+		}
+
+		deleted++
+	}
+
+	return deleted, nil
+}
+
 func (m *MinioStorage) AbortIncompleteUploads(ctx context.Context, olderThan time.Duration) (int, error) {
 	cutoff := time.Now().Add(-olderThan)
 	aborted := 0

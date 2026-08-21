@@ -10,6 +10,7 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"strings"
 	"time"
@@ -66,6 +67,8 @@ type ctxKey string
 const claimsKey ctxKey = "auth_claims"
 
 const membershipKey ctxKey = "auth_membership"
+
+const clientIPKey ctxKey = "client_ip"
 
 type Middleware struct {
 	verifier TokenVerifier
@@ -221,7 +224,7 @@ func (m *Middleware) RateLimit(cfg RateConfig) func(http.Handler) http.Handler {
 				id = cfg.Key(r)
 			}
 
-			key := cfg.Name + "|" + clientIP(r) + "|" + id
+			key := cfg.Name + "|" + ClientIP(r) + "|" + id
 
 			allowed, retryAfter := m.limiter.Allow(key, cfg.Limit, cfg.Window)
 			if !allowed {
@@ -269,20 +272,83 @@ func KeyFromJSONField(field string) KeyFunc {
 
 const MaxBodyBytesPeek = 1 << 20
 
-func ClientIP(r *http.Request) string {
-	return clientIP(r)
+// RealIP menghitung IP klien sekali per request dan menaruhnya di context.
+// XFF hanya dihormati kalau peer (RemoteAddr) ada di daftar tepercaya, dan
+// yang diambil adalah entri paling kanan yang bukan proxy tepercaya — entri
+// kiri adalah yang paling mudah dipalsukan klien. Default daftar kosong =
+// XFF tidak pernah dipercaya: salah-konfigurasi berujung IP proxy yang tidak
+// berguna, bukan IP yang bisa dipalsukan.
+func RealIP(trusted []netip.Prefix) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ip := resolveClientIP(r, trusted)
+			ctx := context.WithValue(r.Context(), clientIPKey, ip)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
 }
 
-func clientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		if i := strings.IndexByte(xff, ','); i >= 0 {
-			return strings.TrimSpace(xff[:i])
+func ClientIP(r *http.Request) string {
+	if ip, ok := r.Context().Value(clientIPKey).(string); ok && ip != "" {
+		return ip
+	}
+	return peerIP(r)
+}
+
+// resolveClientIP — aturan persis 9.5-a:
+// 1. peer = host dari RemoteAddr (SplitHostPort gagal → RemoteAddr apa adanya).
+// 2. peer tidak tepercaya → peer, XFF diabaikan total.
+// 3. Kumpulkan hop XFF (nilai bisa muncul berkali-kali), dipecah koma, di-trim,
+//    entri kosong dibuang; kalau kosong, X-Real-IP sebagai satu hop.
+// 4. Telusuri hop dari kanan ke kiri, kembalikan yang pertama tidak tepercaya.
+// 5. Semua hop tepercaya (atau tidak ada hop) → peer.
+func resolveClientIP(r *http.Request, trusted []netip.Prefix) string {
+	peer := peerIP(r)
+	if !isTrustedProxy(peer, trusted) {
+		return peer
+	}
+
+	var hops []string
+	for _, v := range r.Header.Values("X-Forwarded-For") {
+		for _, part := range strings.Split(v, ",") {
+			if part = strings.TrimSpace(part); part != "" {
+				hops = append(hops, part)
+			}
 		}
-		return strings.TrimSpace(xff)
 	}
-	if xr := r.Header.Get("X-Real-IP"); xr != "" {
-		return strings.TrimSpace(xr)
+	if len(hops) == 0 {
+		if xr := strings.TrimSpace(r.Header.Get("X-Real-IP")); xr != "" {
+			hops = append(hops, xr)
+		}
 	}
+
+	for i := len(hops) - 1; i >= 0; i-- {
+		if !isTrustedProxy(hops[i], trusted) {
+			return hops[i]
+		}
+	}
+
+	return peer
+}
+
+func isTrustedProxy(ip string, trusted []netip.Prefix) bool {
+	addr, err := netip.ParseAddr(ip)
+	if err != nil {
+		return false
+	}
+
+	// IPv4-mapped-IPv6 tidak pernah cocok dengan prefix IPv4 tanpa Unmap.
+	addr = addr.Unmap()
+
+	for _, p := range trusted {
+		if p.Contains(addr) {
+			return true
+		}
+	}
+	return false
+}
+
+func peerIP(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		return r.RemoteAddr
