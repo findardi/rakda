@@ -75,6 +75,7 @@ func (s *ContentService) reapOnce(ctx context.Context) {
 			Action:      activityservice.ActionFolderPurged,
 			TargetType:  activityservice.TargetFolder,
 			TargetID:    uuidString(f.ID),
+			TargetName:  f.Name,
 		})
 
 		purgeFolders++
@@ -115,6 +116,7 @@ func (s *ContentService) reapOnce(ctx context.Context) {
 			Action:      activityservice.ActionDocumentPurged,
 			TargetType:  activityservice.TargetDocument,
 			TargetID:    uuidString(d.ID),
+			TargetName:  d.Name,
 		})
 
 		purgeDocuments++

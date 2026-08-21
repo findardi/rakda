@@ -56,6 +56,8 @@
 	--font-mono: 'JetBrains Mono Variable', ui-monospace, 'SF Mono', monospace;
 	/* Secondary text — kept explicit for ≥4.5:1 (don't rely on faded opacity). */
 	--color-muted: oklch(0.48 0.02 235);
+	/* Warning as *text*: the fill-grade --color-warning is ~2.5:1 on white. */
+	--color-warning-ink: oklch(0.52 0.12 70);
 
 	/* Stacking order, named. Native <dialog> lives in the top layer and needs
 	   no z-index, so modals are absent by design. */

@@ -4,7 +4,9 @@
 	import { cubicOut } from 'svelte/easing';
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { slide } from 'svelte/transition';
+	import { SvelteSet } from 'svelte/reactivity';
 	import { Button, showToast } from '$lib/components/common';
+	import { downloadRendition } from '$lib/download';
 	import { formatBytes, formatDateTime } from '$lib/format';
 	import { t } from '$lib/i18n';
 	import type { DocumentData, VersionData } from '$lib/types/content';
@@ -65,12 +67,19 @@
 
 	// --- view / download ---------------------------------------------------
 
-	let downloadingId = $state<string | null>(null);
+	const downloading = new SvelteSet<string>();
+	const downloadAbort = new AbortController();
+	$effect(() => () => downloadAbort.abort());
 
-	function download(v: VersionData): void {
-		downloadingId = v.id;
-		const q = new URLSearchParams({ workspaceId, documentId, version: v.id });
-		window.location.href = `/api/content/download?${q}`;
+	async function download(v: VersionData): Promise<void> {
+		if (downloading.has(v.id)) return;
+		downloading.add(v.id);
+		const outcome = await downloadRendition(
+			{ workspaceId, documentId, versionId: v.id, fallbackName: documentName },
+			downloadAbort.signal
+		);
+		downloading.delete(v.id);
+		if (!outcome.ok) showToast(outcome.message, 'error');
 	}
 
 	// --- restore -----------------------------------------------------------
@@ -380,12 +389,13 @@
 								<button
 									type="button"
 									onclick={() => void download(v)}
-									disabled={downloadingId === v.id}
+									disabled={downloading.has(v.id)}
+									aria-busy={downloading.has(v.id)}
 									title={t('doc.ver.downloadOf', { n: v.version_no })}
 									aria-label={t('doc.ver.downloadOf', { n: v.version_no })}
 									class="grid h-8 w-8 place-items-center rounded-field text-muted transition-colors hover:bg-base-content/5 hover:text-base-content disabled:pointer-events-none disabled:opacity-50 pointer-coarse:h-11 pointer-coarse:w-11"
 								>
-									{#if downloadingId === v.id}
+									{#if downloading.has(v.id)}
 										<span class="loading loading-spinner loading-xs"></span>
 									{:else}
 										{@render iconDownload()}

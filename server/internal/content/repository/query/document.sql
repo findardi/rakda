@@ -36,7 +36,9 @@ select
     d.updated_at,
     v.version_no,
     v.mime,
-    v.size
+    v.size,
+    v.rendition_key,
+    v.rendition_failed_at
 from documents d
 join document_versions v on v.id = d.current_version_id
 where d.folder_id = $1 and d.deleted_at is null
@@ -136,10 +138,13 @@ where id = sqlc.arg(id);
 -- name: ListTrashDocuments :many
 select d.id, d.name, d.deleted_at,
     coalesce(u.username, u.email)::text as deleted_by_name,
-    v.mime, v.size
+    v.mime, v.size,
+    coalesce(p.name, '')::text as folder_name,
+    (p.id is null)::boolean as folder_gone
 from documents d
 join users u on u.id = d.deleted_by
 left join document_versions v on v.id = d.current_version_id
+left join folders p on p.id = d.folder_id and p.deleted_at is null
 where d.workspace_id = $1
     and d.deleted_at is not null
     and d.deleted_root_folder_id is null
@@ -154,7 +159,7 @@ update documents set
 where deleted_root_folder_id = $1;
 
 -- name: ListExpiredTrashDocuments :many
-select id, workspace_id from documents
+select id, workspace_id, name from documents
 where deleted_at is not null
 and deleted_root_folder_id is null
 and deleted_at < sqlc.arg(cutoff);

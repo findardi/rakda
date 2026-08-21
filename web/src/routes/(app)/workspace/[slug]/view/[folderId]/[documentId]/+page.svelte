@@ -7,6 +7,7 @@
 	import { createDwellTracker, type DwellTracker } from '$lib/activity/dwell';
 	import { DocumentEngagement, ViewerPage } from '$lib/components/app';
 	import { Toaster, showToast } from '$lib/components/common';
+	import { downloadRendition } from '$lib/download';
 	import { formatDate } from '$lib/format';
 	import { t } from '$lib/i18n';
 	import type { WorkspaceData, MyAccessWorkspace } from '$lib/types/workspace';
@@ -178,7 +179,7 @@
 	});
 
 	// --- engagement panel (owner/admin only) ---
-	let panelOpen = $state(false);
+	let panelOpen = $state(page.url.searchParams.has('readers'));
 
 	// Below `lg` the panel takes the reader's place, so a jump has to give the
 	// reader back before it can scroll to anything.
@@ -397,49 +398,24 @@
 				: downloadLabel
 	);
 
-	const objectUrlGraceMs = 40_000;
-
-	function filenameFrom(disposition: string | null): string {
-		const m = disposition?.match(/filename="?([^";]+)"?/);
-		const fallback = (meta?.name ?? 'document').replace(/\.[^.]+$/, '') + '.pdf';
-		return m?.[1] ?? fallback;
-	}
-
-	function saveBlob(blob: Blob, filename: string): void {
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement('a');
-		a.href = url;
-		a.download = filename;
-		document.body.append(a);
-		a.click();
-		a.remove();
-		setTimeout(() => URL.revokeObjectURL(url), objectUrlGraceMs);
-	}
+	const downloadAbort = new AbortController();
+	$effect(() => () => downloadAbort.abort());
 
 	async function download() {
 		if (downloading || downloadBlocked) return;
 		downloading = true;
 		// Download what is on screen, not whatever became current since.
-		const q = new URLSearchParams(
-			meta?.version_id
-				? { workspaceId: workspace.id, documentId, version: meta.version_id }
-				: { workspaceId: workspace.id, documentId }
+		const outcome = await downloadRendition(
+			{
+				workspaceId: workspace.id,
+				documentId,
+				versionId: meta?.version_id,
+				fallbackName: meta?.name ?? 'document'
+			},
+			downloadAbort.signal
 		);
-		try {
-			const res = await fetch(`/api/content/download?${q}`);
-			if (!res.ok) {
-				if (res.status === 429) showToast(t('doc.docs.err.downloadBusy'), 'error');
-				else if (res.status === 413) showToast(t('doc.docs.err.downloadTooLarge'), 'error');
-				else if (res.status === 403) showToast(t('doc.docs.err.forbiddenDownload'), 'error');
-				else showToast(t('err.generic'), 'error');
-				return;
-			}
-			saveBlob(await res.blob(), filenameFrom(res.headers.get('content-disposition')));
-		} catch {
-			showToast(t('err.network'), 'error');
-		} finally {
-			downloading = false;
-		}
+		downloading = false;
+		if (!outcome.ok) showToast(outcome.message, 'error');
 	}
 
 	// --- rendition failure (owner-only retry) ---

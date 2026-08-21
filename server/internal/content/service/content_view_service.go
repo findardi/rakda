@@ -430,3 +430,7 @@ func (s *ContentService) pageForDownload(ctx context.Context, workspaceID, versi
 
 	return img, nil
 }
+
+func (s *ContentService) DownloadLimits() dto.DownloadLimitsResponse {
+	return dto.DownloadLimitsResponse{WatermarkDownloadMaxPages: maxWatermarkDownloadPages}
+}

@@ -104,6 +104,9 @@ func (s *ActivityService) ListActivity(ctx context.Context, req dto.ListActivity
 			TargetName: r.TargetName,
 			Metadata:   json.RawMessage(r.Metadata),
 			CreatedAt:  r.CreatedAt.Time,
+
+			LinkDocumentID: uuidString(r.LinkDocumentID),
+			LinkFolderID:   uuidString(r.LinkFolderID),
 		})
 	}
 

@@ -356,6 +356,16 @@ export const id = {
 	'doc.docs.empty.cta': 'Pilih berkas',
 	'doc.docs.dropHint': 'Seret berkas ke sini untuk mengunggahnya ke folder ini.',
 	'doc.docs.versionTitle': 'Versi {n}',
+	'doc.docs.rendition.pending': 'Menyiapkan…',
+	'doc.docs.rendition.pendingTitle':
+		'Dokumen sedang dikonversi untuk viewer aman. Biasanya selesai dalam beberapa menit.',
+	'doc.docs.rendition.failed': 'Gagal disiapkan',
+	'doc.docs.rendition.failedTitle':
+		'Isi berkas tidak bisa dikonversi. Dokumen belum bisa dibuka atau diunduh.',
+	'doc.docs.rendition.retry': 'Coba lagi',
+	'doc.docs.rendition.retryOf': 'Coba siapkan ulang {name}',
+	'doc.docs.rendition.retried': 'Penyiapan “{name}” dijadwalkan ulang.',
+	'doc.docs.rendition.notReady': '{n} belum siap',
 	'doc.docs.download': 'Unduh',
 	'doc.docs.downloadOf': 'Unduh {name}',
 	'doc.docs.move': 'Pindahkan',
@@ -385,9 +395,9 @@ export const id = {
 	'doc.docs.err.invalidMove': 'Folder tujuan itu tidak valid untuk dokumen ini.',
 	'doc.docs.err.forbiddenDownload': 'Grup Anda boleh melihat dokumen ini, tapi tidak mengunduhnya.',
 	'doc.docs.err.downloadBusy':
-		'Unduhan ber-watermark lain sedang diproses. Coba lagi beberapa saat — atau pakai viewer untuk membaca sekarang.',
+		'Unduhan dengan watermark lain sedang diproses. Coba lagi beberapa saat, atau baca dokumen di viewer.',
 	'doc.docs.err.downloadTooLarge':
-		'Dokumen ini terlalu besar untuk diunduh sebagai salinan ber-watermark. Gunakan viewer untuk membacanya.',
+		'Dokumen melebihi batas halaman unduhan dengan watermark. Baca dokumen di viewer.',
 	'doc.docs.noAccess.title': 'Folder ini tidak dibagikan ke Anda',
 	'doc.docs.noAccess.body':
 		'Grup Anda tidak diberi akses ke folder ini. Minta pemilik ruang membukanya untuk grup Anda.',
@@ -452,11 +462,11 @@ export const id = {
 		'Grup Anda tidak diberi izin melihat dokumen ini. Minta pemilik ruang membukanya untuk grup Anda.',
 	'doc.view.downloadMarked': 'Unduh PDF',
 	'doc.view.downloadMarkedHint':
-		'PDF ber-watermark tanpa lapisan teks — tidak bisa diseleksi, disalin, atau dicari. Dokumen di atas {max} halaman tidak bisa diunduh, hanya bisa dibaca di viewer.',
-	'doc.view.downloadClean': 'Unduh PDF tanpa tanda air',
+		'PDF dengan watermark tidak memiliki lapisan teks: tidak dapat dipilih, disalin, atau dicari. Batas unduhan {max} halaman.',
+	'doc.view.downloadClean': 'Unduh PDF tanpa watermark',
 	'doc.view.downloadPreparing': 'Menyiapkan PDF… bisa beberapa menit',
 	'doc.view.downloadTooLargeHint':
-		'Dokumen ini {pages} halaman; salinan ber-watermark dibatasi {max} halaman. Gunakan viewer untuk membacanya.',
+		'Tidak dapat diunduh. Dokumen ini {pages} halaman; batas unduhan dengan watermark {max} halaman. Baca dokumen di viewer.',
 	'doc.view.unsupported.title': 'Dokumen ini tidak bisa ditampilkan',
 	'doc.view.unsupported.body':
 		'Tipe berkas ini tidak bisa diubah menjadi PDF, jadi tidak bisa dibuka maupun diunduh. Minta pengelola ruangan mengunggahnya ulang dalam format lain.',
@@ -474,23 +484,42 @@ export const id = {
 
 	'trash.title': 'Sampah',
 	'trash.desc': 'Item terhapus dapat dipulihkan dari sini sebelum dibersihkan permanen.',
+	'trash.retention.days':
+		'Item bertahan {n} hari di Sampah. Pemulihan mengembalikan versi, izin folder, dan jejak auditnya utuh.',
+	'trash.retention.hours':
+		'Item bertahan {n} jam di Sampah. Pemulihan mengembalikan versi, izin folder, dan jejak auditnya utuh.',
 	'trash.empty.title': 'Sampah kosong',
 	'trash.empty.body':
-		'Folder atau dokumen yang dihapus berpindah ke sini dan dapat dipulihkan sebelum dibersihkan permanen.',
+		'Folder atau dokumen yang dihapus berpindah ke sini. Dokumen yang ikut terhapus bersama foldernya tercatat di baris folder itu, bukan sebagai baris sendiri.',
+	'trash.empty.back': 'Kembali ke Dokumen',
 	'trash.section.folders': 'Folder',
 	'trash.section.documents': 'Dokumen',
-	'trash.deletedBy': 'Dihapus {who}',
-	'trash.deletedAtTitle': 'Dihapus pada {when}',
-	'trash.purgeIn': '≤ {n} jam',
-	'trash.purgeInTitle': 'Dibersihkan permanen setelah {when}',
+	'trash.deletedBy': 'dihapus oleh {who}',
+	'trash.deletedAt': 'pada {when}',
+	'trash.origin.folder': 'dari “{name}”',
+	'trash.origin.root': 'dari tingkat atas',
+	'trash.origin.goneFolder': 'folder asal sudah terhapus — dipulihkan ke tingkat atas',
+	'trash.origin.goneDoc': 'folder asal sudah terhapus — dipulihkan ke folder bawaan',
+	'trash.contains.folders': '{n} subfolder',
+	'trash.contains.documents': '{n} dokumen',
+	'trash.contains.restoredWith': 'ikut dipulihkan',
+	'trash.purge.at': 'dibersihkan {when}',
+	'trash.purge.overdue': 'segera dibersihkan',
+	'trash.purge.underHour': 'kurang dari 1 jam lagi',
+	'trash.purge.hours': '{n} jam lagi',
+	'trash.purge.days': '{n} hari lagi',
 	'trash.action.restore': 'Pulihkan',
 	'trash.action.restoreOf': 'Pulihkan {name}',
-	'trash.folderRestored': 'Folder “{name}” dipulihkan.',
-	'trash.docRestored': 'Dokumen “{name}” dipulihkan.',
+	'trash.restored.folder': 'Folder “{name}” dipulihkan ke {dest}.',
+	'trash.restored.doc': 'Dokumen “{name}” dipulihkan ke {dest}.',
+	'trash.restored.root': 'tingkat atas',
+	'trash.restored.renamed': 'Namanya diubah karena nama aslinya sudah dipakai di sana.',
+	'trash.restored.open': 'Buka',
 	'trash.err.load': 'Gagal memuat sampah.',
 	'trash.err.forbidden': 'Hanya pemilik atau admin yang dapat memulihkan item.',
 	'trash.err.gone': 'Item itu sudah tidak ada di sampah.',
-	'trash.err.nameConflict': 'Nama item bentrok di lokasi pemulihan. Coba lagi.',
+	'trash.err.nameConflict':
+		'Nama bentrok di lokasi pemulihan dan semua varian nama sudah terpakai. Ganti nama item yang ada di sana, lalu pulihkan lagi.',
 
 	'activity.title': 'Aktivitas',
 	'activity.desc':
@@ -533,16 +562,24 @@ export const id = {
 	'activity.action.folder_moved_root': 'memindahkan folder “{target}” ke tingkat akar',
 	'activity.action.folder_deleted': 'memindahkan folder “{target}” ke Sampah',
 	'activity.action.folder_restored': 'memulihkan folder “{target}” dari Sampah',
-	'activity.action.folder_purged': 'menghapus permanen sebuah folder dari Sampah',
+	'activity.action.folder_purged': 'menghapus permanen folder “{target}” dari Sampah',
+	'activity.action.folder_purged_unnamed': 'menghapus permanen folder {id} dari Sampah',
 	'activity.action.document_uploaded': 'mengunggah dokumen “{target}”',
 	'activity.action.document_moved': 'memindahkan dokumen “{target}” ke folder lain',
 	'activity.action.document_deleted': 'memindahkan dokumen “{target}” ke Sampah',
 	'activity.action.document_restored': 'memulihkan dokumen “{target}” dari Sampah',
-	'activity.action.document_purged': 'menghapus permanen sebuah dokumen dari Sampah',
+	'activity.action.document_purged': 'menghapus permanen dokumen “{target}” dari Sampah',
+	'activity.action.document_purged_unnamed': 'menghapus permanen dokumen {id} dari Sampah',
 	'activity.action.document_downloaded': 'mengunduh dokumen “{target}” (v{version})',
+	'activity.action.document_downloaded_watermarked':
+		'mengunduh dokumen “{target}” (v{version}, dengan watermark)',
+	'activity.action.document_downloaded_clean':
+		'mengunduh dokumen “{target}” (v{version}, tanpa watermark)',
 	'activity.action.document_viewed': 'membuka dokumen “{target}” (v{version})',
+	'activity.action.search_performed': 'mencari “{target}”',
 	'activity.action.version_uploaded': 'mengunggah versi v{version} untuk “{target}”',
-	'activity.action.version_restored': 'menyajikan kembali v{version} untuk “{target}”',
+	'activity.action.version_restored': 'mengembalikan v{version} sebagai versi aktif “{target}”',
+	'activity.action.rendition_retried': 'mencoba ulang penyiapan v{version} untuk “{target}”',
 	'activity.action.invite_sent': 'mengundang {target} sebagai {role}',
 	'activity.action.invite_resent': 'mengirim ulang undangan untuk {target}',
 	'activity.action.invite_revoked': 'mencabut undangan untuk {target}',
@@ -572,7 +609,9 @@ export const id = {
 	'activity.label.document_downloaded': 'Dokumen diunduh',
 	'activity.label.document_viewed': 'Dokumen dibuka',
 	'activity.label.version_uploaded': 'Versi diunggah',
-	'activity.label.version_restored': 'Versi disajikan kembali',
+	'activity.label.version_restored': 'Versi dikembalikan',
+	'activity.label.rendition_retried': 'Penyiapan dicoba ulang',
+	'activity.label.search_performed': 'Pencarian dilakukan',
 	'activity.label.invite_sent': 'Undangan dikirim',
 	'activity.label.invite_resent': 'Undangan dikirim ulang',
 	'activity.label.invite_revoked': 'Undangan dicabut',
@@ -587,6 +626,12 @@ export const id = {
 	'activity.label.group_unassigned': 'Anggota keluar grup',
 	'activity.label.folder_access_changed': 'Akses folder diubah',
 	'activity.label.folder_access_removed': 'Akses folder dicabut',
+
+	'activity.link.open': 'Buka “{name}”',
+	'activity.link.readers': 'Lihat aktivitas baca',
+	'activity.link.filterActor': 'Tampilkan hanya aktivitas {name}',
+	'activity.actor.formerName': 'saat itu: {name}',
+	'activity.actor.idOnly': 'ID pengguna {id}',
 
 	'activity.engagement.title': 'Aktivitas baca',
 	'activity.engagement.open': 'Lihat aktivitas baca',
@@ -636,13 +681,18 @@ export const id = {
 	'facc.cap.download': 'Unduh',
 	'facc.cap.watermark': 'Watermark',
 	'facc.cap.watermarkHint': 'Dokumen yang dibuka grup ini diberi watermark identitas mereka.',
-	'facc.cap.downloadOriginal': 'Unduh PDF tanpa tanda air',
+	'facc.cap.downloadOriginal': 'Unduh PDF tanpa watermark',
 	'facc.cap.downloadOriginalHint':
-		'Grup ini mengunduh PDF tanpa tanda air. Berkas asli tidak pernah keluar.',
+		'Grup ini mengunduh PDF tanpa watermark. Berkas asli tidak pernah keluar.',
 	'facc.cap.rule':
-		'Unduh PDF tanpa tanda air menyalakan Unduh; Unduh dan watermark menyalakan Lihat.',
+		'Unduh PDF tanpa watermark menyalakan Unduh; Unduh dan watermark menyalakan Lihat.',
 	'facc.cap.exclusive':
-		'Watermark dan unduh tanpa tanda air tidak bisa menyala bersamaan: menandai layar sambil melepas berkas bersih tidak melindungi apa pun.',
+		'Watermark dan unduh tanpa watermark tidak bisa menyala bersamaan: menandai layar sambil melepas berkas bersih tidak melindungi apa pun.',
+	'facc.cap.wmLimit':
+		'Unduhan dengan watermark dibatasi {max} halaman. Dokumen yang melebihi batas tidak dapat diunduh dan hanya dapat dibaca di viewer.',
+	'facc.cap.wmLimitUnknown':
+		'Unduhan dengan watermark dibatasi jumlah halaman. Dokumen yang melebihi batas tidak dapat diunduh dan hanya dapat dibaca di viewer.',
+	'facc.cap.wmLimitChip': 'Unduhan dengan watermark dibatasi {max} halaman.',
 
 	'facc.flow':
 		'Akses mengalir ke seluruh isi folder ini, termasuk subfolder — kecuali subfolder yang punya aturannya sendiri.',
@@ -673,7 +723,8 @@ export const id = {
 	'facc.will.blockSub':
 		'{group} tidak akan bisa melihat folder ini maupun {n} subfolder di dalamnya.',
 	'facc.will.wmOn': 'Dokumen diberi watermark saat dibuka {group}.',
-	'facc.will.origOn': '{group} bisa mengunduh PDF tanpa tanda air.',
+	'facc.will.wmLimit': 'Dokumen di atas {max} halaman tidak dapat diunduh.',
+	'facc.will.origOn': '{group} bisa mengunduh PDF tanpa watermark.',
 	'facc.revoke.back': 'Setelah dicabut, {group} kembali mewarisi {level} dari {name}.',
 	'facc.revoke.gone': '{group} tidak akan punya akses ke folder ini lagi.',
 

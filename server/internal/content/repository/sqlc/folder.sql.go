@@ -252,7 +252,7 @@ func (q *Queries) GetTrashedFolderByID(ctx context.Context, id pgtype.UUID) (Fol
 }
 
 const listExpiredTrashFolders = `-- name: ListExpiredTrashFolders :many
-select id, workspace_id from folders
+select id, workspace_id, name from folders
 where deleted_at is not null 
 and deleted_root_folder_id is null
 and deleted_at < $1
@@ -261,6 +261,7 @@ and deleted_at < $1
 type ListExpiredTrashFoldersRow struct {
 	ID          pgtype.UUID `json:"id"`
 	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	Name        string      `json:"name"`
 }
 
 func (q *Queries) ListExpiredTrashFolders(ctx context.Context, cutoff pgtype.Timestamptz) ([]ListExpiredTrashFoldersRow, error) {
@@ -272,7 +273,7 @@ func (q *Queries) ListExpiredTrashFolders(ctx context.Context, cutoff pgtype.Tim
 	var items []ListExpiredTrashFoldersRow
 	for rows.Next() {
 		var i ListExpiredTrashFoldersRow
-		if err := rows.Scan(&i.ID, &i.WorkspaceID); err != nil {
+		if err := rows.Scan(&i.ID, &i.WorkspaceID, &i.Name); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -285,9 +286,14 @@ func (q *Queries) ListExpiredTrashFolders(ctx context.Context, cutoff pgtype.Tim
 
 const listTrashFolders = `-- name: ListTrashFolders :many
 select f.id, f.name, f.deleted_at,
-    coalesce(u.username, u.email)::text as deleted_by_name
+    coalesce(u.username, u.email)::text as deleted_by_name,
+    coalesce(p.name, '')::text as parent_name,
+    (f.parent_id is not null and p.id is null)::boolean as parent_gone,
+    (select count(*) from folders c where c.deleted_root_folder_id = f.id)::bigint as folder_count,
+    (select count(*) from documents d where d.deleted_root_folder_id = f.id)::bigint as document_count
 from folders f
 join users u on u.id = f.deleted_by
+left join folders p on p.id = f.parent_id and p.deleted_at is null
 where f.workspace_id = $1
     and f.deleted_at is not null
     and f.deleted_root_folder_id is null
@@ -299,6 +305,10 @@ type ListTrashFoldersRow struct {
 	Name          string             `json:"name"`
 	DeletedAt     pgtype.Timestamptz `json:"deleted_at"`
 	DeletedByName string             `json:"deleted_by_name"`
+	ParentName    string             `json:"parent_name"`
+	ParentGone    bool               `json:"parent_gone"`
+	FolderCount   int64              `json:"folder_count"`
+	DocumentCount int64              `json:"document_count"`
 }
 
 func (q *Queries) ListTrashFolders(ctx context.Context, workspaceID pgtype.UUID) ([]ListTrashFoldersRow, error) {
@@ -315,6 +325,10 @@ func (q *Queries) ListTrashFolders(ctx context.Context, workspaceID pgtype.UUID)
 			&i.Name,
 			&i.DeletedAt,
 			&i.DeletedByName,
+			&i.ParentName,
+			&i.ParentGone,
+			&i.FolderCount,
+			&i.DocumentCount,
 		); err != nil {
 			return nil, err
 		}

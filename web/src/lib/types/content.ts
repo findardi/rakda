@@ -35,13 +35,17 @@ export interface FolderTreeNode {
 	children: FolderTreeNode[];
 }
 
+export type RenditionStatus = 'pending' | 'ready' | 'failed';
+
 export interface DocumentData {
 	id: string;
 	folder_id: string;
 	name: string;
 	version_no: number;
+	current_version_id: string;
 	mime: string;
 	size: number;
+	rendition_status: RenditionStatus;
 	created_at: string;
 	updated_at: string;
 }
@@ -60,6 +64,10 @@ export interface ViewMetaData {
 	page_count: number;
 	can_download: boolean;
 	can_download_original: boolean;
+	watermark_download_max_pages: number;
+}
+
+export interface DownloadLimitsData {
 	watermark_download_max_pages: number;
 }
 
@@ -207,7 +215,7 @@ export interface InheritedFolderAccess extends FolderAccessData {
 
 // --- trash ---
 
-export interface TrashFolder {
+export interface TrashItem {
 	id: string;
 	name: string;
 	deleted_by_name: string;
@@ -215,14 +223,32 @@ export interface TrashFolder {
 	purge_after: string;
 }
 
-export interface TrashDocument extends TrashFolder {
+export interface TrashFolder extends TrashItem {
+	parent_name: string;
+	parent_gone: boolean;
+	folder_count: number;
+	document_count: number;
+}
+
+export interface TrashDocument extends TrashItem {
 	mime: string;
 	size: number;
+	folder_name: string;
+	folder_gone: boolean;
 }
 
 export interface TrashData {
 	folders: TrashFolder[];
 	documents: TrashDocument[];
+	retention_hours: number;
+}
+
+export interface RestoreData {
+	id: string;
+	name: string;
+	renamed: boolean;
+	folder_id: string;
+	folder_name: string;
 }
 
 export interface DirectFolderAccess extends FolderAccessData {

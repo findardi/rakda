@@ -26,6 +26,9 @@ type ActivityLogResponse struct {
 	TargetName string          `json:"target_name"`
 	Metadata   json.RawMessage `json:"metadata"`
 	CreatedAt  time.Time       `json:"created_at"`
+
+	LinkDocumentID string `json:"link_document_id"`
+	LinkFolderID   string `json:"link_folder_id"`
 }
 
 type ListActivityResponse struct {

@@ -47,7 +47,7 @@ export const actions: Actions = {
 			return fail(res.status || 400, { message: res.message || t('err.generic') });
 		}
 
-		return { restored: true };
+		return { restored: res.data };
 	},
 
 	restoreDocument: async ({ locals, params, request }) => {
@@ -69,6 +69,6 @@ export const actions: Actions = {
 			return fail(res.status || 400, { message: res.message || t('err.generic') });
 		}
 
-		return { restored: true };
+		return { restored: res.data };
 	}
 };

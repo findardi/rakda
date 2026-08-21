@@ -160,14 +160,16 @@ func (s *ContentService) CompletedUpload(ctx context.Context, req dto.CompleteUp
 	}
 
 	return dto.DocumentResponse{
-		ID:        uuidString(doc.ID),
-		FolderID:  uuidString(doc.FolderID),
-		Name:      doc.Name,
-		VersionNo: ver.VersionNo,
-		Mime:      ver.Mime,
-		Size:      ver.Size,
-		CreatedAt: doc.CreatedAt.Time,
-		UpdatedAt: doc.UpdatedAt.Time,
+		ID:               uuidString(doc.ID),
+		FolderID:         uuidString(doc.FolderID),
+		Name:             doc.Name,
+		VersionNo:        ver.VersionNo,
+		CurrentVersionID: uuidString(ver.ID),
+		Mime:             ver.Mime,
+		Size:             ver.Size,
+		RenditionStatus:  renditionStatus(ver.RenditionKey, ver.RenditionFailedAt),
+		CreatedAt:        doc.CreatedAt.Time,
+		UpdatedAt:        doc.UpdatedAt.Time,
 	}, nil
 }
 
@@ -273,14 +275,16 @@ func (s *ContentService) CompletedVersion(ctx context.Context, req dto.CompleteV
 	}
 
 	return dto.DocumentResponse{
-		ID:        uuidString(doc.ID),
-		FolderID:  uuidString(doc.FolderID),
-		Name:      doc.Name,
-		VersionNo: ver.VersionNo,
-		Mime:      ver.Mime,
-		Size:      ver.Size,
-		CreatedAt: doc.CreatedAt.Time,
-		UpdatedAt: ver.CreatedAt.Time,
+		ID:               uuidString(doc.ID),
+		FolderID:         uuidString(doc.FolderID),
+		Name:             doc.Name,
+		VersionNo:        ver.VersionNo,
+		CurrentVersionID: uuidString(ver.ID),
+		Mime:             ver.Mime,
+		Size:             ver.Size,
+		RenditionStatus:  renditionStatus(ver.RenditionKey, ver.RenditionFailedAt),
+		CreatedAt:        doc.CreatedAt.Time,
+		UpdatedAt:        ver.CreatedAt.Time,
 	}, nil
 }
 
@@ -315,14 +319,16 @@ func (s *ContentService) ListDocuments(ctx context.Context, workspaceID, folderI
 	docs := make([]dto.DocumentResponse, 0, len(rows))
 	for _, r := range rows {
 		docs = append(docs, dto.DocumentResponse{
-			ID:        uuidString(r.ID),
-			FolderID:  uuidString(r.FolderID),
-			Name:      r.Name,
-			VersionNo: r.VersionNo,
-			Mime:      r.Mime,
-			Size:      r.Size,
-			CreatedAt: r.CreatedAt.Time,
-			UpdatedAt: r.UpdatedAt.Time,
+			ID:               uuidString(r.ID),
+			FolderID:         uuidString(r.FolderID),
+			Name:             r.Name,
+			VersionNo:        r.VersionNo,
+			CurrentVersionID: uuidString(r.CurrentVersionID),
+			Mime:             r.Mime,
+			Size:             r.Size,
+			RenditionStatus:  renditionStatus(r.RenditionKey, r.RenditionFailedAt),
+			CreatedAt:        r.CreatedAt.Time,
+			UpdatedAt:        r.UpdatedAt.Time,
 		})
 	}
 
@@ -1037,13 +1043,25 @@ func (s *ContentService) RestoreVersion(ctx context.Context, workspaceID, docume
 	}
 
 	return dto.DocumentResponse{
-		ID:        uuidString(fresh.ID),
-		FolderID:  uuidString(fresh.FolderID),
-		Name:      fresh.Name,
-		VersionNo: target.VersionNo,
-		Mime:      target.Mime,
-		Size:      target.Size,
-		CreatedAt: fresh.CreatedAt.Time,
-		UpdatedAt: fresh.UpdatedAt.Time,
+		ID:               uuidString(fresh.ID),
+		FolderID:         uuidString(fresh.FolderID),
+		Name:             fresh.Name,
+		VersionNo:        target.VersionNo,
+		CurrentVersionID: uuidString(target.ID),
+		Mime:             target.Mime,
+		Size:             target.Size,
+		RenditionStatus:  renditionStatus(target.RenditionKey, target.RenditionFailedAt),
+		CreatedAt:        fresh.CreatedAt.Time,
+		UpdatedAt:        fresh.UpdatedAt.Time,
 	}, nil
+}
+
+func renditionStatus(key *string, failedAt pgtype.Timestamptz) string {
+	if failedAt.Valid {
+		return dto.RenditionFailed
+	}
+	if key != nil {
+		return dto.RenditionReady
+	}
+	return dto.RenditionPending
 }

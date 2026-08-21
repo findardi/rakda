@@ -637,7 +637,8 @@ func (h *ContentHandler) RestoreTrashDocument(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	if err := h.svc.RestoreDocument(r.Context(), wID, dID, actor); err != nil {
+	res, err := h.svc.RestoreDocument(r.Context(), wID, dID, actor)
+	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrContentForbidden):
 			response.Error(w, http.StatusForbidden, err.Error(), nil)
@@ -652,7 +653,7 @@ func (h *ContentHandler) RestoreTrashDocument(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	response.Success(w, http.StatusOK, "restore document success", nil)
+	response.Success(w, http.StatusOK, "restore document success", res)
 }
 
 func (h *ContentHandler) RestoreTrashFolder(w http.ResponseWriter, r *http.Request) {
@@ -665,7 +666,8 @@ func (h *ContentHandler) RestoreTrashFolder(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if err := h.svc.RestoreFolders(r.Context(), wID, fID, actor); err != nil {
+	res, err := h.svc.RestoreFolders(r.Context(), wID, fID, actor)
+	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrContentForbidden):
 			response.Error(w, http.StatusForbidden, err.Error(), nil)
@@ -680,7 +682,7 @@ func (h *ContentHandler) RestoreTrashFolder(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	response.Success(w, http.StatusOK, "restore folder success", nil)
+	response.Success(w, http.StatusOK, "restore folder success", res)
 }
 
 func (h *ContentHandler) MoveDocument(w http.ResponseWriter, r *http.Request) {
@@ -874,6 +876,10 @@ func (h *ContentHandler) GetViewPage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Length", strconv.Itoa(len(img)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(img)
+}
+
+func (h *ContentHandler) GetDownloadLimits(w http.ResponseWriter, _ *http.Request) {
+	response.Success(w, http.StatusOK, "success get download limits", h.svc.DownloadLimits())
 }
 
 func (h *ContentHandler) ListFolderAccess(w http.ResponseWriter, r *http.Request) {
