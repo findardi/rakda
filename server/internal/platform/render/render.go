@@ -20,9 +20,16 @@ type TextExtractor interface {
 	ExtractText(ctx context.Context, pdf io.Reader) (string, error)
 }
 
-// OCRWord — satu kata hasil OCR, koordinat dinormalkan ke pecahan 0..1
-// terhadap lebar/tinggi halaman sehingga bebas DPI.
-type OCRWord struct {
+// WordBoxExtractor memulangkan koordinat kata per halaman (pdftotext -bbox),
+// dipakai bersama kolom jsonb yang sama dengan hasil OCR.
+type WordBoxExtractor interface {
+	ExtractWordBoxes(ctx context.Context, pdf io.Reader, page int) ([]Word, error)
+}
+
+// Word — satu kata dengan koordinat dinormalkan ke pecahan 0..1 terhadap
+// lebar/tinggi halaman sehingga bebas DPI. Conf = 0 untuk bbox pdftotext
+// (tidak punya confidence), nilai nyata untuk hasil OCR.
+type Word struct {
 	Text string  `json:"text"`
 	X    float64 `json:"x"`
 	Y    float64 `json:"y"`
@@ -33,7 +40,7 @@ type OCRWord struct {
 
 type OCRResult struct {
 	Text  string
-	Words []OCRWord
+	Words []Word
 }
 
 type OCR interface {

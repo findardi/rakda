@@ -165,6 +165,173 @@ func (q *Queries) ListPendingTextExtraction(ctx context.Context, limit int32) ([
 	return items, nil
 }
 
+const listPendingWordBoxes = `-- name: ListPendingWordBoxes :many
+select
+    d.workspace_id,
+    pt.version_id,
+    pt.page_no,
+    v.rendition_key
+from document_page_texts pt
+join document_versions v on v.id = pt.version_id
+join documents d on d.id = v.document_id
+where d.deleted_at is null
+  and d.current_version_id = v.id
+  and v.text_extracted_at is not null
+  and v.rendition_key is not null
+  and pt.text_source = 'pdf'
+  and pt.words is null
+  and length(trim(pt.content)) >= 20
+order by d.created_at, pt.version_id, pt.page_no
+limit $1
+`
+
+type ListPendingWordBoxesRow struct {
+	WorkspaceID  pgtype.UUID `json:"workspace_id"`
+	VersionID    pgtype.UUID `json:"version_id"`
+	PageNo       int32       `json:"page_no"`
+	RenditionKey *string     `json:"rendition_key"`
+}
+
+func (q *Queries) ListPendingWordBoxes(ctx context.Context, limitCount int32) ([]ListPendingWordBoxesRow, error) {
+	rows, err := q.db.Query(ctx, listPendingWordBoxes, limitCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPendingWordBoxesRow
+	for rows.Next() {
+		var i ListPendingWordBoxesRow
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.VersionID,
+			&i.PageNo,
+			&i.RenditionKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchPendingBoxPages = `-- name: SearchPendingBoxPages :many
+with q as (
+    select
+        websearch_to_tsquery('indonesian', $2) as idq,
+        websearch_to_tsquery('english', $2) as enq
+)
+select distinct pt.page_no
+from document_page_texts pt
+join documents d on d.current_version_id = pt.version_id
+cross join q
+where d.id = $1
+  and pt.words is null
+  and (pt.tsv_id @@ q.idq or pt.tsv_en @@ q.enq)
+order by pt.page_no
+`
+
+type SearchPendingBoxPagesParams struct {
+	DocumentID pgtype.UUID `json:"document_id"`
+	Query      string      `json:"query"`
+}
+
+func (q *Queries) SearchPendingBoxPages(ctx context.Context, arg SearchPendingBoxPagesParams) ([]int32, error) {
+	rows, err := q.db.Query(ctx, searchPendingBoxPages, arg.DocumentID, arg.Query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int32
+	for rows.Next() {
+		var page_no int32
+		if err := rows.Scan(&page_no); err != nil {
+			return nil, err
+		}
+		items = append(items, page_no)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchWordBoxes = `-- name: SearchWordBoxes :many
+with q as (
+    select
+        websearch_to_tsquery('indonesian', $3) as idq,
+        websearch_to_tsquery('english', $3) as enq
+)
+select
+    pt.page_no,
+    (w->>'x')::float8 as x,
+    (w->>'y')::float8 as y,
+    (w->>'w')::float8 as w,
+    (w->>'h')::float8 as h
+from document_page_texts pt
+join documents d on d.current_version_id = pt.version_id
+cross join q
+cross join lateral jsonb_array_elements(pt.words) w
+where d.id = $1
+  and pt.words is not null
+  -- Halaman kena secara penuh (AND, konsisten dengan 9-d)…
+  and (pt.tsv_id @@ q.idq or pt.tsv_en @@ q.enq)
+  -- …lalu kotak kata yang cocok dengan salah satu token query.
+  and (
+      to_tsvector('indonesian', w->>'text') @@ any (array(
+          select to_tsquery('indonesian', t)
+          from unnest($2::text[]) t
+      ))
+      or to_tsvector('english', w->>'text') @@ any (array(
+          select to_tsquery('english', t)
+          from unnest($2::text[]) t
+      ))
+  )
+order by pt.page_no, (w->>'y')::float8, (w->>'x')::float8
+`
+
+type SearchWordBoxesParams struct {
+	DocumentID pgtype.UUID `json:"document_id"`
+	Tokens     []string    `json:"tokens"`
+	Query      string      `json:"query"`
+}
+
+type SearchWordBoxesRow struct {
+	PageNo int32   `json:"page_no"`
+	X      float64 `json:"x"`
+	Y      float64 `json:"y"`
+	W      float64 `json:"w"`
+	H      float64 `json:"h"`
+}
+
+func (q *Queries) SearchWordBoxes(ctx context.Context, arg SearchWordBoxesParams) ([]SearchWordBoxesRow, error) {
+	rows, err := q.db.Query(ctx, searchWordBoxes, arg.DocumentID, arg.Tokens, arg.Query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchWordBoxesRow
+	for rows.Next() {
+		var i SearchWordBoxesRow
+		if err := rows.Scan(
+			&i.PageNo,
+			&i.X,
+			&i.Y,
+			&i.W,
+			&i.H,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setPageOCRFailure = `-- name: SetPageOCRFailure :exec
 update document_page_texts
 set ocr_error = $1,
@@ -209,6 +376,24 @@ func (q *Queries) SetPageOCRResult(ctx context.Context, arg SetPageOCRResultPara
 		arg.VersionID,
 		arg.PageNo,
 	)
+	return err
+}
+
+const setPageWordBoxes = `-- name: SetPageWordBoxes :exec
+update document_page_texts
+set words = $1
+where version_id = $2
+  and page_no = $3
+`
+
+type SetPageWordBoxesParams struct {
+	Words     []byte      `json:"words"`
+	VersionID pgtype.UUID `json:"version_id"`
+	PageNo    int32       `json:"page_no"`
+}
+
+func (q *Queries) SetPageWordBoxes(ctx context.Context, arg SetPageWordBoxesParams) error {
+	_, err := q.db.Exec(ctx, setPageWordBoxes, arg.Words, arg.VersionID, arg.PageNo)
 	return err
 }
 

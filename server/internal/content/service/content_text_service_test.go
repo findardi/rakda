@@ -140,14 +140,20 @@ func (d *recordingDB) execTx(ctx context.Context, fn func(*contentdb.Queries) er
 type textFakeRepo struct {
 	ContentRepository
 
-	listPendingFn       func(ctx context.Context, limit int32) ([]contentdb.ListPendingTextExtractionRow, error)
-	listPendingOCRFn    func(ctx context.Context, limit int32) ([]contentdb.ListPendingOCRPagesRow, error)
-	getVersionFn        func(ctx context.Context, id pgtype.UUID) (contentdb.DocumentVersion, error)
-	setFailureFn        func(ctx context.Context, arg contentdb.SetVersionTextFailureParams) error
-	setRenditionFn      func(ctx context.Context, arg contentdb.SetVersionRenditionParams) error
-	setPageOCRResultFn  func(ctx context.Context, arg contentdb.SetPageOCRResultParams) error
-	setPageOCRFailureFn func(ctx context.Context, arg contentdb.SetPageOCRFailureParams) error
-	execTxFn            func(ctx context.Context, fn func(*contentdb.Queries) error) error
+	listPendingFn         func(ctx context.Context, limit int32) ([]contentdb.ListPendingTextExtractionRow, error)
+	listPendingOCRFn      func(ctx context.Context, limit int32) ([]contentdb.ListPendingOCRPagesRow, error)
+	listPendingBBoxFn     func(ctx context.Context, limit int32) ([]contentdb.ListPendingWordBoxesRow, error)
+	getVersionFn          func(ctx context.Context, id pgtype.UUID) (contentdb.DocumentVersion, error)
+	getDocumentFn         func(ctx context.Context, id pgtype.UUID) (contentdb.Document, error)
+	setFailureFn          func(ctx context.Context, arg contentdb.SetVersionTextFailureParams) error
+	setRenditionFn        func(ctx context.Context, arg contentdb.SetVersionRenditionParams) error
+	setPageOCRResultFn    func(ctx context.Context, arg contentdb.SetPageOCRResultParams) error
+	setPageOCRFailureFn   func(ctx context.Context, arg contentdb.SetPageOCRFailureParams) error
+	setPageWordBoxesFn    func(ctx context.Context, arg contentdb.SetPageWordBoxesParams) error
+	resolveFolderAccessFn func(ctx context.Context, arg contentdb.ResolveFolderAccessParams) (contentdb.ResolveFolderAccessRow, error)
+	searchPendingBoxFn    func(ctx context.Context, arg contentdb.SearchPendingBoxPagesParams) ([]int32, error)
+	searchWordBoxesFn     func(ctx context.Context, arg contentdb.SearchWordBoxesParams) ([]contentdb.SearchWordBoxesRow, error)
+	execTxFn              func(ctx context.Context, fn func(*contentdb.Queries) error) error
 }
 
 func (f *textFakeRepo) ListPendingTextExtraction(ctx context.Context, limit int32) ([]contentdb.ListPendingTextExtractionRow, error) {
@@ -478,7 +484,7 @@ func TestOCRSweeperWritesResultAndFailure(t *testing.T) {
 			}
 			return render.OCRResult{
 				Text: "Laporan Keuangan",
-				Words: []render.OCRWord{
+				Words: []render.Word{
 					{Text: "Laporan", X: 0.1, Y: 0.2, W: 0.3, H: 0.1, Conf: 92.5},
 				},
 			}, nil
@@ -520,4 +526,28 @@ func TestOCRSweeperWritesResultAndFailure(t *testing.T) {
 	assert.Equal(t, "Laporan Keuangan", written[0].Content)
 	require.NotNil(t, written[0].Words)
 	assert.Contains(t, string(written[0].Words), "Laporan")
+}
+
+func (f *textFakeRepo) GetDocumentByID(ctx context.Context, id pgtype.UUID) (contentdb.Document, error) {
+	return f.getDocumentFn(ctx, id)
+}
+
+func (f *textFakeRepo) ResolveFolderAccess(ctx context.Context, arg contentdb.ResolveFolderAccessParams) (contentdb.ResolveFolderAccessRow, error) {
+	return f.resolveFolderAccessFn(ctx, arg)
+}
+
+func (f *textFakeRepo) ListPendingWordBoxes(ctx context.Context, limit int32) ([]contentdb.ListPendingWordBoxesRow, error) {
+	return f.listPendingBBoxFn(ctx, limit)
+}
+
+func (f *textFakeRepo) SetPageWordBoxes(ctx context.Context, arg contentdb.SetPageWordBoxesParams) error {
+	return f.setPageWordBoxesFn(ctx, arg)
+}
+
+func (f *textFakeRepo) SearchPendingBoxPages(ctx context.Context, arg contentdb.SearchPendingBoxPagesParams) ([]int32, error) {
+	return f.searchPendingBoxFn(ctx, arg)
+}
+
+func (f *textFakeRepo) SearchWordBoxes(ctx context.Context, arg contentdb.SearchWordBoxesParams) ([]contentdb.SearchWordBoxesRow, error) {
+	return f.searchWordBoxesFn(ctx, arg)
 }

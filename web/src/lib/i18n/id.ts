@@ -426,6 +426,13 @@ export const id = {
 	'doc.view.next': 'Halaman berikutnya',
 	'doc.view.jumpLabel': 'Lompat ke halaman',
 	'doc.view.pageOf': 'Halaman {n} dari {total}',
+	'doc.view.findOpen': 'Cari di dokumen (Ctrl+F)',
+	'doc.view.findClose': 'Tutup pencarian',
+	'doc.view.findPlaceholder': 'Cari di dokumen…',
+	'doc.view.findPrev': 'Hasil sebelumnya',
+	'doc.view.findNext': 'Hasil berikutnya',
+	'doc.view.findNone': 'Tidak ada hasil',
+	'doc.view.findPending': 'Halaman ini belum siap — OCR masih berjalan',
 	'doc.view.protected':
 		'Tampilan aman — setiap halaman diberi watermark identitas Anda dan tidak pernah dikirim sebagai berkas asli.',
 	'doc.view.watermarked': 'Ber-watermark',

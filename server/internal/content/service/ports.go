@@ -67,6 +67,10 @@ type ContentRepository interface {
 	ListPendingOCRPages(ctx context.Context, limitCount int32) ([]contentdb.ListPendingOCRPagesRow, error)
 	SetPageOCRResult(ctx context.Context, arg contentdb.SetPageOCRResultParams) error
 	SetPageOCRFailure(ctx context.Context, arg contentdb.SetPageOCRFailureParams) error
+	ListPendingWordBoxes(ctx context.Context, limitCount int32) ([]contentdb.ListPendingWordBoxesRow, error)
+	SetPageWordBoxes(ctx context.Context, arg contentdb.SetPageWordBoxesParams) error
+	SearchPendingBoxPages(ctx context.Context, arg contentdb.SearchPendingBoxPagesParams) ([]int32, error)
+	SearchWordBoxes(ctx context.Context, arg contentdb.SearchWordBoxesParams) ([]contentdb.SearchWordBoxesRow, error)
 
 	SearchAllFolders(ctx context.Context, arg contentdb.SearchAllFoldersParams) ([]contentdb.SearchAllFoldersRow, error)
 	SearchAllDocuments(ctx context.Context, arg contentdb.SearchAllDocumentsParams) ([]contentdb.SearchAllDocumentsRow, error)

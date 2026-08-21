@@ -128,6 +128,7 @@ func (m *Module) RegisterRoutes(r chi.Router) {
 				r.With(m.mw.RequirePermission(permission.PermDocumentDownload)).Get("/download", m.handler.GetDownloadURL)
 				r.With(m.mw.RequirePermission(permission.PermDocumentView)).Get("/view", m.handler.GetViewMeta)
 				r.With(m.mw.RequirePermission(permission.PermDocumentView)).Get("/pages/{page}", m.handler.GetViewPage)
+				r.With(m.mw.RequirePermission(permission.PermDocumentView)).Get("/search-boxes", m.handler.SearchBoxes)
 				r.With(m.mw.RequirePermission(permission.PermDocumentEdit)).Patch("/move", m.handler.MoveDocument)
 				r.With(m.mw.RequirePermission(permission.PermDocumentDelete)).Delete("/", m.handler.DeleteDocument)
 				r.With(m.mw.RequirePermission(permission.PermDocumentEdit)).Post("/versions/{versionID}/restore", m.handler.RestoreVersion)

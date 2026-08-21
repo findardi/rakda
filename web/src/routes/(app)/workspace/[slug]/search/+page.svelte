@@ -124,7 +124,8 @@
 			folderId,
 			documentId
 		});
-		goto(`${viewer}?page=${pageNo}`);
+		// ?q= deep-links the find overlay into the viewer (9-f).
+		goto(`${viewer}?page=${pageNo}&q=${encodeURIComponent(activeQuery)}`);
 	}
 </script>
 

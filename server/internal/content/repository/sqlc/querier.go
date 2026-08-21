@@ -37,6 +37,7 @@ type Querier interface {
 	ListFolderAccess(ctx context.Context, arg ListFolderAccessParams) ([]ListFolderAccessRow, error)
 	ListPendingOCRPages(ctx context.Context, limitCount int32) ([]ListPendingOCRPagesRow, error)
 	ListPendingTextExtraction(ctx context.Context, limit int32) ([]ListPendingTextExtractionRow, error)
+	ListPendingWordBoxes(ctx context.Context, limitCount int32) ([]ListPendingWordBoxesRow, error)
 	ListTrashDocuments(ctx context.Context, workspaceID pgtype.UUID) ([]ListTrashDocumentsRow, error)
 	ListTrashFolders(ctx context.Context, workspaceID pgtype.UUID) ([]ListTrashFoldersRow, error)
 	ListVersionByDocument(ctx context.Context, documentID pgtype.UUID) ([]DocumentVersion, error)
@@ -64,15 +65,18 @@ type Querier interface {
 	SearchAllDocuments(ctx context.Context, arg SearchAllDocumentsParams) ([]SearchAllDocumentsRow, error)
 	SearchAllFolderBreadcrumbs(ctx context.Context, folderIds []pgtype.UUID) ([]SearchAllFolderBreadcrumbsRow, error)
 	SearchAllFolders(ctx context.Context, arg SearchAllFoldersParams) ([]SearchAllFoldersRow, error)
+	SearchPendingBoxPages(ctx context.Context, arg SearchPendingBoxPagesParams) ([]int32, error)
 	SearchVisibleContent(ctx context.Context, arg SearchVisibleContentParams) ([]SearchVisibleContentRow, error)
 	SearchVisibleContentPages(ctx context.Context, arg SearchVisibleContentPagesParams) ([]SearchVisibleContentPagesRow, error)
 	SearchVisibleDocuments(ctx context.Context, arg SearchVisibleDocumentsParams) ([]SearchVisibleDocumentsRow, error)
 	SearchVisibleFolderBreadcrumbs(ctx context.Context, arg SearchVisibleFolderBreadcrumbsParams) ([]SearchVisibleFolderBreadcrumbsRow, error)
 	SearchVisibleFolders(ctx context.Context, arg SearchVisibleFoldersParams) ([]SearchVisibleFoldersRow, error)
+	SearchWordBoxes(ctx context.Context, arg SearchWordBoxesParams) ([]SearchWordBoxesRow, error)
 	SetCurrentVersion(ctx context.Context, arg SetCurrentVersionParams) error
 	SetFolderAccess(ctx context.Context, arg SetFolderAccessParams) (FolderAccess, error)
 	SetPageOCRFailure(ctx context.Context, arg SetPageOCRFailureParams) error
 	SetPageOCRResult(ctx context.Context, arg SetPageOCRResultParams) error
+	SetPageWordBoxes(ctx context.Context, arg SetPageWordBoxesParams) error
 	SetVersionRendition(ctx context.Context, arg SetVersionRenditionParams) error
 	SetVersionRenditionFailure(ctx context.Context, arg SetVersionRenditionFailureParams) error
 	SetVersionTextExtracted(ctx context.Context, id pgtype.UUID) error

@@ -274,3 +274,21 @@ export interface SearchContentPage {
 export interface SearchContentPagesData {
 	pages: SearchContentPage[];
 }
+
+// Search box for the viewer overlay (9-f): normalized 0..1, no text.
+export interface SearchBox {
+	x: number;
+	y: number;
+	w: number;
+	h: number;
+}
+
+export interface SearchBoxPage {
+	page_no: number;
+	boxes: SearchBox[];
+}
+
+export interface SearchBoxesData {
+	matches: SearchBoxPage[];
+	pending: number[];
+}

@@ -430,6 +430,13 @@ export const en: Record<keyof Dict, string> = {
 	'doc.view.next': 'Next page',
 	'doc.view.jumpLabel': 'Jump to page',
 	'doc.view.pageOf': 'Page {n} of {total}',
+	'doc.view.findOpen': 'Find in document (Ctrl+F)',
+	'doc.view.findClose': 'Close find',
+	'doc.view.findPlaceholder': 'Find in document…',
+	'doc.view.findPrev': 'Previous match',
+	'doc.view.findNext': 'Next match',
+	'doc.view.findNone': 'No matches',
+	'doc.view.findPending': 'This page is not ready yet — OCR still running',
 	'doc.view.protected':
 		'Secure view — every page is watermarked with your identity and is never sent as the original file.',
 	'doc.view.watermarked': 'Watermarked',

@@ -275,3 +275,85 @@ func (s *ContentService) markPageOCRFailed(ctx context.Context, versionID pgtype
 
 	return ErrOCRFailed
 }
+
+// RunBBoxSweeper mengisi koordinat kata untuk PDF berteks asli (pdftotext
+// -bbox) — halaman `text_source = 'pdf'` yang words-nya masih kosong.
+// Jatah per-halaman seperti OCR.
+func (s *ContentService) RunBBoxSweeper(ctx context.Context, interval time.Duration, batch int) {
+	s.sweepBBoxOnce(ctx, batch)
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.sweepBBoxOnce(ctx, batch)
+		}
+	}
+}
+
+func (s *ContentService) sweepBBoxOnce(ctx context.Context, batch int) {
+	pending, err := s.repo.ListPendingWordBoxes(ctx, int32(batch))
+	if err != nil {
+		log.Printf("bbox sweep: list pending: %v", err)
+		return
+	}
+
+	done, failed := 0, 0
+	for _, p := range pending {
+		if err := s.bboxPage(ctx, p); err != nil {
+			log.Printf("bbox sweep: page %s#%d: %v", uuidString(p.VersionID), p.PageNo, err)
+			failed++
+			continue
+		}
+		done++
+	}
+
+	if done > 0 || failed > 0 {
+		log.Printf("bbox sweep: %d pages boxed, %d failed", done, failed)
+	}
+}
+
+func (s *ContentService) bboxPage(ctx context.Context, row contentdb.ListPendingWordBoxesRow) error {
+	if row.RenditionKey == nil {
+		return fmt.Errorf("%w: no rendition for page", ErrTextExtractionFailed)
+	}
+
+	pdf, err := s.store.Get(ctx, *row.RenditionKey)
+	if err != nil {
+		return fmt.Errorf("get rendition: %w", err)
+	}
+	defer pdf.Close()
+
+	words, err := s.viewer.WordBoxes.ExtractWordBoxes(ctx, pdf, int(row.PageNo))
+	if err != nil {
+		// Catat error lewat kolom ocr_error/ocr_at dan tutup kandidat dengan
+		// words='[]' — "sekali gagal tidak diulang" (pola 9-b/9-e).
+		if werr := s.repo.SetPageWordBoxes(ctx, contentdb.SetPageWordBoxesParams{
+			VersionID: row.VersionID,
+			PageNo:    row.PageNo,
+			Words:     []byte("[]"),
+		}); werr != nil {
+			log.Printf("bbox sweep: seal page %s#%d: %v", uuidString(row.VersionID), row.PageNo, werr)
+		}
+		return s.markPageOCRFailed(ctx, row.VersionID, row.PageNo, err)
+	}
+
+	wordsJSON, err := json.Marshal(words)
+	if err != nil {
+		return s.markPageOCRFailed(ctx, row.VersionID, row.PageNo, fmt.Errorf("marshal words: %w", err))
+	}
+
+	if err := s.repo.SetPageWordBoxes(ctx, contentdb.SetPageWordBoxesParams{
+		VersionID: row.VersionID,
+		PageNo:    row.PageNo,
+		Words:     wordsJSON,
+	}); err != nil {
+		return fmt.Errorf("write word boxes: %w", err)
+	}
+
+	return nil
+}

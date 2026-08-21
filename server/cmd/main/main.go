@@ -75,6 +75,7 @@ func main() {
 		Watermark:     wm,
 		PDFStamp:      watermark.NewPDFStamp(),
 		TextExtractor: renderer,
+		WordBoxes:     renderer,
 		OCR:           ocr,
 		DPI:           viewerCfg.DPI,
 	}
