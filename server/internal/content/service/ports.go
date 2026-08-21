@@ -64,6 +64,9 @@ type ContentRepository interface {
 	InsertPageText(ctx context.Context, arg contentdb.InsertPageTextParams) error
 	SetVersionTextExtracted(ctx context.Context, id pgtype.UUID) error
 	SetVersionTextFailure(ctx context.Context, arg contentdb.SetVersionTextFailureParams) error
+	ListPendingOCRPages(ctx context.Context, limitCount int32) ([]contentdb.ListPendingOCRPagesRow, error)
+	SetPageOCRResult(ctx context.Context, arg contentdb.SetPageOCRResultParams) error
+	SetPageOCRFailure(ctx context.Context, arg contentdb.SetPageOCRFailureParams) error
 
 	SearchAllFolders(ctx context.Context, arg contentdb.SearchAllFoldersParams) ([]contentdb.SearchAllFoldersRow, error)
 	SearchAllDocuments(ctx context.Context, arg contentdb.SearchAllDocumentsParams) ([]contentdb.SearchAllDocumentsRow, error)

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -12,7 +13,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const maxPageTextBytes = 256 << 10
+const (
+	maxPageTextBytes    = 256 << 10
+	ocrMinContentLength = 20
+)
 
 func (s *ContentService) RunTextSweeper(ctx context.Context, interval time.Duration, batch int) {
 	s.sweepTextOnce(ctx, batch)
@@ -182,4 +186,92 @@ func truncatePageContent(content string) string {
 	}
 
 	return content[:cut]
+}
+
+// RunOCRSweeper mengenali halaman hasil pindai. Jatah dihitung per-HALAMAN,
+// bukan per-versi (keputusan 9-e): 750 halaman × 3,2 s ≈ 40 menit untuk satu
+// dokumen, jadi sweeper harus bisa berhenti di tengah dokumen dan
+// melanjutkannya di sapuan berikutnya.
+func (s *ContentService) RunOCRSweeper(ctx context.Context, interval time.Duration, batch int) {
+	s.sweepOCROnce(ctx, batch)
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.sweepOCROnce(ctx, batch)
+		}
+	}
+}
+
+func (s *ContentService) sweepOCROnce(ctx context.Context, batch int) {
+	pending, err := s.repo.ListPendingOCRPages(ctx, int32(batch))
+	if err != nil {
+		log.Printf("ocr sweep: list pending: %v", err)
+		return
+	}
+
+	done, failed := 0, 0
+	for _, p := range pending {
+		if err := s.ocrPage(ctx, p); err != nil {
+			log.Printf("ocr sweep: page %s#%d: %v", uuidString(p.VersionID), p.PageNo, err)
+			failed++
+			continue
+		}
+		done++
+	}
+
+	if done > 0 || failed > 0 {
+		log.Printf("ocr sweep: %d pages recognized, %d failed", done, failed)
+	}
+}
+
+func (s *ContentService) ocrPage(ctx context.Context, row contentdb.ListPendingOCRPagesRow) error {
+	if row.RenditionKey == nil {
+		return fmt.Errorf("%w: no rendition for page", ErrOCRFailed)
+	}
+
+	pdf, err := s.store.Get(ctx, *row.RenditionKey)
+	if err != nil {
+		return fmt.Errorf("get rendition: %w", err)
+	}
+	defer pdf.Close()
+
+	res, err := s.viewer.OCR.OCRPage(ctx, pdf, int(row.PageNo))
+	if err != nil {
+		return s.markPageOCRFailed(ctx, row.VersionID, row.PageNo, err)
+	}
+
+	wordsJSON, err := json.Marshal(res.Words)
+	if err != nil {
+		return s.markPageOCRFailed(ctx, row.VersionID, row.PageNo, fmt.Errorf("marshal words: %w", err))
+	}
+
+	if err := s.repo.SetPageOCRResult(ctx, contentdb.SetPageOCRResultParams{
+		VersionID: row.VersionID,
+		PageNo:    row.PageNo,
+		Content:   truncatePageContent(res.Text),
+		Words:     wordsJSON,
+	}); err != nil {
+		return fmt.Errorf("write ocr result: %w", err)
+	}
+
+	return nil
+}
+
+func (s *ContentService) markPageOCRFailed(ctx context.Context, versionID pgtype.UUID, pageNo int32, cause error) error {
+	msg := cause.Error()
+	if err := s.repo.SetPageOCRFailure(ctx, contentdb.SetPageOCRFailureParams{
+		VersionID: versionID,
+		PageNo:    pageNo,
+		OcrError:  &msg,
+	}); err != nil {
+		log.Printf("record ocr failure: %v", err)
+	}
+
+	return ErrOCRFailed
 }

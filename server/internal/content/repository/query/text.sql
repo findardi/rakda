@@ -34,3 +34,39 @@ set text_error = sqlc.arg(text_error),
     text_failed_at = now()
 where id = sqlc.arg(id);
 
+
+-- name: ListPendingOCRPages :many
+select
+    d.workspace_id,
+    pt.version_id,
+    pt.page_no,
+    v.rendition_key
+from document_page_texts pt
+join document_versions v on v.id = pt.version_id
+join documents d on d.id = v.document_id
+where d.deleted_at is null
+  and d.current_version_id = v.id
+  and v.text_extracted_at is not null
+  and v.rendition_key is not null
+  and pt.text_source = 'pdf'
+  and pt.ocr_at is null
+  and length(trim(pt.content)) < 20
+order by d.created_at, pt.version_id, pt.page_no
+limit sqlc.arg(limit_count);
+
+-- name: SetPageOCRResult :exec
+update document_page_texts
+set content = sqlc.arg(content),
+    words = sqlc.arg(words),
+    text_source = 'ocr',
+    ocr_at = now(),
+    ocr_error = null
+where version_id = sqlc.arg(version_id)
+  and page_no = sqlc.arg(page_no);
+
+-- name: SetPageOCRFailure :exec
+update document_page_texts
+set ocr_error = sqlc.arg(ocr_error),
+    ocr_at = now()
+where version_id = sqlc.arg(version_id)
+  and page_no = sqlc.arg(page_no);

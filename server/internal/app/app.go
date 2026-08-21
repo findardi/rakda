@@ -37,10 +37,11 @@ import (
 )
 
 type App struct {
-	router chi.Router
-	addr   string
-	reap   func(ctx context.Context)
-	sweep  func(ctx context.Context)
+	router   chi.Router
+	addr     string
+	reap     func(ctx context.Context)
+	sweep    func(ctx context.Context)
+	ocrSweep func(ctx context.Context)
 }
 
 func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.Storage, viewer contentservice.Viewer) *App {
@@ -83,6 +84,18 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 		textSweepBatch = 10
 	}
 
+	ocrSweepInterval, err := config.GetEnvDuration("OCR_SWEEP_INTERVAL", time.Minute)
+	if err != nil {
+		log.Printf("invalid OCR_SWEEP_INTERVAL, fallback to 1m: %v", err)
+		ocrSweepInterval = time.Minute
+	}
+
+	ocrSweepBatch, err := config.GetEnvInt("OCR_SWEEP_BATCH", 10)
+	if err != nil {
+		log.Printf("invalid OCR_SWEEP_BATCH, fallback to 10: %v", err)
+		ocrSweepBatch = 10
+	}
+
 	activitysvc := activityservice.NewActivityService(activityrepo.New(pool))
 	authsvc := authservice.NewAuthService(authrepo.New(pool), otpGen, jwtGen, mailer, nil)
 	accessSvc := accessservice.NewAccessService(accessrepo.New(pool), mailer, authsvc, otpGen, webURL, activitysvc)
@@ -118,6 +131,9 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 		sweep: func(ctx context.Context) {
 			contentSvc.RunTextSweeper(ctx, textSweepInterval, textSweepBatch)
 		},
+		ocrSweep: func(ctx context.Context) {
+			contentSvc.RunOCRSweeper(ctx, ocrSweepInterval, ocrSweepBatch)
+		},
 	}
 }
 
@@ -127,6 +143,7 @@ func (a *App) Run() error {
 
 	go a.reap(reaperCtx)
 	go a.sweep(reaperCtx)
+	go a.ocrSweep(reaperCtx)
 
 	srv := &http.Server{
 		Addr:    a.addr,

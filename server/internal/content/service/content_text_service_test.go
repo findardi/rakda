@@ -140,15 +140,30 @@ func (d *recordingDB) execTx(ctx context.Context, fn func(*contentdb.Queries) er
 type textFakeRepo struct {
 	ContentRepository
 
-	listPendingFn  func(ctx context.Context, limit int32) ([]contentdb.ListPendingTextExtractionRow, error)
-	getVersionFn   func(ctx context.Context, id pgtype.UUID) (contentdb.DocumentVersion, error)
-	setFailureFn   func(ctx context.Context, arg contentdb.SetVersionTextFailureParams) error
-	setRenditionFn func(ctx context.Context, arg contentdb.SetVersionRenditionParams) error
-	execTxFn       func(ctx context.Context, fn func(*contentdb.Queries) error) error
+	listPendingFn       func(ctx context.Context, limit int32) ([]contentdb.ListPendingTextExtractionRow, error)
+	listPendingOCRFn    func(ctx context.Context, limit int32) ([]contentdb.ListPendingOCRPagesRow, error)
+	getVersionFn        func(ctx context.Context, id pgtype.UUID) (contentdb.DocumentVersion, error)
+	setFailureFn        func(ctx context.Context, arg contentdb.SetVersionTextFailureParams) error
+	setRenditionFn      func(ctx context.Context, arg contentdb.SetVersionRenditionParams) error
+	setPageOCRResultFn  func(ctx context.Context, arg contentdb.SetPageOCRResultParams) error
+	setPageOCRFailureFn func(ctx context.Context, arg contentdb.SetPageOCRFailureParams) error
+	execTxFn            func(ctx context.Context, fn func(*contentdb.Queries) error) error
 }
 
 func (f *textFakeRepo) ListPendingTextExtraction(ctx context.Context, limit int32) ([]contentdb.ListPendingTextExtractionRow, error) {
 	return f.listPendingFn(ctx, limit)
+}
+
+func (f *textFakeRepo) ListPendingOCRPages(ctx context.Context, limit int32) ([]contentdb.ListPendingOCRPagesRow, error) {
+	return f.listPendingOCRFn(ctx, limit)
+}
+
+func (f *textFakeRepo) SetPageOCRResult(ctx context.Context, arg contentdb.SetPageOCRResultParams) error {
+	return f.setPageOCRResultFn(ctx, arg)
+}
+
+func (f *textFakeRepo) SetPageOCRFailure(ctx context.Context, arg contentdb.SetPageOCRFailureParams) error {
+	return f.setPageOCRFailureFn(ctx, arg)
 }
 
 func (f *textFakeRepo) GetVersionByID(ctx context.Context, id pgtype.UUID) (contentdb.DocumentVersion, error) {
@@ -403,4 +418,106 @@ func TestSweepTextOnceContinuesPastFailures(t *testing.T) {
 	svc.sweepTextOnce(context.Background(), 10)
 
 	assert.True(t, failed)
+}
+
+type fakeOCR struct {
+	ocrFn func(ctx context.Context, pdf io.Reader, page int) (render.OCRResult, error)
+}
+
+func (f fakeOCR) OCRPage(ctx context.Context, pdf io.Reader, page int) (render.OCRResult, error) {
+	return f.ocrFn(ctx, pdf, page)
+}
+
+func ocrPendingRow(versionID string, pageNo int32) contentdb.ListPendingOCRPagesRow {
+	var id pgtype.UUID
+	_ = id.Scan(versionID)
+	var wID pgtype.UUID
+	_ = wID.Scan("99999999-9999-9999-9999-999999999999")
+	key := "w/renditions/" + versionID + "/rendition.pdf"
+
+	return contentdb.ListPendingOCRPagesRow{
+		WorkspaceID:  wID,
+		VersionID:    id,
+		PageNo:       pageNo,
+		RenditionKey: &key,
+	}
+}
+
+func TestOCRSweeperWritesResultAndFailure(t *testing.T) {
+	okID := "66666666-6666-6666-6666-666666666666"
+	badID := "77777777-7777-7777-7777-777777777777"
+
+	var (
+		written  []contentdb.SetPageOCRResultParams
+		failures []contentdb.SetPageOCRFailureParams
+	)
+
+	repo := &textFakeRepo{
+		listPendingOCRFn: func(ctx context.Context, limit int32) ([]contentdb.ListPendingOCRPagesRow, error) {
+			return []contentdb.ListPendingOCRPagesRow{
+				ocrPendingRow(badID, 1),
+				ocrPendingRow(okID, 2),
+			}, nil
+		},
+		setPageOCRResultFn: func(ctx context.Context, arg contentdb.SetPageOCRResultParams) error {
+			written = append(written, arg)
+			return nil
+		},
+		setPageOCRFailureFn: func(ctx context.Context, arg contentdb.SetPageOCRFailureParams) error {
+			failures = append(failures, arg)
+			return nil
+		},
+	}
+
+	calls := 0
+	ocr := fakeOCR{
+		ocrFn: func(ctx context.Context, pdf io.Reader, page int) (render.OCRResult, error) {
+			calls++
+			if calls == 1 {
+				return render.OCRResult{}, errors.New("empty page image")
+			}
+			return render.OCRResult{
+				Text: "Laporan Keuangan",
+				Words: []render.OCRWord{
+					{Text: "Laporan", X: 0.1, Y: 0.2, W: 0.3, H: 0.1, Conf: 92.5},
+				},
+			}, nil
+		},
+	}
+
+	store := fakeStorage{
+		getFn: func(ctx context.Context, key string) (io.ReadCloser, error) {
+			return io.NopCloser(bytes.NewReader([]byte("rendition bytes"))), nil
+		},
+	}
+
+	renderer := fakeRenderer{pageCountFn: func(ctx context.Context, pdf io.Reader) (int, error) {
+		return 10, nil
+	}}
+
+	svc := NewContentService(repo, store, Viewer{
+		Renderer:      renderer,
+		TextExtractor: fakeTextExtractor{extractFn: func(ctx context.Context, pdf io.Reader) (string, error) { return "", nil }},
+		OCR:           ocr,
+		DPI:           150,
+	}, 0, nil)
+
+	svc.sweepOCROnce(context.Background(), 10)
+
+	require.Len(t, failures, 1)
+	var wantBad pgtype.UUID
+	_ = wantBad.Scan(badID)
+	assert.Equal(t, wantBad, failures[0].VersionID)
+	assert.Equal(t, int32(1), failures[0].PageNo)
+	require.NotNil(t, failures[0].OcrError)
+	assert.Contains(t, *failures[0].OcrError, "empty page image")
+
+	require.Len(t, written, 1)
+	var wantOK pgtype.UUID
+	_ = wantOK.Scan(okID)
+	assert.Equal(t, wantOK, written[0].VersionID)
+	assert.Equal(t, int32(2), written[0].PageNo)
+	assert.Equal(t, "Laporan Keuangan", written[0].Content)
+	require.NotNil(t, written[0].Words)
+	assert.Contains(t, string(written[0].Words), "Laporan")
 }

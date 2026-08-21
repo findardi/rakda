@@ -36,6 +36,58 @@ func (q *Queries) InsertPageText(ctx context.Context, arg InsertPageTextParams) 
 	return err
 }
 
+const listPendingOCRPages = `-- name: ListPendingOCRPages :many
+select
+    d.workspace_id,
+    pt.version_id,
+    pt.page_no,
+    v.rendition_key
+from document_page_texts pt
+join document_versions v on v.id = pt.version_id
+join documents d on d.id = v.document_id
+where d.deleted_at is null
+  and d.current_version_id = v.id
+  and v.text_extracted_at is not null
+  and v.rendition_key is not null
+  and pt.text_source = 'pdf'
+  and pt.ocr_at is null
+  and length(trim(pt.content)) < 20
+order by d.created_at, pt.version_id, pt.page_no
+limit $1
+`
+
+type ListPendingOCRPagesRow struct {
+	WorkspaceID  pgtype.UUID `json:"workspace_id"`
+	VersionID    pgtype.UUID `json:"version_id"`
+	PageNo       int32       `json:"page_no"`
+	RenditionKey *string     `json:"rendition_key"`
+}
+
+func (q *Queries) ListPendingOCRPages(ctx context.Context, limitCount int32) ([]ListPendingOCRPagesRow, error) {
+	rows, err := q.db.Query(ctx, listPendingOCRPages, limitCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPendingOCRPagesRow
+	for rows.Next() {
+		var i ListPendingOCRPagesRow
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.VersionID,
+			&i.PageNo,
+			&i.RenditionKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPendingTextExtraction = `-- name: ListPendingTextExtraction :many
 select
     v.id, v.document_id, v.version_no, v.mime, v.size, v.storage_key, v.uploaded_by, v.created_at, v.rendition_key, v.page_count, v.rendition_error, v.rendition_failed_at, v.text_extracted_at, v.text_error, v.text_failed_at,
@@ -111,6 +163,53 @@ func (q *Queries) ListPendingTextExtraction(ctx context.Context, limit int32) ([
 		return nil, err
 	}
 	return items, nil
+}
+
+const setPageOCRFailure = `-- name: SetPageOCRFailure :exec
+update document_page_texts
+set ocr_error = $1,
+    ocr_at = now()
+where version_id = $2
+  and page_no = $3
+`
+
+type SetPageOCRFailureParams struct {
+	OcrError  *string     `json:"ocr_error"`
+	VersionID pgtype.UUID `json:"version_id"`
+	PageNo    int32       `json:"page_no"`
+}
+
+func (q *Queries) SetPageOCRFailure(ctx context.Context, arg SetPageOCRFailureParams) error {
+	_, err := q.db.Exec(ctx, setPageOCRFailure, arg.OcrError, arg.VersionID, arg.PageNo)
+	return err
+}
+
+const setPageOCRResult = `-- name: SetPageOCRResult :exec
+update document_page_texts
+set content = $1,
+    words = $2,
+    text_source = 'ocr',
+    ocr_at = now(),
+    ocr_error = null
+where version_id = $3
+  and page_no = $4
+`
+
+type SetPageOCRResultParams struct {
+	Content   string      `json:"content"`
+	Words     []byte      `json:"words"`
+	VersionID pgtype.UUID `json:"version_id"`
+	PageNo    int32       `json:"page_no"`
+}
+
+func (q *Queries) SetPageOCRResult(ctx context.Context, arg SetPageOCRResultParams) error {
+	_, err := q.db.Exec(ctx, setPageOCRResult,
+		arg.Content,
+		arg.Words,
+		arg.VersionID,
+		arg.PageNo,
+	)
+	return err
 }
 
 const setVersionTextExtracted = `-- name: SetVersionTextExtracted :exec
