@@ -387,7 +387,7 @@
 				})
 			: meta?.can_download_original
 				? downloadLabel
-				: t('doc.view.downloadMarkedHint')
+				: t('doc.view.downloadMarkedHint', { max: meta?.watermark_download_max_pages ?? 0 })
 	);
 	const downloadA11yLabel = $derived(
 		downloading
@@ -689,10 +689,12 @@
 				<button
 					type="button"
 					onclick={download}
-					disabled={downloading || downloadBlocked}
+					disabled={downloading}
+					aria-disabled={downloading || downloadBlocked}
 					aria-label={downloadA11yLabel}
 					title={downloadHint}
-					class="btn btn-ghost btn-sm flex-none gap-1.5"
+					class="btn btn-ghost btn-sm flex-none gap-1.5
+						{downloadBlocked ? 'cursor-not-allowed text-base-content/30 hover:bg-transparent' : ''}"
 				>
 					{#if downloading}
 						<span class="loading loading-spinner loading-xs"></span>
