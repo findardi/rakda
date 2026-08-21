@@ -454,6 +454,9 @@ export const id = {
 	'doc.view.downloadMarkedHint':
 		'PDF ber-watermark tanpa lapisan teks — tidak bisa diseleksi, disalin, atau dicari.',
 	'doc.view.downloadClean': 'Unduh PDF tanpa tanda air',
+	'doc.view.downloadPreparing': 'Menyiapkan PDF… bisa beberapa menit',
+	'doc.view.downloadTooLargeHint':
+		'Dokumen ini {pages} halaman; salinan ber-watermark dibatasi {max} halaman. Gunakan viewer untuk membacanya.',
 	'doc.view.unsupported.title': 'Dokumen ini tidak bisa ditampilkan',
 	'doc.view.unsupported.body':
 		'Tipe berkas ini tidak bisa diubah menjadi PDF, jadi tidak bisa dibuka maupun diunduh. Minta pengelola ruangan mengunggahnya ulang dalam format lain.',

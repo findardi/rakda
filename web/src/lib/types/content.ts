@@ -60,6 +60,7 @@ export interface ViewMetaData {
 	page_count: number;
 	can_download: boolean;
 	can_download_original: boolean;
+	watermark_download_max_pages: number;
 }
 
 export interface CompleteUploadPayload {

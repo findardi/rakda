@@ -6,6 +6,7 @@
 	import { canManageAccess } from '$lib/access/roles';
 	import { createDwellTracker, type DwellTracker } from '$lib/activity/dwell';
 	import { DocumentEngagement, ViewerPage } from '$lib/components/app';
+	import { Toaster, showToast } from '$lib/components/common';
 	import { formatDate } from '$lib/format';
 	import { t } from '$lib/i18n';
 	import type { WorkspaceData, MyAccessWorkspace } from '$lib/types/workspace';
@@ -368,7 +369,55 @@
 
 	// --- download (view-and-download access) ---
 	let downloading = $state(false);
-	function download() {
+
+	const canDownload = $derived(!!meta && (meta.can_download || meta.can_download_original));
+	const downloadBlocked = $derived(
+		!!meta &&
+			!meta.can_download_original &&
+			meta.page_count > (meta.watermark_download_max_pages ?? Infinity)
+	);
+	const downloadLabel = $derived(
+		meta?.can_download_original ? t('doc.view.downloadClean') : t('doc.view.downloadMarked')
+	);
+	const downloadHint = $derived(
+		downloadBlocked
+			? t('doc.view.downloadTooLargeHint', {
+					pages: meta?.page_count ?? 0,
+					max: meta?.watermark_download_max_pages ?? 0
+				})
+			: meta?.can_download_original
+				? downloadLabel
+				: t('doc.view.downloadMarkedHint')
+	);
+	const downloadA11yLabel = $derived(
+		downloading
+			? t('doc.view.downloadPreparing')
+			: downloadBlocked
+				? `${downloadLabel} — ${downloadHint}`
+				: downloadLabel
+	);
+
+	const objectUrlGraceMs = 40_000;
+
+	function filenameFrom(disposition: string | null): string {
+		const m = disposition?.match(/filename="?([^";]+)"?/);
+		const fallback = (meta?.name ?? 'document').replace(/\.[^.]+$/, '') + '.pdf';
+		return m?.[1] ?? fallback;
+	}
+
+	function saveBlob(blob: Blob, filename: string): void {
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = filename;
+		document.body.append(a);
+		a.click();
+		a.remove();
+		setTimeout(() => URL.revokeObjectURL(url), objectUrlGraceMs);
+	}
+
+	async function download() {
+		if (downloading || downloadBlocked) return;
 		downloading = true;
 		// Download what is on screen, not whatever became current since.
 		const q = new URLSearchParams(
@@ -376,13 +425,22 @@
 				? { workspaceId: workspace.id, documentId, version: meta.version_id }
 				: { workspaceId: workspace.id, documentId }
 		);
-		window.location.href = `/api/content/download?${q}`;
+		try {
+			const res = await fetch(`/api/content/download?${q}`);
+			if (!res.ok) {
+				if (res.status === 429) showToast(t('doc.docs.err.downloadBusy'), 'error');
+				else if (res.status === 413) showToast(t('doc.docs.err.downloadTooLarge'), 'error');
+				else if (res.status === 403) showToast(t('doc.docs.err.forbiddenDownload'), 'error');
+				else showToast(t('err.generic'), 'error');
+				return;
+			}
+			saveBlob(await res.blob(), filenameFrom(res.headers.get('content-disposition')));
+		} catch {
+			showToast(t('err.network'), 'error');
+		} finally {
+			downloading = false;
+		}
 	}
-
-	const canDownload = $derived(!!meta && (meta.can_download || meta.can_download_original));
-	const downloadLabel = $derived(
-		meta?.can_download_original ? t('doc.view.downloadClean') : t('doc.view.downloadMarked')
-	);
 
 	// --- rendition failure (owner-only retry) ---
 	// The failing version is the one the URL pins, or the current one when
@@ -631,9 +689,9 @@
 				<button
 					type="button"
 					onclick={download}
-					disabled={downloading}
-					aria-label={downloadLabel}
-					title={meta?.can_download_original ? downloadLabel : t('doc.view.downloadMarkedHint')}
+					disabled={downloading || downloadBlocked}
+					aria-label={downloadA11yLabel}
+					title={downloadHint}
 					class="btn btn-ghost btn-sm flex-none gap-1.5"
 				>
 					{#if downloading}
@@ -653,7 +711,9 @@
 							<path d="M5 19h14" />
 						</svg>
 					{/if}
-					<span class="hidden sm:inline">{downloadLabel}</span>
+					<span class="hidden sm:inline">
+						{downloading ? t('doc.view.downloadPreparing') : downloadLabel}
+					</span>
 				</button>
 			{/if}
 		{/if}
@@ -939,3 +999,5 @@
 		</div>
 	{/if}
 </div>
+
+<Toaster />

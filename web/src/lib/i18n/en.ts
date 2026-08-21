@@ -458,6 +458,9 @@ export const en: Record<keyof Dict, string> = {
 	'doc.view.downloadMarkedHint':
 		'Watermarked PDF without a text layer — cannot be selected, copied, or searched.',
 	'doc.view.downloadClean': 'Download clean PDF',
+	'doc.view.downloadPreparing': 'Preparing PDF… this can take a few minutes',
+	'doc.view.downloadTooLargeHint':
+		'This document has {pages} pages; watermarked copies are capped at {max} pages. Use the viewer to read it.',
 	'doc.view.unsupported.title': 'This document cannot be displayed',
 	'doc.view.unsupported.body':
 		'This file type cannot be converted to PDF, so it can be neither opened nor downloaded. Ask a room manager to re-upload it in another format.',
