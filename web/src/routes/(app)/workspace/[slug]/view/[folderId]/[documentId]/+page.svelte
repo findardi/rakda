@@ -633,6 +633,7 @@
 					onclick={download}
 					disabled={downloading}
 					aria-label={downloadLabel}
+					title={meta?.can_download_original ? downloadLabel : t('doc.view.downloadMarkedHint')}
 					class="btn btn-ghost btn-sm flex-none gap-1.5"
 				>
 					{#if downloading}

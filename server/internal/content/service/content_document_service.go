@@ -1,9 +1,11 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"image"
 	"io"
 	"os"
 	"path/filepath"
@@ -16,6 +18,10 @@ import (
 	"github.com/findardi/Riksa-App/server/internal/platform/watermark"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/pdfcpu/pdfcpu/pkg/api"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/types"
 )
 
 func (s *ContentService) RequestUploadURL(ctx context.Context, workspaceID, folderID, reuseKey string) (dto.UploadURLResponse, error) {
@@ -374,21 +380,22 @@ func (s *ContentService) DownloadDocument(ctx context.Context, workspaceID, docu
 		return nil, "", err
 	}
 
-	renditionKey, _, err := s.ensureRendition(ctx, workspaceID, doc, version)
+	renditionKey, pageCount, err := s.ensureRendition(ctx, workspaceID, doc, version)
 	if err != nil {
 		return nil, "", err
 	}
 
-	src, err := s.store.Get(ctx, renditionKey)
-	if err != nil {
-		return nil, "", fmt.Errorf("get rendition: %w", err)
-	}
-
 	variant := "clean"
-	body := src
+	var body io.ReadCloser
 
-	if !clean {
-		body, err = s.stampPDF(src, mark)
+	if clean {
+		src, err := s.store.Get(ctx, renditionKey)
+		if err != nil {
+			return nil, "", fmt.Errorf("get rendition: %w", err)
+		}
+		body = src
+	} else {
+		body, err = s.rasterWatermarkPDF(ctx, workspaceID, uuidString(version.ID), renditionKey, pageCount, mark)
 		if err != nil {
 			return nil, "", fmt.Errorf("%w: %v", ErrStampFailed, err)
 		}
@@ -445,77 +452,154 @@ func (r *spooledReadCloser) Close() error {
 	return err
 }
 
-func writeToFile(r io.Reader, path string) error {
-	f, err := os.Create(path)
+// rasterWatermarkPDF merakit varian unduhan ber-watermark sebagai raster
+// ter-flatten (keputusan 9-g): tiap halaman dirender/ambil-cache → `Burn`
+// yang sama dengan viewer → rakit ulang jadi PDF. Tandanya adalah piksel,
+// jadi `pdfcpu watermark remove` tidak lagi bisa mencabutnya.
+//
+// Geometri halaman dijaga lewat pengelompokan run: `ImportImages` memaksa satu
+// `PageDim` per panggilan (default A4), jadi halaman dikelompokkan jadi runs
+// berurutan berdimensi sama dan digabung berurutan dengan `MergeRaw`.
+func (s *ContentService) rasterWatermarkPDF(ctx context.Context, workspaceID, versionID, renditionKey string, pageCount int, mark watermark.Mark) (io.ReadCloser, error) {
+	dir, err := os.MkdirTemp("", "riksa-wm-*")
 	if err != nil {
-		return fmt.Errorf("temp file: %w", err)
-	}
-
-	if _, err := io.Copy(f, r); err != nil {
-		f.Close()
-		return fmt.Errorf("spool pdf: %w", err)
-	}
-
-	if err := f.Close(); err != nil {
-		return fmt.Errorf("close temp: %w", err)
-	}
-
-	return nil
-}
-
-func (s *ContentService) stampPDF(src io.ReadCloser, mark watermark.Mark) (io.ReadCloser, error) {
-	dir, err := os.MkdirTemp("", "riksa-stamp-*")
-	if err != nil {
-		src.Close()
 		return nil, fmt.Errorf("temp dir: %w", err)
 	}
 
 	removeAll := func() { os.RemoveAll(dir) }
 
-	inPath := filepath.Join(dir, "in.pdf")
-	if err := writeToFile(src, inPath); err != nil {
-		src.Close()
+	pagesPath := filepath.Join(dir, "pages")
+	if err := os.Mkdir(pagesPath, 0o700); err != nil {
 		removeAll()
-		return nil, err
-	}
-	src.Close()
-
-	in, err := os.Open(inPath)
-	if err != nil {
-		removeAll()
-		return nil, fmt.Errorf("open spooled pdf: %w", err)
+		return nil, fmt.Errorf("pages dir: %w", err)
 	}
 
+	// 1. Render/burn setiap halaman ke PNG sementara; catat dimensi piksel.
+	type pageRun struct {
+		w, h   float64
+		images []string
+	}
+
+	var runs []*pageRun
+	for page := 1; page <= pageCount; page++ {
+		png, err := s.pageForDownload(ctx, workspaceID, versionID, renditionKey, page)
+		if err != nil {
+			removeAll()
+			return nil, fmt.Errorf("page %d: %w", page, err)
+		}
+
+		marked, err := s.viewer.Watermark.Burn(png, mark)
+		if err != nil {
+			removeAll()
+			return nil, fmt.Errorf("burn page %d: %w", page, err)
+		}
+
+		cfg, _, err := image.DecodeConfig(bytes.NewReader(marked))
+		if err != nil {
+			removeAll()
+			return nil, fmt.Errorf("decode page %d: %w", page, err)
+		}
+
+		path := filepath.Join(pagesPath, fmt.Sprintf("p%04d.png", page))
+		if err := os.WriteFile(path, marked, 0o600); err != nil {
+			removeAll()
+			return nil, fmt.Errorf("write page %d: %w", page, err)
+		}
+
+		w, h := float64(cfg.Width), float64(cfg.Height)
+		if len(runs) == 0 || runs[len(runs)-1].w != w || runs[len(runs)-1].h != h {
+			runs = append(runs, &pageRun{w: w, h: h})
+		}
+		runs[len(runs)-1].images = append(runs[len(runs)-1].images, path)
+	}
+
+	// 2. Satu ImportImages per run, PageDim dari piksel dibagi DPI render.
+	conf := model.NewDefaultConfiguration()
+	runFiles := make([]string, 0, len(runs))
+
+	for i, run := range runs {
+		runPath := filepath.Join(dir, fmt.Sprintf("run-%03d.pdf", i))
+		out, err := os.Create(runPath)
+		if err != nil {
+			removeAll()
+			return nil, fmt.Errorf("create run %d: %w", i, err)
+		}
+
+		readers := make([]io.Reader, 0, len(run.images))
+		for _, imgPath := range run.images {
+			f, err := os.Open(imgPath)
+			if err != nil {
+				out.Close()
+				removeAll()
+				return nil, fmt.Errorf("open page %s: %w", imgPath, err)
+			}
+			readers = append(readers, f)
+		}
+
+		dpi := float64(s.viewer.DPI)
+		// `Pos: types.Full` memakai dimensi piksel gambar sebagai mediabox
+		// (PageDim diabaikan), jadi posisi non-Full + DPI render dipakai:
+		// gambar dikonversi px→pt (px/DPI*72) di dalam mediabox PageDim.
+		imp := &pdfcpu.Import{
+			PageDim:  &types.Dim{Width: run.w / dpi * 72, Height: run.h / dpi * 72},
+			DPI:      s.viewer.DPI,
+			UserDim:  true,
+			Pos:      types.Center,
+			Scale:    1,
+			ScaleAbs: true,
+			InpUnit:  types.POINTS,
+		}
+
+		if err := api.ImportImages(nil, out, readers, imp, conf); err != nil {
+			out.Close()
+			removeAll()
+			return nil, fmt.Errorf("import run %d: %w", i, err)
+		}
+		if err := out.Close(); err != nil {
+			removeAll()
+			return nil, fmt.Errorf("close run %d: %w", i, err)
+		}
+		runFiles = append(runFiles, runPath)
+	}
+
+	// 3. Gabung runs berurutan (mayoritas dokumen: satu run, tanpa merge).
 	outPath := filepath.Join(dir, "out.pdf")
-	out, err := os.Create(outPath)
-	if err != nil {
-		in.Close()
-		removeAll()
-		return nil, fmt.Errorf("create output: %w", err)
-	}
 
-	if err := s.viewer.PDFStamp.Stamp(in, out, mark); err != nil {
-		in.Close()
-		out.Close()
-		removeAll()
-		return nil, err
-	}
+	if len(runFiles) == 1 {
+		outPath = runFiles[0]
+	} else {
+		out, err := os.Create(outPath)
+		if err != nil {
+			removeAll()
+			return nil, fmt.Errorf("create output: %w", err)
+		}
 
-	if err := in.Close(); err != nil {
-		out.Close()
-		removeAll()
-		return nil, fmt.Errorf("close input: %w", err)
-	}
+		seakers := make([]io.ReadSeeker, 0, len(runFiles))
+		for _, rf := range runFiles {
+			f, err := os.Open(rf)
+			if err != nil {
+				out.Close()
+				removeAll()
+				return nil, fmt.Errorf("open run %s: %w", rf, err)
+			}
+			seakers = append(seakers, f)
+		}
 
-	if err := out.Close(); err != nil {
-		removeAll()
-		return nil, fmt.Errorf("close output: %w", err)
+		if err := api.MergeRaw(seakers, out, false, conf); err != nil {
+			out.Close()
+			removeAll()
+			return nil, fmt.Errorf("merge runs: %w", err)
+		}
+		if err := out.Close(); err != nil {
+			removeAll()
+			return nil, fmt.Errorf("close output: %w", err)
+		}
 	}
 
 	f, err := os.Open(outPath)
 	if err != nil {
 		removeAll()
-		return nil, fmt.Errorf("open stamped pdf: %w", err)
+		return nil, fmt.Errorf("open watermarked pdf: %w", err)
 	}
 
 	return &spooledReadCloser{file: f, dir: dir}, nil

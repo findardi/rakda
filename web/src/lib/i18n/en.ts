@@ -451,6 +451,8 @@ export const en: Record<keyof Dict, string> = {
 	'doc.view.forbidden.body':
 		'Your group has not been given permission to view this document. Ask the room owner to open it up to your group.',
 	'doc.view.downloadMarked': 'Download PDF',
+	'doc.view.downloadMarkedHint':
+		'Watermarked PDF without a text layer — cannot be selected, copied, or searched.',
 	'doc.view.downloadClean': 'Download clean PDF',
 	'doc.view.unsupported.title': 'This document cannot be displayed',
 	'doc.view.unsupported.body':
