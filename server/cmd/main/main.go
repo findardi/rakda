@@ -47,17 +47,36 @@ func main() {
 		log.Fatal(err)
 	}
 
+	ocrDPI, err := config.GetEnvInt("OCR_DPI", viewerCfg.DPI)
+	if err != nil {
+		log.Printf("invalid OCR_DPI, fallback to viewer DPI: %v", err)
+		ocrDPI = viewerCfg.DPI
+	}
+
+	ocrConcurrency, err := config.GetEnvInt("OCR_CONCURRENCY", 1)
+	if err != nil {
+		log.Printf("invalid OCR_CONCURRENCY, fallback to 1: %v", err)
+		ocrConcurrency = 1
+	}
+
+	ocr, err := render.NewTesseract(ocrDPI, viewerCfg.RenderTimeout, ocrConcurrency)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	wm, err := watermark.New()
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	viewer := contentservice.Viewer{
-		Converter: convert.NewGotenberg(viewerCfg),
-		Renderer:  renderer,
-		Watermark: wm,
-		PDFStamp:  watermark.NewPDFStamp(),
-		DPI:       viewerCfg.DPI,
+		Converter:     convert.NewGotenberg(viewerCfg),
+		Renderer:      renderer,
+		Watermark:     wm,
+		TextExtractor: renderer,
+		WordBoxes:     renderer,
+		OCR:           ocr,
+		DPI:           viewerCfg.DPI,
 	}
 
 	otpSecret := config.GetEnv("OTP_SECRET", "")

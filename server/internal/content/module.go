@@ -95,6 +95,10 @@ func (m *Module) RegisterRoutes(r chi.Router) {
 		r.Route("/workspaces/{workspaceID}", func(r chi.Router) {
 			r.Use(m.mw.RequireMember("workspaceID", m.workspaceMember))
 
+			r.Get("/search", m.handler.SearchContent)
+			r.Get("/search/content/pages", m.handler.SearchContentPages)
+			r.Post("/search/log", m.handler.LogSearch)
+
 			r.Route("/folders", func(r chi.Router) {
 				r.With(m.mw.RequirePermission(permission.PermFolderView)).Get("/", m.handler.GetFoldersTree)
 				r.With(m.mw.RequirePermission(permission.PermFolderCreate)).Post("/", m.handler.CreateFolder)
@@ -124,6 +128,7 @@ func (m *Module) RegisterRoutes(r chi.Router) {
 				r.With(m.mw.RequirePermission(permission.PermDocumentDownload)).Get("/download", m.handler.GetDownloadURL)
 				r.With(m.mw.RequirePermission(permission.PermDocumentView)).Get("/view", m.handler.GetViewMeta)
 				r.With(m.mw.RequirePermission(permission.PermDocumentView)).Get("/pages/{page}", m.handler.GetViewPage)
+				r.With(m.mw.RequirePermission(permission.PermDocumentView)).Get("/search-boxes", m.handler.SearchBoxes)
 				r.With(m.mw.RequirePermission(permission.PermDocumentEdit)).Patch("/move", m.handler.MoveDocument)
 				r.With(m.mw.RequirePermission(permission.PermDocumentDelete)).Delete("/", m.handler.DeleteDocument)
 				r.With(m.mw.RequirePermission(permission.PermDocumentEdit)).Post("/versions/{versionID}/restore", m.handler.RestoreVersion)

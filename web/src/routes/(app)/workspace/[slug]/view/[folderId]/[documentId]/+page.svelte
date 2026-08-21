@@ -9,6 +9,7 @@
 	import { formatDate } from '$lib/format';
 	import { t } from '$lib/i18n';
 	import type { WorkspaceData, MyAccessWorkspace } from '$lib/types/workspace';
+	import type { SearchBox, SearchBoxesData } from '$lib/types/content';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -124,6 +125,31 @@
 		}, 250);
 	}
 
+	// A content-search hit deep-links to its page (?page=N). The page element
+	// registers only after its image arrives, so retry until it exists.
+	let pageJumped = false;
+	function jumpToPage(n: number) {
+		const target = Math.min(Math.max(1, n), pageCount);
+		let tries = 0;
+		const attempt = () => {
+			if (pageEls.has(target) || tries >= 10) {
+				scrollToPage(target);
+				return;
+			}
+			tries += 1;
+			setTimeout(attempt, 200);
+		};
+		attempt();
+	}
+
+	$effect(() => {
+		if (pageJumped || !meta?.version_id || pageCount === 0) return;
+		const p = Number(page.url.searchParams.get('page'));
+		if (!Number.isInteger(p) || p < 1) return;
+		pageJumped = true;
+		jumpToPage(p);
+	});
+
 	// --- read-duration beacon ---
 	// Guests feed this and nobody else: their reading is the signal the room owner
 	// opened the document for, while the room's own managers are not readers.
@@ -177,14 +203,168 @@
 	}
 
 	function onWindowKey(e: KeyboardEvent) {
+		// Ctrl+F / ⌘F belongs to the document, not the browser: the viewer
+		// serves pixels, so the native find has nothing to search.
+		if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
+			e.preventDefault();
+			openFind();
+			return;
+		}
+
 		if (e.key !== 'Escape' || editing) return;
-		// Escape unwinds one layer at a time: panel first, then the reader itself.
+		// Escape unwinds one layer at a time: find first, then the panel,
+		// then the reader itself.
+		if (findOpen) {
+			closeFind();
+			return;
+		}
 		if (panelOpen) {
 			panelOpen = false;
 			return;
 		}
 		goto(backHref);
 	}
+
+	// --- in-document find (9-f): the server returns boxes, never text ---
+	let findOpen = $state(false);
+	let findEl = $state<HTMLInputElement>();
+	let findQuery = $state('');
+	let findLoading = $state(false);
+	let findFailed = $state(false);
+	let findResults = $state<SearchBoxesData | null>(null);
+	let findIndex = $state(0);
+	let findController: AbortController | null = null;
+
+	// Flat list of every box across pages, in reading order (page, then y/x).
+	const findBoxes = $derived.by(() => {
+		const list: { page: number; box: SearchBox }[] = [];
+		for (const m of findResults?.matches ?? []) {
+			for (const b of m.boxes) list.push({ page: m.page_no, box: b });
+		}
+		return list;
+	});
+
+	// Boxes for the page currently in view, for the overlay.
+	const boxesByPage = $derived.by(() => {
+		const map = new Map<number, SearchBox[]>();
+		for (const b of findBoxes) {
+			const arr = map.get(b.page) ?? [];
+			arr.push(b.box);
+			map.set(b.page, arr);
+		}
+		return map;
+	});
+
+	// Index of the active (navigated) box within its page, for a stronger
+	// highlight; absent on pages without the current hit.
+	const activeIndexByPage = $derived.by(() => {
+		const hit = findBoxes[findIndex];
+		if (!hit) return undefined;
+		const arr = boxesByPage.get(hit.page);
+		if (!arr) return undefined;
+		const idx = arr.indexOf(hit.box);
+		return idx >= 0 ? { page: hit.page, index: idx } : undefined;
+	});
+
+	const pagePending = $derived(!!findResults && findResults.pending.includes(currentPage));
+
+	function openFind() {
+		findOpen = true;
+		requestAnimationFrame(() => {
+			findEl?.focus();
+			findEl?.select();
+		});
+	}
+
+	function closeFind() {
+		findOpen = false;
+		findQuery = '';
+		findResults = null;
+		findController?.abort();
+	}
+
+	// Committing a find is audited like any search, with the document as target.
+	function logFind(q: string) {
+		if (q.length < 2) return;
+		fetch('/api/search/log', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ workspaceId: workspace.id, documentId, query: q })
+		}).catch(() => {});
+	}
+
+	$effect(() => {
+		const q = findQuery.trim();
+		if (!findOpen) return;
+		if (q.length < 2) {
+			findResults = null;
+			findLoading = false;
+			findFailed = false;
+			return;
+		}
+
+		findLoading = true;
+		findFailed = false;
+		findController?.abort();
+		findController = new AbortController();
+
+		const timer = setTimeout(async () => {
+			const params = `workspaceId=${encodeURIComponent(workspace.id)}&documentId=${encodeURIComponent(documentId)}&q=${encodeURIComponent(q)}`;
+			try {
+				const res = await fetch(`/api/content/search-boxes?${params}`, {
+					signal: findController?.signal
+				});
+				if (!res.ok) {
+					findFailed = true;
+					return;
+				}
+				findResults = (await res.json()) as SearchBoxesData;
+				findIndex = 0;
+			} catch (err) {
+				if (err instanceof DOMException && err.name === 'AbortError') return;
+				findFailed = true;
+			} finally {
+				findLoading = false;
+			}
+		}, 200);
+
+		return () => {
+			clearTimeout(timer);
+			findController?.abort();
+		};
+	});
+
+	function findNext() {
+		const n = findBoxes.length;
+		if (n === 0) return;
+		findIndex = (findIndex + 1) % n;
+		goToFind(findBoxes[findIndex]);
+	}
+
+	function findPrev() {
+		const n = findBoxes.length;
+		if (n === 0) return;
+		findIndex = (findIndex - 1 + n) % n;
+		goToFind(findBoxes[findIndex]);
+	}
+
+	function goToFind(hit: { page: number; box: SearchBox }) {
+		scrollToPage(hit.page);
+		// The page image may not have registered yet; scroll again once it has.
+		if (!pageEls.has(hit.page)) {
+			setTimeout(() => scrollToPage(hit.page), 300);
+		}
+	}
+
+	// Deep link ?page=N&q=… (from 9-d results): run the find once meta is here.
+	$effect(() => {
+		if (!meta?.version_id) return;
+		const q = page.url.searchParams.get('q') ?? '';
+		if (!q) return;
+		findOpen = true;
+		findQuery = q;
+		logFind(q);
+	});
 
 	// --- download (view-and-download access) ---
 	let downloading = $state(false);
@@ -367,6 +547,33 @@
 
 			<span class="hidden h-5 w-px flex-none bg-base-content/10 sm:block" aria-hidden="true"></span>
 
+			<!-- In-document find (Ctrl+F / ⌘F) -->
+			<button
+				type="button"
+				onclick={() => (findOpen ? closeFind() : openFind())}
+				aria-expanded={findOpen}
+				title={findOpen ? t('doc.view.findClose') : t('doc.view.findOpen')}
+				class="grid h-8 w-8 flex-none place-items-center rounded-field transition-colors
+				{findOpen
+					? 'bg-primary/10 text-primary'
+					: 'text-muted hover:bg-base-content/5 hover:text-base-content'}"
+			>
+				<svg
+					class="h-4 w-4"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="1.8"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					aria-hidden="true"
+				>
+					<circle cx="11" cy="11" r="7" />
+					<path d="m21 21-4.3-4.3" />
+				</svg>
+				<span class="sr-only">{t('doc.view.findOpen')}</span>
+			</button>
+
 			<!-- Protection signal — trust is shown, not claimed -->
 			<span
 				class="hidden flex-none items-center gap-1.5 text-xs text-muted sm:flex"
@@ -426,6 +633,7 @@
 					onclick={download}
 					disabled={downloading}
 					aria-label={downloadLabel}
+					title={meta?.can_download_original ? downloadLabel : t('doc.view.downloadMarkedHint')}
 					class="btn btn-ghost btn-sm flex-none gap-1.5"
 				>
 					{#if downloading}
@@ -450,6 +658,123 @@
 			{/if}
 		{/if}
 	</header>
+
+	<!-- In-document find bar (Ctrl+F / ⌘F). -->
+	{#if findOpen}
+		<div
+			class="flex flex-none items-center gap-2 border-b border-base-content/10 bg-base-100 px-3 py-2 sm:px-4"
+		>
+			<svg
+				class="h-4 w-4 flex-none text-muted"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="1.6"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				aria-hidden="true"
+			>
+				<circle cx="11" cy="11" r="7" />
+				<path d="m21 21-4.3-4.3" />
+			</svg>
+			<input
+				bind:this={findEl}
+				bind:value={findQuery}
+				type="search"
+				placeholder={t('doc.view.findPlaceholder')}
+				autocomplete="off"
+				spellcheck="false"
+				onkeydown={(e) => {
+					if (e.key === 'Enter') {
+						e.preventDefault();
+						// A committed find is audited like any search (9-c rule).
+						logFind(findQuery.trim());
+						if (e.shiftKey) findPrev();
+						else findNext();
+					}
+				}}
+				aria-label={t('doc.view.findPlaceholder')}
+				class="h-9 w-full min-w-0 flex-1 rounded-field border border-base-content/15 bg-base-200 px-3 text-sm outline-none placeholder:text-muted focus:border-primary"
+			/>
+			{#if findLoading}
+				<span class="loading loading-spinner loading-xs flex-none text-muted"></span>
+			{:else if findBoxes.length > 0}
+				<span class="flex-none font-mono text-xs text-muted tabular-nums">
+					{findIndex + 1}/{findBoxes.length}
+				</span>
+			{/if}
+			<div class="flex flex-none items-center gap-0.5">
+				<button
+					type="button"
+					onclick={findPrev}
+					disabled={findBoxes.length === 0}
+					aria-label={t('doc.view.findPrev')}
+					title={t('doc.view.findPrev')}
+					class="grid h-8 w-8 place-items-center rounded-field text-muted transition-colors hover:bg-base-content/5 hover:text-base-content disabled:pointer-events-none disabled:opacity-40"
+				>
+					<svg
+						class="h-4 w-4"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						aria-hidden="true"
+					>
+						<path d="m15 18-6-6 6-6" />
+					</svg>
+				</button>
+				<button
+					type="button"
+					onclick={findNext}
+					disabled={findBoxes.length === 0}
+					aria-label={t('doc.view.findNext')}
+					title={t('doc.view.findNext')}
+					class="grid h-8 w-8 place-items-center rounded-field text-muted transition-colors hover:bg-base-content/5 hover:text-base-content disabled:pointer-events-none disabled:opacity-40"
+				>
+					<svg
+						class="h-4 w-4"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						aria-hidden="true"
+					>
+						<path d="m9 18 6-6-6-6" />
+					</svg>
+				</button>
+				<button
+					type="button"
+					onclick={closeFind}
+					aria-label={t('doc.view.findClose')}
+					title={t('doc.view.findClose')}
+					class="grid h-8 w-8 place-items-center rounded-field text-muted transition-colors hover:bg-base-content/5 hover:text-base-content"
+				>
+					<svg
+						class="h-4 w-4"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						aria-hidden="true"
+					>
+						<path d="M18 6 6 18M6 6l12 12" />
+					</svg>
+				</button>
+			</div>
+			{#if findQuery.trim().length >= 2 && !findLoading && findBoxes.length === 0 && !findFailed}
+				<span class="flex-none text-xs text-muted">{t('doc.view.findNone')}</span>
+			{/if}
+			{#if pagePending}
+				<span class="flex-none text-xs text-muted">{t('doc.view.findPending')}</span>
+			{/if}
+		</div>
+	{/if}
 
 	<!-- Reading an old version is a legitimate act, not an error — say which one
 	     is on screen and keep the way back one click away. -->
@@ -584,7 +909,15 @@
 					<!-- Keyed by version too: switching must remount the pages rather than
 					     leave the previous version's images on screen while they reload. -->
 					{#each pages as n (`${meta.version_id}-${n}`)}
-						<ViewerPage pageNumber={n} total={pageCount} src={pageSrc(n)} {onactive} {onregister} />
+						<ViewerPage
+							pageNumber={n}
+							total={pageCount}
+							src={pageSrc(n)}
+							boxes={boxesByPage.get(n)}
+							activeIndex={activeIndexByPage?.page === n ? activeIndexByPage.index : undefined}
+							{onactive}
+							{onregister}
+						/>
 					{/each}
 				</div>
 			</div>

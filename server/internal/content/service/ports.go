@@ -59,6 +59,30 @@ type ContentRepository interface {
 	PurgeFolder(ctx context.Context, id pgtype.UUID) error
 	PurgeDocument(ctx context.Context, id pgtype.UUID) error
 
+	ListPendingTextExtraction(ctx context.Context, limit int32) ([]contentdb.ListPendingTextExtractionRow, error)
+	DeleteVersionPageText(ctx context.Context, versionID pgtype.UUID) error
+	InsertPageText(ctx context.Context, arg contentdb.InsertPageTextParams) error
+	SetVersionTextExtracted(ctx context.Context, id pgtype.UUID) error
+	SetVersionTextFailure(ctx context.Context, arg contentdb.SetVersionTextFailureParams) error
+	ListPendingOCRPages(ctx context.Context, limitCount int32) ([]contentdb.ListPendingOCRPagesRow, error)
+	SetPageOCRResult(ctx context.Context, arg contentdb.SetPageOCRResultParams) error
+	SetPageOCRFailure(ctx context.Context, arg contentdb.SetPageOCRFailureParams) error
+	ListPendingWordBoxes(ctx context.Context, limitCount int32) ([]contentdb.ListPendingWordBoxesRow, error)
+	SetPageWordBoxes(ctx context.Context, arg contentdb.SetPageWordBoxesParams) error
+	SearchPendingBoxPages(ctx context.Context, arg contentdb.SearchPendingBoxPagesParams) ([]int32, error)
+	SearchWordBoxes(ctx context.Context, arg contentdb.SearchWordBoxesParams) ([]contentdb.SearchWordBoxesRow, error)
+
+	SearchAllFolders(ctx context.Context, arg contentdb.SearchAllFoldersParams) ([]contentdb.SearchAllFoldersRow, error)
+	SearchAllDocuments(ctx context.Context, arg contentdb.SearchAllDocumentsParams) ([]contentdb.SearchAllDocumentsRow, error)
+	SearchVisibleFolders(ctx context.Context, arg contentdb.SearchVisibleFoldersParams) ([]contentdb.SearchVisibleFoldersRow, error)
+	SearchVisibleDocuments(ctx context.Context, arg contentdb.SearchVisibleDocumentsParams) ([]contentdb.SearchVisibleDocumentsRow, error)
+	SearchAllFolderBreadcrumbs(ctx context.Context, folderIds []pgtype.UUID) ([]contentdb.SearchAllFolderBreadcrumbsRow, error)
+	SearchVisibleFolderBreadcrumbs(ctx context.Context, arg contentdb.SearchVisibleFolderBreadcrumbsParams) ([]contentdb.SearchVisibleFolderBreadcrumbsRow, error)
+	SearchAllContent(ctx context.Context, arg contentdb.SearchAllContentParams) ([]contentdb.SearchAllContentRow, error)
+	SearchVisibleContent(ctx context.Context, arg contentdb.SearchVisibleContentParams) ([]contentdb.SearchVisibleContentRow, error)
+	SearchAllContentPages(ctx context.Context, arg contentdb.SearchAllContentPagesParams) ([]contentdb.SearchAllContentPagesRow, error)
+	SearchVisibleContentPages(ctx context.Context, arg contentdb.SearchVisibleContentPagesParams) ([]contentdb.SearchVisibleContentPagesRow, error)
+
 	ExecTx(ctx context.Context, fn func(*contentdb.Queries) error) error
 	ExecTxTx(ctx context.Context, fn func(*contentdb.Queries, pgx.Tx) error) error
 }

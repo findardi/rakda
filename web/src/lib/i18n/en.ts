@@ -91,6 +91,24 @@ export const en: Record<keyof Dict, string> = {
 	'app.nav.settings': 'Settings',
 	'app.nav.soon': 'Soon',
 	'app.search.placeholder': 'Search…',
+	'app.search.open': 'Search the data room (⌘K)',
+	'app.search.title': 'Search folders and documents',
+	'app.search.hint': 'Type at least 2 characters to search.',
+	'app.search.loading': 'Searching…',
+	'app.search.error': 'Search failed. Try again.',
+	'app.search.none': 'No results for “{q}”.',
+	'app.search.noneHint': 'Check the spelling or try another word.',
+	'app.search.folders': 'Folders',
+	'app.search.documents': 'Documents',
+	'app.search.content': 'Document content',
+	'app.search.hits': '{n} pages',
+	'app.search.pageOf': 'p. {n}',
+	'app.search.tooLarge': 'too large to open',
+	'app.search.resultTitle': 'Results for “{q}”',
+	'app.search.back': 'Back to folders and documents',
+	'app.search.navigate': 'select',
+	'app.search.enter': 'open',
+	'app.search.onlyVisible': 'Results are limited to what you can see.',
 	'app.menu.open': 'Open navigation menu',
 	'app.account.signedInAs': 'Signed in as',
 	'app.account.logout': 'Sign out',
@@ -412,6 +430,13 @@ export const en: Record<keyof Dict, string> = {
 	'doc.view.next': 'Next page',
 	'doc.view.jumpLabel': 'Jump to page',
 	'doc.view.pageOf': 'Page {n} of {total}',
+	'doc.view.findOpen': 'Find in document (Ctrl+F)',
+	'doc.view.findClose': 'Close find',
+	'doc.view.findPlaceholder': 'Find in document…',
+	'doc.view.findPrev': 'Previous match',
+	'doc.view.findNext': 'Next match',
+	'doc.view.findNone': 'No matches',
+	'doc.view.findPending': 'This page is not ready yet — OCR still running',
 	'doc.view.protected':
 		'Secure view — every page is watermarked with your identity and is never sent as the original file.',
 	'doc.view.watermarked': 'Watermarked',
@@ -426,6 +451,8 @@ export const en: Record<keyof Dict, string> = {
 	'doc.view.forbidden.body':
 		'Your group has not been given permission to view this document. Ask the room owner to open it up to your group.',
 	'doc.view.downloadMarked': 'Download PDF',
+	'doc.view.downloadMarkedHint':
+		'Watermarked PDF without a text layer — cannot be selected, copied, or searched.',
 	'doc.view.downloadClean': 'Download clean PDF',
 	'doc.view.unsupported.title': 'This document cannot be displayed',
 	'doc.view.unsupported.body':
@@ -610,8 +637,7 @@ export const en: Record<keyof Dict, string> = {
 	'facc.cap.downloadOriginal': 'Download clean PDF',
 	'facc.cap.downloadOriginalHint':
 		'This group downloads the PDF without a watermark. The original file never leaves.',
-	'facc.cap.rule':
-		'Clean PDF download turns on Download; Download and watermark turn on View.',
+	'facc.cap.rule': 'Clean PDF download turns on Download; Download and watermark turn on View.',
 	'facc.cap.exclusive':
 		'Watermark and clean download cannot both be on: marking the screen while handing out a clean file protects nothing.',
 

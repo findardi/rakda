@@ -151,6 +151,101 @@ func (h *ContentHandler) GetFoldersTree(w http.ResponseWriter, r *http.Request) 
 	response.Success(w, http.StatusOK, "get folders tree success", res)
 }
 
+func (h *ContentHandler) SearchContent(w http.ResponseWriter, r *http.Request) {
+	wID := chi.URLParam(r, "workspaceID")
+
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	res, err := h.svc.SearchContent(r.Context(), wID, r.URL.Query().Get("q"), actor)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrContentForbidden):
+			response.Error(w, http.StatusForbidden, err.Error(), nil)
+		default:
+			log.Printf("search content internal error: %v", err)
+			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
+		}
+		return
+	}
+
+	response.Success(w, http.StatusOK, "search success", res)
+}
+
+func (h *ContentHandler) SearchContentPages(w http.ResponseWriter, r *http.Request) {
+	wID := chi.URLParam(r, "workspaceID")
+
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	res, err := h.svc.SearchContentPages(r.Context(), wID, r.URL.Query().Get("documentId"), r.URL.Query().Get("q"), actor)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrContentForbidden):
+			response.Error(w, http.StatusForbidden, err.Error(), nil)
+		default:
+			log.Printf("search content pages internal error: %v", err)
+			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
+		}
+		return
+	}
+
+	response.Success(w, http.StatusOK, "search content pages success", res)
+}
+
+func (h *ContentHandler) LogSearch(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
+
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	var req dto.SearchLogRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
+		return
+	}
+
+	h.svc.LogSearch(r.Context(), chi.URLParam(r, "workspaceID"), req.Query, req.DocumentID, actor)
+
+	response.Success(w, http.StatusOK, "search logged", nil)
+}
+
+func (h *ContentHandler) SearchBoxes(w http.ResponseWriter, r *http.Request) {
+	wID := chi.URLParam(r, "workspaceID")
+	dID := chi.URLParam(r, "documentID")
+
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	res, err := h.svc.SearchBoxes(r.Context(), wID, dID, r.URL.Query().Get("q"), actor)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrContentForbidden):
+			response.Error(w, http.StatusForbidden, err.Error(), nil)
+		case errors.Is(err, service.ErrDocumentNotFound):
+			response.Error(w, http.StatusNotFound, err.Error(), nil)
+		default:
+			log.Printf("search boxes internal error: %v", err)
+			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
+		}
+		return
+	}
+
+	response.Success(w, http.StatusOK, "search boxes success", res)
+}
+
 func (h *ContentHandler) RenameFolder(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 

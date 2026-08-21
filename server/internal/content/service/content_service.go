@@ -62,6 +62,8 @@ var (
 	ErrVersionNotFound      = errors.New("version not found")
 	ErrAlreadyCurrent       = errors.New("version is already current")
 	ErrNotInTrash           = errors.New("item not found in trash")
+	ErrTextExtractionFailed = errors.New("text extraction failed")
+	ErrOCRFailed            = errors.New("ocr failed")
 )
 
 type ContentService struct {

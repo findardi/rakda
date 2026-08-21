@@ -233,3 +233,62 @@ export interface FolderAccessPanel {
 	direct: DirectFolderAccess[];
 	inherited: InheritedFolderAccess[];
 }
+
+export interface SearchFolderItem {
+	id: string;
+	name: string;
+	parent_id: string;
+	breadcrumb: string;
+}
+
+export interface SearchDocumentItem {
+	id: string;
+	name: string;
+	folder_id: string;
+	breadcrumb: string;
+	mime: string;
+}
+
+export interface SearchData {
+	folders: SearchFolderItem[];
+	documents: SearchDocumentItem[];
+	content: SearchContentHit[];
+}
+
+// Level 1 of content results: one row per document.
+export interface SearchContentHit {
+	document_id: string;
+	document_name: string;
+	folder_id: string;
+	breadcrumb: string;
+	page_count: number;
+	hit_count: number;
+}
+
+// Level 2: the pages that matched inside one document.
+export interface SearchContentPage {
+	page_no: number;
+	snippet: string;
+}
+
+export interface SearchContentPagesData {
+	pages: SearchContentPage[];
+}
+
+// Search box for the viewer overlay (9-f): normalized 0..1, no text.
+export interface SearchBox {
+	x: number;
+	y: number;
+	w: number;
+	h: number;
+}
+
+export interface SearchBoxPage {
+	page_no: number;
+	boxes: SearchBox[];
+}
+
+export interface SearchBoxesData {
+	matches: SearchBoxPage[];
+	pending: number[];
+}

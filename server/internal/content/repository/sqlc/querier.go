@@ -16,6 +16,7 @@ type Querier interface {
 	CreateDocument(ctx context.Context, arg CreateDocumentParams) (Document, error)
 	CreateDocumentVersion(ctx context.Context, arg CreateDocumentVersionParams) (DocumentVersion, error)
 	CreateFolder(ctx context.Context, arg CreateFolderParams) (Folder, error)
+	DeleteVersionPageText(ctx context.Context, versionID pgtype.UUID) error
 	GetCurrentVersion(ctx context.Context, id pgtype.UUID) (DocumentVersion, error)
 	GetDefaultFolder(ctx context.Context, workspaceID pgtype.UUID) (Folder, error)
 	GetDocumentByID(ctx context.Context, id pgtype.UUID) (Document, error)
@@ -29,10 +30,14 @@ type Querier interface {
 	GetTrashedDocumentByID(ctx context.Context, id pgtype.UUID) (Document, error)
 	GetTrashedFolderByID(ctx context.Context, id pgtype.UUID) (Folder, error)
 	GetVersionByID(ctx context.Context, id pgtype.UUID) (DocumentVersion, error)
+	InsertPageText(ctx context.Context, arg InsertPageTextParams) error
 	ListDocumentsByFolder(ctx context.Context, folderID pgtype.UUID) ([]ListDocumentsByFolderRow, error)
 	ListExpiredTrashDocuments(ctx context.Context, cutoff pgtype.Timestamptz) ([]ListExpiredTrashDocumentsRow, error)
 	ListExpiredTrashFolders(ctx context.Context, cutoff pgtype.Timestamptz) ([]ListExpiredTrashFoldersRow, error)
 	ListFolderAccess(ctx context.Context, arg ListFolderAccessParams) ([]ListFolderAccessRow, error)
+	ListPendingOCRPages(ctx context.Context, limitCount int32) ([]ListPendingOCRPagesRow, error)
+	ListPendingTextExtraction(ctx context.Context, limit int32) ([]ListPendingTextExtractionRow, error)
+	ListPendingWordBoxes(ctx context.Context, limitCount int32) ([]ListPendingWordBoxesRow, error)
 	ListTrashDocuments(ctx context.Context, workspaceID pgtype.UUID) ([]ListTrashDocumentsRow, error)
 	ListTrashFolders(ctx context.Context, workspaceID pgtype.UUID) ([]ListTrashFoldersRow, error)
 	ListVersionByDocument(ctx context.Context, documentID pgtype.UUID) ([]DocumentVersion, error)
@@ -55,10 +60,27 @@ type Querier interface {
 	RestoreDocumentsSweptBy(ctx context.Context, deletedRootFolderID pgtype.UUID) error
 	RestoreFolderRoot(ctx context.Context, arg RestoreFolderRootParams) error
 	RestoreFoldersSweptBy(ctx context.Context, deletedRootFolderID pgtype.UUID) error
+	SearchAllContent(ctx context.Context, arg SearchAllContentParams) ([]SearchAllContentRow, error)
+	SearchAllContentPages(ctx context.Context, arg SearchAllContentPagesParams) ([]SearchAllContentPagesRow, error)
+	SearchAllDocuments(ctx context.Context, arg SearchAllDocumentsParams) ([]SearchAllDocumentsRow, error)
+	SearchAllFolderBreadcrumbs(ctx context.Context, folderIds []pgtype.UUID) ([]SearchAllFolderBreadcrumbsRow, error)
+	SearchAllFolders(ctx context.Context, arg SearchAllFoldersParams) ([]SearchAllFoldersRow, error)
+	SearchPendingBoxPages(ctx context.Context, arg SearchPendingBoxPagesParams) ([]int32, error)
+	SearchVisibleContent(ctx context.Context, arg SearchVisibleContentParams) ([]SearchVisibleContentRow, error)
+	SearchVisibleContentPages(ctx context.Context, arg SearchVisibleContentPagesParams) ([]SearchVisibleContentPagesRow, error)
+	SearchVisibleDocuments(ctx context.Context, arg SearchVisibleDocumentsParams) ([]SearchVisibleDocumentsRow, error)
+	SearchVisibleFolderBreadcrumbs(ctx context.Context, arg SearchVisibleFolderBreadcrumbsParams) ([]SearchVisibleFolderBreadcrumbsRow, error)
+	SearchVisibleFolders(ctx context.Context, arg SearchVisibleFoldersParams) ([]SearchVisibleFoldersRow, error)
+	SearchWordBoxes(ctx context.Context, arg SearchWordBoxesParams) ([]SearchWordBoxesRow, error)
 	SetCurrentVersion(ctx context.Context, arg SetCurrentVersionParams) error
 	SetFolderAccess(ctx context.Context, arg SetFolderAccessParams) (FolderAccess, error)
+	SetPageOCRFailure(ctx context.Context, arg SetPageOCRFailureParams) error
+	SetPageOCRResult(ctx context.Context, arg SetPageOCRResultParams) error
+	SetPageWordBoxes(ctx context.Context, arg SetPageWordBoxesParams) error
 	SetVersionRendition(ctx context.Context, arg SetVersionRenditionParams) error
 	SetVersionRenditionFailure(ctx context.Context, arg SetVersionRenditionFailureParams) error
+	SetVersionTextExtracted(ctx context.Context, id pgtype.UUID) error
+	SetVersionTextFailure(ctx context.Context, arg SetVersionTextFailureParams) error
 	SoftDeleteDocument(ctx context.Context, arg SoftDeleteDocumentParams) error
 	SoftDeleteDocumentsForFolderRoot(ctx context.Context, arg SoftDeleteDocumentsForFolderRootParams) error
 	SoftDeleteFolderSubtree(ctx context.Context, arg SoftDeleteFolderSubtreeParams) error
