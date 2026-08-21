@@ -409,7 +409,7 @@ func (s *ContentService) renderPage(ctx context.Context, renditionKey string, pa
 // pernah dibaca, jadi mengisi cache dari sini hanya men-churn cache dengan
 // halaman yang tidak dilihat siapa pun; jalur ini tidak pernah mengisi cache
 // (keputusan 9-g, dipertahankan oleh 9.5-c).
-func (s *ContentService) pageForDownload(ctx context.Context, workspaceID, versionID, renditionKey string, page int) ([]byte, error) {
+func (s *ContentService) pageForDownload(ctx context.Context, workspaceID, versionID string, doc render.Document, page int) ([]byte, error) {
 	key := pageCacheKey(workspaceID, versionID, page, s.viewer.DPI)
 
 	if r, err := s.store.Get(ctx, key); err == nil {
@@ -420,5 +420,13 @@ func (s *ContentService) pageForDownload(ctx context.Context, workspaceID, versi
 		}
 	}
 
-	return s.renderPage(ctx, renditionKey, page)
+	img, err := doc.RenderPage(ctx, page)
+	if errors.Is(err, render.ErrPageOutOfRange) {
+		return nil, ErrPageOutOfRange
+	}
+	if err != nil {
+		return nil, fmt.Errorf("render page: %w", err)
+	}
+
+	return img, nil
 }

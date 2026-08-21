@@ -99,6 +99,10 @@ func (f fakeRenderer) RenderPage(ctx context.Context, pdf io.Reader, page int) (
 	return nil, nil
 }
 
+func (f fakeRenderer) Open(pdf io.Reader) (render.Document, error) {
+	return nil, nil
+}
+
 type execCall struct {
 	sql  string
 	args []any
