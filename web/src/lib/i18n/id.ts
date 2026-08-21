@@ -384,6 +384,10 @@ export const id = {
 	'doc.docs.err.notFound': 'Dokumen itu sudah tidak ada.',
 	'doc.docs.err.invalidMove': 'Folder tujuan itu tidak valid untuk dokumen ini.',
 	'doc.docs.err.forbiddenDownload': 'Grup Anda boleh melihat dokumen ini, tapi tidak mengunduhnya.',
+	'doc.docs.err.downloadBusy':
+		'Unduhan ber-watermark lain sedang diproses. Coba lagi beberapa saat — atau pakai viewer untuk membaca sekarang.',
+	'doc.docs.err.downloadTooLarge':
+		'Dokumen ini terlalu besar untuk diunduh sebagai salinan ber-watermark. Gunakan viewer untuk membacanya.',
 	'doc.docs.noAccess.title': 'Folder ini tidak dibagikan ke Anda',
 	'doc.docs.noAccess.body':
 		'Grup Anda tidak diberi akses ke folder ini. Minta pemilik ruang membukanya untuk grup Anda.',

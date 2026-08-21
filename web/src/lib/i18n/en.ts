@@ -389,6 +389,10 @@ export const en: Record<keyof Dict, string> = {
 	'doc.docs.err.notFound': 'That document no longer exists.',
 	'doc.docs.err.invalidMove': 'That destination folder is not valid for this document.',
 	'doc.docs.err.forbiddenDownload': 'Your group may view this document, but not download it.',
+	'doc.docs.err.downloadBusy':
+		'Another watermarked download is in progress. Try again in a moment — or use the viewer to read now.',
+	'doc.docs.err.downloadTooLarge':
+		'This document is too large to download as a watermarked copy. Use the viewer to read it.',
 	'doc.docs.noAccess.title': 'This folder is not shared with you',
 	'doc.docs.noAccess.body':
 		'Your group has not been given access to this folder. Ask the room owner to open it up to your group.',

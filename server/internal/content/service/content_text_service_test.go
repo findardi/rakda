@@ -227,7 +227,7 @@ func newTextTestService(t *testing.T, repo *textFakeRepo, store fakeStorage, ren
 		Renderer:      renderer,
 		TextExtractor: extractor,
 		DPI:           150,
-	}, 0, nil)
+	}, 0, nil, 2)
 }
 
 func TestExtractVersionText(t *testing.T) {
@@ -506,7 +506,7 @@ func TestOCRSweeperWritesResultAndFailure(t *testing.T) {
 		TextExtractor: fakeTextExtractor{extractFn: func(ctx context.Context, pdf io.Reader) (string, error) { return "", nil }},
 		OCR:           ocr,
 		DPI:           150,
-	}, 0, nil)
+	}, 0, nil, 2)
 
 	svc.sweepOCROnce(context.Background(), 10)
 
