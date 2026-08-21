@@ -31,13 +31,15 @@ const (
 	maxRenditionPages  = 750
 
 	// maxWatermarkDownloadPages: plafon unduhan varian ber-watermark
-	// (keputusan 9.5-d, 2026-08-21). Diturunkan dari pengukuran, bukan
-	// ditebak: fase ImportImages pdfcpu menahan piksel terdekompresi
-	// (~10 MB/halaman → 2,07 GB @200 hal, 4,11 GB @400 hal di mesin dev),
-	// dan unduhan >~300 s terpotong timeout headers fetch proxy web.
-	// 100 halaman = RSS import ~1 GB + ~170-225 s di kotak sasaran 4 vCPU
-	// (asumsi 3-4× dev) — di bawah cap 300 s dengan margin.
-	maxWatermarkDownloadPages = 100
+	// (9.5-d, dinaikkan 9.5-f). Sejak import dibatch per stampPagesPerRun,
+	// RAM tidak lagi mengikuti jumlah halaman (~380 MB puncak untuk 60
+	// maupun 400 halaman); yang tersisa adalah batas waktu ~300 s dari
+	// timeout fetch proxy web. Diukur di dev 0,31 s/halaman dengan 2
+	// pekerja; dengan asumsi kotak sasaran 4 vCPU sampai 4× lebih lambat,
+	// 150 halaman ≈ 190 s. Naikkan hanya setelah diukur di kotak sasaran.
+	maxWatermarkDownloadPages = 150
+	stampPagesPerRun          = 25
+	stampWorkers              = 2
 )
 
 var (

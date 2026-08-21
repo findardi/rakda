@@ -14,6 +14,7 @@ import (
 	activityservice "github.com/findardi/Riksa-App/server/internal/activity/service"
 	"github.com/findardi/Riksa-App/server/internal/content/dto"
 	contentdb "github.com/findardi/Riksa-App/server/internal/content/repository/sqlc"
+	"github.com/findardi/Riksa-App/server/internal/platform/render"
 	"github.com/findardi/Riksa-App/server/internal/platform/storage"
 	"github.com/findardi/Riksa-App/server/internal/platform/watermark"
 	"github.com/jackc/pgx/v5"
@@ -22,6 +23,7 @@ import (
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/types"
+	"golang.org/x/sync/errgroup"
 )
 
 func (s *ContentService) RequestUploadURL(ctx context.Context, workspaceID, folderID, reuseKey string) (dto.UploadURLResponse, error) {
@@ -470,7 +472,11 @@ func (r *spooledReadCloser) Close() error {
 //
 // Geometri halaman dijaga lewat pengelompokan run: `ImportImages` memaksa satu
 // `PageDim` per panggilan (default A4), jadi halaman dikelompokkan jadi runs
-// berurutan berdimensi sama dan digabung berurutan dengan `MergeRaw`.
+// berurutan berdimensi sama dan digabung berurutan dengan `MergeRaw`. Run juga
+// dipotong tiap `stampPagesPerRun` halaman (9.5-f): ImportImages menahan
+// piksel terdekompresi seluruh run di RAM (~10 MB/halaman), jadi puncaknya
+// diikat ke ukuran run, bukan ke panjang dokumen. Import berjalan bergantian,
+// bukan paralel — paralel berarti beberapa run di RAM sekaligus.
 func (s *ContentService) rasterWatermarkPDF(ctx context.Context, workspaceID, versionID, renditionKey string, pageCount int, mark watermark.Mark) (io.ReadCloser, error) {
 	dir, err := os.MkdirTemp("", "riksa-wm-*")
 	if err != nil {
@@ -485,126 +491,36 @@ func (s *ContentService) rasterWatermarkPDF(ctx context.Context, workspaceID, ve
 		return nil, fmt.Errorf("pages dir: %w", err)
 	}
 
-	// 1. Render/burn setiap halaman ke PNG sementara; catat dimensi piksel.
-	type pageRun struct {
-		w, h   float64
-		images []string
+	pdf, err := s.store.Get(ctx, renditionKey)
+	if err != nil {
+		removeAll()
+		return nil, fmt.Errorf("get rendition: %w", err)
 	}
 
-	var runs []*pageRun
-	for page := 1; page <= pageCount; page++ {
-		png, err := s.pageForDownload(ctx, workspaceID, versionID, renditionKey, page)
-		if err != nil {
-			removeAll()
-			return nil, fmt.Errorf("page %d: %w", page, err)
-		}
+	doc, err := s.viewer.Renderer.Open(pdf)
+	pdf.Close()
+	if err != nil {
+		removeAll()
+		return nil, fmt.Errorf("open rendition: %w", err)
+	}
+	defer doc.Close()
 
-		marked, err := s.viewer.Watermark.Burn(png, mark)
-		if err != nil {
-			removeAll()
-			return nil, fmt.Errorf("burn page %d: %w", page, err)
-		}
-
-		cfg, _, err := image.DecodeConfig(bytes.NewReader(marked))
-		if err != nil {
-			removeAll()
-			return nil, fmt.Errorf("decode page %d: %w", page, err)
-		}
-
-		path := filepath.Join(pagesPath, fmt.Sprintf("p%04d.png", page))
-		if err := os.WriteFile(path, marked, 0o600); err != nil {
-			removeAll()
-			return nil, fmt.Errorf("write page %d: %w", page, err)
-		}
-
-		w, h := float64(cfg.Width), float64(cfg.Height)
-		if len(runs) == 0 || runs[len(runs)-1].w != w || runs[len(runs)-1].h != h {
-			runs = append(runs, &pageRun{w: w, h: h})
-		}
-		runs[len(runs)-1].images = append(runs[len(runs)-1].images, path)
+	pages, err := s.burnPages(ctx, workspaceID, versionID, doc, pagesPath, pageCount, mark)
+	if err != nil {
+		removeAll()
+		return nil, err
 	}
 
-	// 2. Satu ImportImages per run, PageDim dari piksel dibagi DPI render.
-	conf := model.NewDefaultConfiguration()
-	runFiles := make([]string, 0, len(runs))
-
-	for i, run := range runs {
-		runPath := filepath.Join(dir, fmt.Sprintf("run-%03d.pdf", i))
-		out, err := os.Create(runPath)
-		if err != nil {
-			removeAll()
-			return nil, fmt.Errorf("create run %d: %w", i, err)
-		}
-
-		readers := make([]io.Reader, 0, len(run.images))
-		for _, imgPath := range run.images {
-			f, err := os.Open(imgPath)
-			if err != nil {
-				out.Close()
-				removeAll()
-				return nil, fmt.Errorf("open page %s: %w", imgPath, err)
-			}
-			readers = append(readers, f)
-		}
-
-		dpi := float64(s.viewer.DPI)
-		// `Pos: types.Full` memakai dimensi piksel gambar sebagai mediabox
-		// (PageDim diabaikan), jadi posisi non-Full + DPI render dipakai:
-		// gambar dikonversi px→pt (px/DPI*72) di dalam mediabox PageDim.
-		imp := &pdfcpu.Import{
-			PageDim:  &types.Dim{Width: run.w / dpi * 72, Height: run.h / dpi * 72},
-			DPI:      s.viewer.DPI,
-			UserDim:  true,
-			Pos:      types.Center,
-			Scale:    1,
-			ScaleAbs: true,
-			InpUnit:  types.POINTS,
-		}
-
-		if err := api.ImportImages(nil, out, readers, imp, conf); err != nil {
-			out.Close()
-			removeAll()
-			return nil, fmt.Errorf("import run %d: %w", i, err)
-		}
-		if err := out.Close(); err != nil {
-			removeAll()
-			return nil, fmt.Errorf("close run %d: %w", i, err)
-		}
-		runFiles = append(runFiles, runPath)
+	runFiles, err := importPageRuns(dir, pages, s.viewer.DPI, stampPagesPerRun)
+	if err != nil {
+		removeAll()
+		return nil, err
 	}
 
-	// 3. Gabung runs berurutan (mayoritas dokumen: satu run, tanpa merge).
-	outPath := filepath.Join(dir, "out.pdf")
-
-	if len(runFiles) == 1 {
-		outPath = runFiles[0]
-	} else {
-		out, err := os.Create(outPath)
-		if err != nil {
-			removeAll()
-			return nil, fmt.Errorf("create output: %w", err)
-		}
-
-		seakers := make([]io.ReadSeeker, 0, len(runFiles))
-		for _, rf := range runFiles {
-			f, err := os.Open(rf)
-			if err != nil {
-				out.Close()
-				removeAll()
-				return nil, fmt.Errorf("open run %s: %w", rf, err)
-			}
-			seakers = append(seakers, f)
-		}
-
-		if err := api.MergeRaw(seakers, out, false, conf); err != nil {
-			out.Close()
-			removeAll()
-			return nil, fmt.Errorf("merge runs: %w", err)
-		}
-		if err := out.Close(); err != nil {
-			removeAll()
-			return nil, fmt.Errorf("close output: %w", err)
-		}
+	outPath, err := mergeRuns(dir, runFiles)
+	if err != nil {
+		removeAll()
+		return nil, err
 	}
 
 	f, err := os.Open(outPath)
@@ -614,6 +530,162 @@ func (s *ContentService) rasterWatermarkPDF(ctx context.Context, workspaceID, ve
 	}
 
 	return &spooledReadCloser{file: f, dir: dir}, nil
+}
+
+type burnedPage struct {
+	path string
+	w, h float64
+}
+
+func (s *ContentService) burnPages(ctx context.Context, workspaceID, versionID string, doc render.Document, pagesPath string, pageCount int, mark watermark.Mark) ([]burnedPage, error) {
+	pages := make([]burnedPage, pageCount)
+
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(stampWorkers)
+
+	for page := 1; page <= pageCount && gctx.Err() == nil; page++ {
+		g.Go(func() error {
+			png, err := s.pageForDownload(gctx, workspaceID, versionID, doc, page)
+			if err != nil {
+				return fmt.Errorf("page %d: %w", page, err)
+			}
+
+			marked, err := s.viewer.Watermark.Burn(png, mark)
+			if err != nil {
+				return fmt.Errorf("burn page %d: %w", page, err)
+			}
+
+			cfg, _, err := image.DecodeConfig(bytes.NewReader(marked))
+			if err != nil {
+				return fmt.Errorf("decode page %d: %w", page, err)
+			}
+
+			path := filepath.Join(pagesPath, fmt.Sprintf("p%04d.png", page))
+			if err := os.WriteFile(path, marked, 0o600); err != nil {
+				return fmt.Errorf("write page %d: %w", page, err)
+			}
+
+			pages[page-1] = burnedPage{path: path, w: float64(cfg.Width), h: float64(cfg.Height)}
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+
+	return pages, nil
+}
+
+type pageRun struct {
+	w, h   float64
+	images []string
+}
+
+func groupPageRuns(pages []burnedPage, maxPerRun int) []pageRun {
+	var runs []pageRun
+	for _, pg := range pages {
+		last := len(runs) - 1
+		if last < 0 || runs[last].w != pg.w || runs[last].h != pg.h || len(runs[last].images) >= maxPerRun {
+			runs = append(runs, pageRun{w: pg.w, h: pg.h})
+			last++
+		}
+		runs[last].images = append(runs[last].images, pg.path)
+	}
+	return runs
+}
+
+func importPageRuns(dir string, pages []burnedPage, dpi, maxPerRun int) ([]string, error) {
+	runs := groupPageRuns(pages, maxPerRun)
+	conf := model.NewDefaultConfiguration()
+	runFiles := make([]string, 0, len(runs))
+
+	for i, run := range runs {
+		runPath := filepath.Join(dir, fmt.Sprintf("run-%03d.pdf", i))
+		if err := importRun(runPath, run, dpi, conf); err != nil {
+			return nil, fmt.Errorf("import run %d: %w", i, err)
+		}
+		for _, img := range run.images {
+			os.Remove(img)
+		}
+		runFiles = append(runFiles, runPath)
+	}
+
+	return runFiles, nil
+}
+
+func importRun(runPath string, run pageRun, dpi int, conf *model.Configuration) error {
+	out, err := os.Create(runPath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	readers := make([]io.Reader, 0, len(run.images))
+	for _, imgPath := range run.images {
+		f, err := os.Open(imgPath)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		readers = append(readers, f)
+	}
+
+	// `Pos: types.Full` memakai dimensi piksel gambar sebagai mediabox
+	// (PageDim diabaikan), jadi posisi non-Full + DPI render dipakai:
+	// gambar dikonversi px→pt (px/DPI*72) di dalam mediabox PageDim.
+	d := float64(dpi)
+	imp := &pdfcpu.Import{
+		PageDim:  &types.Dim{Width: run.w / d * 72, Height: run.h / d * 72},
+		DPI:      dpi,
+		UserDim:  true,
+		Pos:      types.Center,
+		Scale:    1,
+		ScaleAbs: true,
+		InpUnit:  types.POINTS,
+	}
+
+	if err := api.ImportImages(nil, out, readers, imp, conf); err != nil {
+		return err
+	}
+
+	return out.Close()
+}
+
+func mergeRuns(dir string, runFiles []string) (string, error) {
+	if len(runFiles) == 1 {
+		return runFiles[0], nil
+	}
+
+	outPath := filepath.Join(dir, "out.pdf")
+	out, err := os.Create(outPath)
+	if err != nil {
+		return "", fmt.Errorf("create output: %w", err)
+	}
+	defer out.Close()
+
+	seekers := make([]io.ReadSeeker, 0, len(runFiles))
+	for _, rf := range runFiles {
+		f, err := os.Open(rf)
+		if err != nil {
+			return "", fmt.Errorf("open run %s: %w", rf, err)
+		}
+		defer f.Close()
+		seekers = append(seekers, f)
+	}
+
+	if err := api.MergeRaw(seekers, out, false, model.NewDefaultConfiguration()); err != nil {
+		return "", fmt.Errorf("merge runs: %w", err)
+	}
+	if err := out.Close(); err != nil {
+		return "", fmt.Errorf("close output: %w", err)
+	}
+
+	for _, rf := range runFiles {
+		os.Remove(rf)
+	}
+
+	return outPath, nil
 }
 
 func (s *ContentService) DeleteDocument(ctx context.Context, workspaceID, documentID string, actor Actor) error {
