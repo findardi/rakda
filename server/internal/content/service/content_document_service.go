@@ -395,6 +395,17 @@ func (s *ContentService) DownloadDocument(ctx context.Context, workspaceID, docu
 		}
 		body = src
 	} else {
+		if pageCount > maxWatermarkDownloadPages {
+			return nil, "", fmt.Errorf("%w: %d pages, max %d", ErrWatermarkDownloadTooLarge, pageCount, maxWatermarkDownloadPages)
+		}
+
+		select {
+		case s.stampSem <- struct{}{}:
+			defer func() { <-s.stampSem }()
+		default:
+			return nil, "", ErrDownloadBusy
+		}
+
 		body, err = s.rasterWatermarkPDF(ctx, workspaceID, uuidString(version.ID), renditionKey, pageCount, mark)
 		if err != nil {
 			return nil, "", fmt.Errorf("%w: %v", ErrStampFailed, err)

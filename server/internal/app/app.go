@@ -122,6 +122,12 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 		pageCacheSweepInterval = time.Hour
 	}
 
+	downloadStampConcurrency, err := config.GetEnvInt("DOWNLOAD_STAMP_CONCURRENCY", 2)
+	if err != nil {
+		log.Printf("invalid DOWNLOAD_STAMP_CONCURRENCY, fallback to 2: %v", err)
+		downloadStampConcurrency = 2
+	}
+
 	// Kosong = XFF tidak pernah dipercaya (perilaku aman: IP proxy, bukan IP
 	// yang bisa dipalsukan). Diisi CIDR subnet docker saat stack Traefik ditulis.
 	trustedProxies, err := config.GetEnvCIDRList("TRUSTED_PROXY_CIDRS", nil)
@@ -133,13 +139,13 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 	activitysvc := activityservice.NewActivityService(activityrepo.New(pool))
 	authsvc := authservice.NewAuthService(authrepo.New(pool), otpGen, jwtGen, mailer, nil)
 	accessSvc := accessservice.NewAccessService(accessrepo.New(pool), mailer, authsvc, otpGen, webURL, activitysvc)
-	contentSvc := contentservice.NewContentService(contentrepo.New(pool), store, viewer, trashRetention, activitysvc)
+	contentSvc := contentservice.NewContentService(contentrepo.New(pool), store, viewer, trashRetention, activitysvc, downloadStampConcurrency)
 
 	authModule := auth.NewModule(pool, otpGen, jwtGen, mailer, limiter, providers, accessSvc)
 	workspaceModule := workspace.NewModule(pool, jwtGen, accessSvc, contentSvc)
 	accessModule := access.NewModule(pool, jwtGen, mailer, authsvc, otpGen, webURL, activitysvc)
 	invitationModule := invitation.NewModule(pool, jwtGen, activitysvc)
-	contentModule := content.NewModule(pool, jwtGen, store, viewer, trashRetention, activitysvc)
+	contentModule := content.NewModule(pool, jwtGen, store, viewer, trashRetention, activitysvc, downloadStampConcurrency)
 	activityModule := activity.NewModule(pool, jwtGen)
 
 	r := chi.NewRouter()
@@ -190,6 +196,13 @@ func (a *App) Run() error {
 	srv := &http.Server{
 		Addr:    a.addr,
 		Handler: a.router,
+		// Timeout eksplisit (keputusan 9.5-d): tanpa WriteTimeout — timeout
+		// tulis global akan memutus unduhan panjang justru pada kasus yang
+		// sedang dilindungi. ReadTimeout 30s aman: body request ke Go selalu
+		// kecil (unggah besar lewat presigned PUT langsung ke Minio).
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	go func() {
