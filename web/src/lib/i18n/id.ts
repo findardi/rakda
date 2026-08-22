@@ -481,6 +481,10 @@ export const id = {
 	'doc.view.print.title': 'Isi dokumen tidak dicetak',
 	'doc.view.print.reason': 'Dokumen di ruang data ini hanya dapat dibaca di viewer.',
 	'doc.view.print.download': 'Untuk mendapatkan salinan PDF, gunakan tombol Unduh di viewer.',
+	'doc.view.privacy.on': 'Nyalakan Mode privasi',
+	'doc.view.privacy.off': 'Matikan Mode privasi',
+	'doc.view.privacy.hint':
+		'Hanya pita di sekitar kursor yang terbuka; bagian halaman lain dikaburkan.',
 	'doc.view.err.notFound': 'Dokumen itu sudah tidak ada.',
 	'doc.view.err.load': 'Gagal memuat dokumen.',
 	'doc.noAccess.title': 'Belum ada folder yang dibagikan ke Anda',

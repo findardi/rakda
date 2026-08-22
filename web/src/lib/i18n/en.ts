@@ -485,6 +485,10 @@ export const en: Record<keyof Dict, string> = {
 	'doc.view.print.title': 'Document content is not printed',
 	'doc.view.print.reason': 'Documents in this data room can only be read in the viewer.',
 	'doc.view.print.download': 'To get a PDF copy, use the Download button in the viewer.',
+	'doc.view.privacy.on': 'Turn on Privacy mode',
+	'doc.view.privacy.off': 'Turn off Privacy mode',
+	'doc.view.privacy.hint':
+		'Only a band around the cursor is open; the rest of the page is blurred.',
 	'doc.view.err.notFound': 'That document no longer exists.',
 	'doc.view.err.load': 'Could not load the document.',
 	'doc.noAccess.title': 'No folders shared with you yet',
