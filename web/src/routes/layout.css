@@ -111,3 +111,16 @@
 		border-radius: 3px;
 	}
 }
+
+@media print {
+	html.riksa-print-gate
+		body
+		*:not(:has(.riksa-print-notice)):not(.riksa-print-notice):not(.riksa-print-notice *) {
+		display: none !important;
+	}
+	html.riksa-print-gate body :has(.riksa-print-notice) {
+		display: block;
+		height: auto;
+		overflow: visible;
+	}
+}
