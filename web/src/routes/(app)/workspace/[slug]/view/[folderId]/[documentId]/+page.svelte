@@ -210,6 +210,61 @@
 		return () => document.documentElement.classList.remove('riksa-print-gate');
 	});
 
+	const PRIVACY_KEY = 'wadi:privacy-mode:v1';
+	let privacyOn = $state(false);
+	let bandWrapEl = $state<HTMLElement>();
+
+	$effect(() => {
+		try {
+			privacyOn = localStorage.getItem(PRIVACY_KEY) === '1';
+		} catch {
+			privacyOn = false;
+		}
+	});
+
+	function togglePrivacy() {
+		privacyOn = !privacyOn;
+		try {
+			if (privacyOn) localStorage.setItem(PRIVACY_KEY, '1');
+			else localStorage.removeItem(PRIVACY_KEY);
+		} catch {
+			return;
+		}
+	}
+
+	$effect(() => {
+		const wrap = bandWrapEl;
+		if (!wrap || !privacyOn) return;
+
+		let top = wrap.getBoundingClientRect().top;
+		let pendingY = 0;
+		let frame = 0;
+
+		const measure = () => {
+			top = wrap.getBoundingClientRect().top;
+		};
+		const onMove = (e: PointerEvent) => {
+			if (e.pointerType !== 'mouse' && e.pointerType !== 'pen') return;
+			pendingY = e.clientY - top;
+			if (frame) return;
+			frame = requestAnimationFrame(() => {
+				frame = 0;
+				wrap.style.setProperty('--band-y', `${pendingY}px`);
+			});
+		};
+
+		const ro = new ResizeObserver(measure);
+		ro.observe(wrap);
+		window.addEventListener('resize', measure);
+		wrap.addEventListener('pointermove', onMove, { passive: true });
+		return () => {
+			cancelAnimationFrame(frame);
+			ro.disconnect();
+			window.removeEventListener('resize', measure);
+			wrap.removeEventListener('pointermove', onMove);
+		};
+	});
+
 	// --- engagement panel (owner/admin only) ---
 	let panelOpen = $state(page.url.searchParams.has('readers'));
 
@@ -382,12 +437,41 @@
 		goToFind(findBoxes[findIndex]);
 	}
 
-	function goToFind(hit: { page: number; box: SearchBox }) {
-		scrollToPage(hit.page);
-		// The page image may not have registered yet; scroll again once it has.
-		if (!pageEls.has(hit.page)) {
-			setTimeout(() => scrollToPage(hit.page), 300);
+	function goToFind(hit: { page: number; box: SearchBox }, retried = false) {
+		const reader = readerEl;
+		const pageEl = pageEls.get(hit.page);
+		if (!reader || !pageEl) {
+			if (!retried) setTimeout(() => goToFind(hit, true), 300);
+			return;
 		}
+
+		const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+		const boxCenter = (pr: DOMRect) => pr.top + (hit.box.y + hit.box.h / 2) * pr.height;
+		const pr = pageEl.getBoundingClientRect();
+		const rr = reader.getBoundingClientRect();
+		const from = reader.scrollTop;
+		const target = Math.min(
+			Math.max(0, from + boxCenter(pr) - (rr.top + rr.height / 2)),
+			reader.scrollHeight - reader.clientHeight
+		);
+		const settleBand = () => {
+			bandWrapEl?.style.setProperty(
+				'--band-y',
+				`${boxCenter(pageEl.getBoundingClientRect()) - reader.getBoundingClientRect().top}px`
+			);
+		};
+
+		bandWrapEl?.style.setProperty('--band-y', `${boxCenter(pr) - rr.top - (target - from)}px`);
+		reader.scrollTo({ top: target, behavior: reduce ? 'auto' : 'smooth' });
+		if (reduce) {
+			settleBand();
+			return;
+		}
+		setTimeout(() => {
+			if (reader.scrollTop === from && target !== from)
+				reader.scrollTo({ top: target, behavior: 'auto' });
+			settleBand();
+		}, 250);
 	}
 
 	// Deep link ?page=N&q=… (from 9-d results): run the find once meta is here.
@@ -661,6 +745,36 @@
 				</svg>
 				<span class="hidden lg:inline">{t('doc.view.watermarked')}</span>
 			</span>
+
+			<button
+				type="button"
+				onclick={togglePrivacy}
+				aria-pressed={privacyOn}
+				title="{privacyOn ? t('doc.view.privacy.off') : t('doc.view.privacy.on')} — {t(
+					'doc.view.privacy.hint'
+				)}"
+				class="grid h-8 w-8 flex-none place-items-center rounded-field transition-colors
+					{privacyOn
+					? 'bg-primary/10 text-primary'
+					: 'text-muted hover:bg-base-content/5 hover:text-base-content'}"
+			>
+				<svg
+					class="h-4 w-4"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="1.8"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					aria-hidden="true"
+				>
+					<rect x="3" y="4" width="18" height="16" rx="2" />
+					<path d="M3 10h18M3 14h18" />
+				</svg>
+				<span class="sr-only">
+					{privacyOn ? t('doc.view.privacy.off') : t('doc.view.privacy.on')}
+				</span>
+			</button>
 
 			<!-- Who read what is owner/admin knowledge. A guest is recorded, never a
 			     reader of the record, so the control does not exist for them. -->
@@ -971,7 +1085,10 @@
 		<div class="flex min-h-0 flex-1">
 			<!-- Hidden rather than unmounted below `lg`: the pages keep their decoded
 			     images, and the beacon reads the hiding as "not being read". -->
-			<div class="relative min-h-0 flex-1 {panelOpen ? 'hidden lg:block' : ''}">
+			<div
+				bind:this={bandWrapEl}
+				class="relative min-h-0 flex-1 {panelOpen ? 'hidden lg:block' : ''}"
+			>
 				<div bind:this={readerEl} class="h-full overflow-y-auto" aria-label={meta.name}>
 					<div class="mx-auto flex max-w-205 flex-col gap-4 px-3 py-6 sm:px-4">
 						<!-- Keyed by version too: switching must remount the pages rather than
@@ -989,6 +1106,14 @@
 						{/each}
 					</div>
 				</div>
+
+				{#if privacyOn}
+					<div
+						class="riksa-band pointer-events-none absolute inset-0 z-panel"
+						aria-hidden="true"
+						transition:fade={{ duration: prefersReducedMotion.current ? 0 : 150 }}
+					></div>
+				{/if}
 
 				{#if curtained}
 					<div
@@ -1032,3 +1157,34 @@
 </div>
 
 <Toaster />
+
+<style>
+	.riksa-band {
+		--band-half: 50px;
+		--band-edge: 24px;
+		background-color: color-mix(in oklch, var(--color-base-200) 60%, transparent);
+		-webkit-backdrop-filter: blur(16px);
+		backdrop-filter: blur(16px);
+		mask-image: linear-gradient(
+			to bottom,
+			black 0,
+			black calc(var(--band-y, 50%) - var(--band-half) - var(--band-edge)),
+			transparent calc(var(--band-y, 50%) - var(--band-half)),
+			transparent calc(var(--band-y, 50%) + var(--band-half)),
+			black calc(var(--band-y, 50%) + var(--band-half) + var(--band-edge)),
+			black 100%
+		);
+	}
+	@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+		.riksa-band {
+			background-color: var(--color-base-content);
+		}
+	}
+	@media (prefers-reduced-transparency: reduce) {
+		.riksa-band {
+			background-color: var(--color-base-content);
+			-webkit-backdrop-filter: none;
+			backdrop-filter: none;
+		}
+	}
+</style>
