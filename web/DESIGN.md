@@ -130,7 +130,13 @@ mengambang (dropdown, modal, toast). Tidak ada kartu melayang tanpa alasan.
   Intralinks/Datasite). (Anti-reference PRODUCT.md.)
 - **Don't** pakai border-left/right >1px sebagai stripe warna pada card/list/alert.
 - **Don't** pakai gradient text (`background-clip: text`).
-- **Don't** pakai glassmorphism dekoratif sebagai default.
+- **Don't** pakai glassmorphism dekoratif sebagai default. **Satu pengecualian
+  yang disahkan (Fase 10):** tirai "Mode privasi" di viewer
+  (`backdrop-filter: blur(16px)` + tint `base-200` 60%, bentuk lewat
+  `mask-image`) — di sana blur adalah *mekanismenya*, bukan hiasannya. Ia wajib
+  menyertakan fallback opaque untuk `@supports not (backdrop-filter)` dan
+  `prefers-reduced-transparency: reduce`. Jangan menurunkan pengecualian ini ke
+  permukaan lain.
 - **Don't** pakai display font pada label, tombol, atau data.
 - **Don't** pakai motion dekoratif — gerak hanya menyampaikan state (150–250ms).
 - **Don't** jadikan modal pilihan pertama — habiskan alternatif inline/progressive dulu.

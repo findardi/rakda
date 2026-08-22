@@ -75,3 +75,37 @@ batas ini sama sekali — berkasnya cuma disalin, tidak dirakit ulang.
 
 Angka 150 dikirim server ke klien, tidak ditulis di kode web. Kalau batasnya
 berubah, UI ikut tanpa perlu disentuh.
+
+## Perlindungan layar
+
+Viewer meraster halaman dan membakar watermark per permintaan. Di atas itu,
+Fase 10 menambah lapisan yang melawan jalur kebocoran yang **tidak** ditutup
+watermark: mata orang lain, berbagi layar tak sengaja, dan kamera ponsel.
+
+**Yang selalu aktif, untuk semua peran, tanpa sakelar:**
+
+- Klik kanan di halaman dokumen tidak menawarkan "Simpan gambar sebagai…".
+- Ctrl+P tidak mencetak isi. Yang keluar satu halaman pemberitahuan, dan ia
+  menyebut tombol Unduh **hanya** bila pembaca benar-benar punya izinnya.
+- Isi tertutup saat jendela kehilangan fokus lebih dari setengah detik, dan
+  terbuka sendiri saat pembaca kembali. Selama tertutup, waktu baca tidak
+  dihitung.
+
+**Yang dinyalakan pembaca sendiri — "Mode privasi":** pita yang mengikuti
+kursor; sisanya dikaburkan. Diingat lintas dokumen. Bukan izin: owner tidak
+bisa memaksakannya dan tidak bisa melihat siapa yang memakainya.
+
+**Yang TIDAK dijanjikan — dan tidak boleh dijanjikan di salinan UI mana pun:**
+
+- Kami **tidak** memblokir tangkapan layar. Tidak ada API peramban yang bisa.
+  Win+Shift+S membekukan isi layar sebelum kami sempat menutupinya.
+- Terhadap kamera ponsel, Mode privasi hanya **mengurangi** hasilnya. Pemotret
+  yang sabar tetap bisa mengambil banyak jepretan.
+- Blur menghapus teks isi, bukan struktur. Letak paragraf dan tabel tetap
+  terlihat, dan **judul besar masih bisa tertebak bentuk katanya**.
+- Gambar halaman utuh tetap sampai ke peramban dan bisa diambil lewat DevTools.
+
+Frasa **"proteksi screenshot" dilarang**. Yang melindungi sungguhan tetap
+tiga hal: viewer raster tanpa lapisan teks, watermark yang dibakar dan tidak
+bisa dilucuti, dan jejak audit yang menamai pembacanya.
+
