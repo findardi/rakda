@@ -91,6 +91,8 @@
 <div
 	bind:this={el}
 	data-page={pageNumber}
+	role="presentation"
+	oncontextmenu={(e) => e.preventDefault()}
 	class="riksa-vp relative mx-auto w-full overflow-hidden rounded-box border border-base-content/10 bg-base-100"
 	style={loaded ? undefined : 'aspect-ratio: 1 / 1.414;'}
 >
@@ -179,6 +181,7 @@
 		}
 	}
 	.riksa-vp-img {
+		-webkit-touch-callout: none;
 		transition: opacity 220ms cubic-bezier(0.22, 1, 0.36, 1);
 	}
 	.riksa-vp-img.is-loaded {

@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { tick } from 'svelte';
+	import { prefersReducedMotion } from 'svelte/motion';
+	import { fade } from 'svelte/transition';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
@@ -175,7 +177,37 @@
 	});
 
 	$effect(() => {
-		dwell?.setPage(anyVisible ? currentPage : null);
+		dwell?.setPage(curtained || !anyVisible ? null : currentPage);
+	});
+
+	const CURTAIN_DELAY_MS = 500;
+	let curtained = $state(false);
+	let curtainTimer: ReturnType<typeof setTimeout> | undefined;
+
+	function raiseCurtainLater() {
+		if (curtainTimer !== undefined) return;
+		curtainTimer = setTimeout(() => {
+			curtainTimer = undefined;
+			if (!document.hasFocus() || document.visibilityState !== 'visible') curtained = true;
+		}, CURTAIN_DELAY_MS);
+	}
+
+	function dropCurtain() {
+		clearTimeout(curtainTimer);
+		curtainTimer = undefined;
+		curtained = false;
+	}
+
+	function onVisibilityChange() {
+		if (document.visibilityState === 'hidden') raiseCurtainLater();
+		else dropCurtain();
+	}
+
+	$effect(() => () => clearTimeout(curtainTimer));
+
+	$effect(() => {
+		document.documentElement.classList.add('riksa-print-gate');
+		return () => document.documentElement.classList.remove('riksa-print-gate');
 	});
 
 	// --- engagement panel (owner/admin only) ---
@@ -445,7 +477,8 @@
 	<title>{meta?.name ?? t('doc.view.tab')} · {t('brand.name')}</title>
 </svelte:head>
 
-<svelte:window onkeydown={onWindowKey} />
+<svelte:window onkeydown={onWindowKey} onblur={raiseCurtainLater} onfocus={dropCurtain} />
+<svelte:document onvisibilitychange={onVisibilityChange} />
 
 <div class="flex h-full min-h-0 flex-col bg-base-200">
 	<!-- Reader chrome -->
@@ -938,26 +971,34 @@
 		<div class="flex min-h-0 flex-1">
 			<!-- Hidden rather than unmounted below `lg`: the pages keep their decoded
 			     images, and the beacon reads the hiding as "not being read". -->
-			<div
-				bind:this={readerEl}
-				class="min-h-0 flex-1 overflow-y-auto {panelOpen ? 'hidden lg:block' : ''}"
-				aria-label={meta.name}
-			>
-				<div class="mx-auto flex max-w-205 flex-col gap-4 px-3 py-6 sm:px-4">
-					<!-- Keyed by version too: switching must remount the pages rather than
-					     leave the previous version's images on screen while they reload. -->
-					{#each pages as n (`${meta.version_id}-${n}`)}
-						<ViewerPage
-							pageNumber={n}
-							total={pageCount}
-							src={pageSrc(n)}
-							boxes={boxesByPage.get(n)}
-							activeIndex={activeIndexByPage?.page === n ? activeIndexByPage.index : undefined}
-							{onactive}
-							{onregister}
-						/>
-					{/each}
+			<div class="relative min-h-0 flex-1 {panelOpen ? 'hidden lg:block' : ''}">
+				<div bind:this={readerEl} class="h-full overflow-y-auto" aria-label={meta.name}>
+					<div class="mx-auto flex max-w-205 flex-col gap-4 px-3 py-6 sm:px-4">
+						<!-- Keyed by version too: switching must remount the pages rather than
+						     leave the previous version's images on screen while they reload. -->
+						{#each pages as n (`${meta.version_id}-${n}`)}
+							<ViewerPage
+								pageNumber={n}
+								total={pageCount}
+								src={pageSrc(n)}
+								boxes={boxesByPage.get(n)}
+								activeIndex={activeIndexByPage?.page === n ? activeIndexByPage.index : undefined}
+								{onactive}
+								{onregister}
+							/>
+						{/each}
+					</div>
 				</div>
+
+				{#if curtained}
+					<div
+						class="absolute inset-0 z-panel flex flex-col items-center justify-center gap-1 bg-base-200 px-6 text-center"
+						out:fade={{ duration: prefersReducedMotion.current ? 0 : 150 }}
+					>
+						<p class="text-sm font-medium">{t('doc.view.curtain.title')}</p>
+						<p class="text-sm text-muted">{t('doc.view.curtain.hint')}</p>
+					</div>
+				{/if}
 			</div>
 
 			{#if panelOpen && managesRoom}
@@ -976,6 +1017,18 @@
 			<p class="max-w-sm text-center text-sm text-muted text-pretty">{t('doc.view.emptyPages')}</p>
 		</div>
 	{/if}
+
+	<div class="riksa-print-notice hidden p-8 print:block">
+		<p class="text-sm font-semibold">{t('brand.name')}</p>
+		{#if meta}
+			<p class="mt-1 text-sm">{meta.name}</p>
+		{/if}
+		<h1 class="mt-6 text-lg font-semibold">{t('doc.view.print.title')}</h1>
+		<p class="mt-2 text-sm">{t('doc.view.print.reason')}</p>
+		{#if canDownload}
+			<p class="mt-2 text-sm">{t('doc.view.print.download')}</p>
+		{/if}
+	</div>
 </div>
 
 <Toaster />
