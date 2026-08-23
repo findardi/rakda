@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	activityservice "github.com/findardi/Riksa-App/server/internal/activity/service"
+	activityservice "github.com/findardi/rakda/server/internal/activity/service"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -75,6 +75,7 @@ func (s *ContentService) reapOnce(ctx context.Context) {
 			Action:      activityservice.ActionFolderPurged,
 			TargetType:  activityservice.TargetFolder,
 			TargetID:    uuidString(f.ID),
+			TargetName:  f.Name,
 		})
 
 		purgeFolders++
@@ -115,6 +116,7 @@ func (s *ContentService) reapOnce(ctx context.Context) {
 			Action:      activityservice.ActionDocumentPurged,
 			TargetType:  activityservice.TargetDocument,
 			TargetID:    uuidString(d.ID),
+			TargetName:  d.Name,
 		})
 
 		purgeDocuments++
@@ -142,7 +144,43 @@ func (s *ContentService) deleteVersionBlobs(ctx context.Context, refs []blobRef)
 			log.Printf("reaper: delete renditions for version %s: %v", ref.versionID, err)
 			return false
 		}
+
+		if err := s.store.DeletePrefix(ctx, pageCachePrefix(ref.workspaceID, ref.versionID)); err != nil {
+			log.Printf("reaper: delete page cache for version %s: %v", ref.versionID, err)
+			return false
+		}
 	}
 
 	return true
+}
+
+// RunPageCacheSweeper menghapus PNG halaman yang lebih tua dari ttl. Ia hanya
+// melihat prefix page-cache/ — rendition.pdf di prefix renditions/ tidak
+// pernah ikut tersapu (keputusan 9.5-c).
+func (s *ContentService) RunPageCacheSweeper(ctx context.Context, interval, ttl time.Duration) {
+	s.sweepPageCacheOnce(ctx, ttl)
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.sweepPageCacheOnce(ctx, ttl)
+		}
+	}
+}
+
+func (s *ContentService) sweepPageCacheOnce(ctx context.Context, ttl time.Duration) {
+	deleted, err := s.store.DeleteOlderThan(ctx, "page-cache/", ttl)
+	if err != nil {
+		log.Printf("page cache sweep: %v", err)
+		return
+	}
+
+	if deleted > 0 {
+		log.Printf("page cache sweep: deleted %d page cache objects", deleted)
+	}
 }

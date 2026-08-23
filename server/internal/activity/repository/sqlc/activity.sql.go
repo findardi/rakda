@@ -98,16 +98,28 @@ func (q *Queries) InsertContentEvent(ctx context.Context, arg InsertContentEvent
 }
 
 const listActivityLogs = `-- name: ListActivityLogs :many
-select id, workspace_id, actor_id, actor_name, actor_role, action, target_type, target_id, target_name, metadata, created_at from activity_logs
+select
+    a.id, a.workspace_id, a.actor_id, a.actor_name, a.actor_role, a.action, a.target_type, a.target_id, a.target_name, a.metadata, a.created_at,
+    coalesce(d.id, dv.id) as link_document_id,
+    coalesce(d.folder_id, dv.folder_id, f.id) as link_folder_id
+from activity_logs a
+left join documents d
+    on a.target_type = 'document' and d.id = a.target_id and d.deleted_at is null
+left join document_versions v
+    on a.target_type = 'version' and v.id = a.target_id
+left join documents dv
+    on dv.id = v.document_id and dv.deleted_at is null
+left join folders f
+    on a.target_type = 'folder' and f.id = a.target_id and f.deleted_at is null
 where
-    workspace_id = $1
+    a.workspace_id = $1
     and ($2::timestamptz is null
-        or (created_at, id) < ($2::timestamptz, $3::uuid))
-    and ($4::timestamptz is null or created_at >= $4)
-    and ($5::timestamptz is null or created_at <= $5)
-    and ($6::uuid is null or actor_id = $6)
-    and ($7::text is null or action = $7)
-order by created_at desc, id desc
+        or (a.created_at, a.id) < ($2::timestamptz, $3::uuid))
+    and ($4::timestamptz is null or a.created_at >= $4)
+    and ($5::timestamptz is null or a.created_at <= $5)
+    and ($6::uuid is null or a.actor_id = $6)
+    and ($7::text is null or a.action = $7)
+order by a.created_at desc, a.id desc
 limit $8
 `
 
@@ -122,7 +134,23 @@ type ListActivityLogsParams struct {
 	PageSize        int32              `json:"page_size"`
 }
 
-func (q *Queries) ListActivityLogs(ctx context.Context, arg ListActivityLogsParams) ([]ActivityLog, error) {
+type ListActivityLogsRow struct {
+	ID             pgtype.UUID        `json:"id"`
+	WorkspaceID    pgtype.UUID        `json:"workspace_id"`
+	ActorID        pgtype.UUID        `json:"actor_id"`
+	ActorName      string             `json:"actor_name"`
+	ActorRole      string             `json:"actor_role"`
+	Action         string             `json:"action"`
+	TargetType     string             `json:"target_type"`
+	TargetID       pgtype.UUID        `json:"target_id"`
+	TargetName     string             `json:"target_name"`
+	Metadata       []byte             `json:"metadata"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	LinkDocumentID pgtype.UUID        `json:"link_document_id"`
+	LinkFolderID   pgtype.UUID        `json:"link_folder_id"`
+}
+
+func (q *Queries) ListActivityLogs(ctx context.Context, arg ListActivityLogsParams) ([]ListActivityLogsRow, error) {
 	rows, err := q.db.Query(ctx, listActivityLogs,
 		arg.WorkspaceID,
 		arg.CursorCreatedAt,
@@ -137,9 +165,9 @@ func (q *Queries) ListActivityLogs(ctx context.Context, arg ListActivityLogsPara
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ActivityLog
+	var items []ListActivityLogsRow
 	for rows.Next() {
-		var i ActivityLog
+		var i ListActivityLogsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkspaceID,
@@ -152,6 +180,8 @@ func (q *Queries) ListActivityLogs(ctx context.Context, arg ListActivityLogsPara
 			&i.TargetName,
 			&i.Metadata,
 			&i.CreatedAt,
+			&i.LinkDocumentID,
+			&i.LinkFolderID,
 		); err != nil {
 			return nil, err
 		}

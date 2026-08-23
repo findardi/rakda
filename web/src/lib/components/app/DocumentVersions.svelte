@@ -4,7 +4,9 @@
 	import { cubicOut } from 'svelte/easing';
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { slide } from 'svelte/transition';
+	import { SvelteSet } from 'svelte/reactivity';
 	import { Button, showToast } from '$lib/components/common';
+	import { downloadRendition } from '$lib/download';
 	import { formatBytes, formatDateTime } from '$lib/format';
 	import { t } from '$lib/i18n';
 	import type { DocumentData, VersionData } from '$lib/types/content';
@@ -65,12 +67,19 @@
 
 	// --- view / download ---------------------------------------------------
 
-	let downloadingId = $state<string | null>(null);
+	const downloading = new SvelteSet<string>();
+	const downloadAbort = new AbortController();
+	$effect(() => () => downloadAbort.abort());
 
-	function download(v: VersionData): void {
-		downloadingId = v.id;
-		const q = new URLSearchParams({ workspaceId, documentId, version: v.id });
-		window.location.href = `/api/content/download?${q}`;
+	async function download(v: VersionData): Promise<void> {
+		if (downloading.has(v.id)) return;
+		downloading.add(v.id);
+		const outcome = await downloadRendition(
+			{ workspaceId, documentId, versionId: v.id, fallbackName: documentName },
+			downloadAbort.signal
+		);
+		downloading.delete(v.id);
+		if (!outcome.ok) showToast(outcome.message, 'error');
 	}
 
 	// --- restore -----------------------------------------------------------
@@ -276,7 +285,7 @@
 			</span>
 			<div class="flex flex-none items-center gap-2">
 				<span
-					class="riksa-verbar h-1 w-20 overflow-hidden rounded-full bg-base-content/10"
+					class="rakda-verbar h-1 w-20 overflow-hidden rounded-full bg-base-content/10"
 					role="progressbar"
 					aria-valuenow={uploadPct}
 					aria-valuemin="0"
@@ -319,11 +328,11 @@
 		<ul class="mt-1" aria-busy="true" aria-label={t('doc.ver.loading')}>
 			{#each SKELETON_ROWS as row (row)}
 				<li class="flex items-center gap-2.5 py-1.5">
-					<span class="riksa-verskel h-3.5 w-8 flex-none rounded-selector"></span>
-					<span class="riksa-verskel h-3.5 w-28 rounded-selector"></span>
+					<span class="rakda-verskel h-3.5 w-8 flex-none rounded-selector"></span>
+					<span class="rakda-verskel h-3.5 w-28 rounded-selector"></span>
 					<span class="flex-1"></span>
-					<span class="riksa-verskel hidden h-3.5 w-16 flex-none rounded-selector md:block"></span>
-					<span class="riksa-verskel hidden h-3.5 w-32 flex-none rounded-selector sm:block"></span>
+					<span class="rakda-verskel hidden h-3.5 w-16 flex-none rounded-selector md:block"></span>
+					<span class="rakda-verskel hidden h-3.5 w-32 flex-none rounded-selector sm:block"></span>
 				</li>
 			{/each}
 		</ul>
@@ -380,12 +389,13 @@
 								<button
 									type="button"
 									onclick={() => void download(v)}
-									disabled={downloadingId === v.id}
+									disabled={downloading.has(v.id)}
+									aria-busy={downloading.has(v.id)}
 									title={t('doc.ver.downloadOf', { n: v.version_no })}
 									aria-label={t('doc.ver.downloadOf', { n: v.version_no })}
 									class="grid h-8 w-8 place-items-center rounded-field text-muted transition-colors hover:bg-base-content/5 hover:text-base-content disabled:pointer-events-none disabled:opacity-50 pointer-coarse:h-11 pointer-coarse:w-11"
 								>
-									{#if downloadingId === v.id}
+									{#if downloading.has(v.id)}
 										<span class="loading loading-spinner loading-xs"></span>
 									{:else}
 										{@render iconDownload()}
@@ -447,24 +457,24 @@
 </div>
 
 <style>
-	.riksa-verskel {
+	.rakda-verskel {
 		background-color: color-mix(in oklch, var(--color-base-content) 8%, transparent);
-		animation: riksa-verpulse 1400ms ease-in-out infinite;
+		animation: rakda-verpulse 1400ms ease-in-out infinite;
 	}
-	@keyframes riksa-verpulse {
+	@keyframes rakda-verpulse {
 		50% {
 			opacity: 0.45;
 		}
 	}
 	/* Width is the only thing moving here, and it is the progress itself. */
-	.riksa-verbar > :global(span) {
+	.rakda-verbar > :global(span) {
 		transition: width 180ms cubic-bezier(0.22, 1, 0.36, 1);
 	}
 	@media (prefers-reduced-motion: reduce) {
-		.riksa-verskel {
+		.rakda-verskel {
 			animation: none;
 		}
-		.riksa-verbar > :global(span) {
+		.rakda-verbar > :global(span) {
 			transition: none;
 		}
 	}

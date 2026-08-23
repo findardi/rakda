@@ -10,39 +10,42 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/findardi/Riksa-App/server/internal/access"
-	accessrepo "github.com/findardi/Riksa-App/server/internal/access/repository"
-	accessservice "github.com/findardi/Riksa-App/server/internal/access/service"
-	"github.com/findardi/Riksa-App/server/internal/activity"
-	activityrepo "github.com/findardi/Riksa-App/server/internal/activity/repository"
-	activityservice "github.com/findardi/Riksa-App/server/internal/activity/service"
-	"github.com/findardi/Riksa-App/server/internal/auth"
-	authrepo "github.com/findardi/Riksa-App/server/internal/auth/repository"
-	authservice "github.com/findardi/Riksa-App/server/internal/auth/service"
-	"github.com/findardi/Riksa-App/server/internal/content"
-	contentrepo "github.com/findardi/Riksa-App/server/internal/content/repository"
-	contentservice "github.com/findardi/Riksa-App/server/internal/content/service"
-	"github.com/findardi/Riksa-App/server/internal/invitation"
-	"github.com/findardi/Riksa-App/server/internal/platform/config"
-	"github.com/findardi/Riksa-App/server/internal/platform/oauth"
-	"github.com/findardi/Riksa-App/server/internal/platform/otp"
-	"github.com/findardi/Riksa-App/server/internal/platform/ratelimit"
-	"github.com/findardi/Riksa-App/server/internal/platform/response"
-	"github.com/findardi/Riksa-App/server/internal/platform/sender"
-	"github.com/findardi/Riksa-App/server/internal/platform/storage"
-	"github.com/findardi/Riksa-App/server/internal/platform/token"
-	"github.com/findardi/Riksa-App/server/internal/workspace"
+	"github.com/findardi/rakda/server/internal/access"
+	accessrepo "github.com/findardi/rakda/server/internal/access/repository"
+	accessservice "github.com/findardi/rakda/server/internal/access/service"
+	"github.com/findardi/rakda/server/internal/activity"
+	activityrepo "github.com/findardi/rakda/server/internal/activity/repository"
+	activityservice "github.com/findardi/rakda/server/internal/activity/service"
+	"github.com/findardi/rakda/server/internal/auth"
+	authrepo "github.com/findardi/rakda/server/internal/auth/repository"
+	authservice "github.com/findardi/rakda/server/internal/auth/service"
+	"github.com/findardi/rakda/server/internal/content"
+	contentrepo "github.com/findardi/rakda/server/internal/content/repository"
+	contentservice "github.com/findardi/rakda/server/internal/content/service"
+	"github.com/findardi/rakda/server/internal/invitation"
+	"github.com/findardi/rakda/server/internal/platform/config"
+	"github.com/findardi/rakda/server/internal/platform/oauth"
+	"github.com/findardi/rakda/server/internal/platform/otp"
+	"github.com/findardi/rakda/server/internal/platform/ratelimit"
+	"github.com/findardi/rakda/server/internal/platform/response"
+	"github.com/findardi/rakda/server/internal/platform/sender"
+	"github.com/findardi/rakda/server/internal/platform/storage"
+	"github.com/findardi/rakda/server/internal/platform/token"
+	"github.com/findardi/rakda/server/internal/workspace"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+const defaultTrashRetention = 30 * 24 * time.Hour
+
 type App struct {
-	router    chi.Router
-	addr      string
-	reap      func(ctx context.Context)
-	sweep     func(ctx context.Context)
-	ocrSweep  func(ctx context.Context)
-	bboxSweep func(ctx context.Context)
+	router         chi.Router
+	addr           string
+	reap           func(ctx context.Context)
+	sweep          func(ctx context.Context)
+	ocrSweep       func(ctx context.Context)
+	bboxSweep      func(ctx context.Context)
+	pageCacheSweep func(ctx context.Context)
 }
 
 func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.Storage, viewer contentservice.Viewer) *App {
@@ -61,10 +64,10 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 	}
 
 	webURL := config.GetEnv("WEB_URL", "http://localhost:5173")
-	trashRetention, err := config.GetEnvDuration("TRASH_RETENTION", 15*time.Hour)
+	trashRetention, err := config.GetEnvDuration("TRASH_RETENTION", defaultTrashRetention)
 	if err != nil {
-		log.Printf("invalid TRASH_RETENTION, fallback to 15h: %v", err)
-		trashRetention = 15 * time.Hour
+		log.Printf("invalid TRASH_RETENTION, fallback to %s: %v", defaultTrashRetention, err)
+		trashRetention = defaultTrashRetention
 	}
 
 	reaperInterval, err := config.GetEnvDuration("REAPER_INTERVAL", time.Hour)
@@ -109,20 +112,46 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 		bboxSweepBatch = 10
 	}
 
+	pageCacheTTL, err := config.GetEnvDuration("PAGE_CACHE_TTL", 7*24*time.Hour)
+	if err != nil {
+		log.Printf("invalid PAGE_CACHE_TTL, fallback to 168h: %v", err)
+		pageCacheTTL = 7 * 24 * time.Hour
+	}
+
+	pageCacheSweepInterval, err := config.GetEnvDuration("PAGE_CACHE_SWEEP_INTERVAL", time.Hour)
+	if err != nil {
+		log.Printf("invalid PAGE_CACHE_SWEEP_INTERVAL, fallback to 1h: %v", err)
+		pageCacheSweepInterval = time.Hour
+	}
+
+	downloadStampConcurrency, err := config.GetEnvInt("DOWNLOAD_STAMP_CONCURRENCY", 1)
+	if err != nil {
+		log.Printf("invalid DOWNLOAD_STAMP_CONCURRENCY, fallback to 1: %v", err)
+		downloadStampConcurrency = 1
+	}
+
+	// Kosong = XFF tidak pernah dipercaya (perilaku aman: IP proxy, bukan IP
+	// yang bisa dipalsukan). Diisi CIDR subnet docker saat stack Traefik ditulis.
+	trustedProxies, err := config.GetEnvCIDRList("TRUSTED_PROXY_CIDRS", nil)
+	if err != nil {
+		log.Printf("invalid TRUSTED_PROXY_CIDRS, X-Forwarded-For ignored: %v", err)
+		trustedProxies = nil
+	}
+
 	activitysvc := activityservice.NewActivityService(activityrepo.New(pool))
 	authsvc := authservice.NewAuthService(authrepo.New(pool), otpGen, jwtGen, mailer, nil)
 	accessSvc := accessservice.NewAccessService(accessrepo.New(pool), mailer, authsvc, otpGen, webURL, activitysvc)
-	contentSvc := contentservice.NewContentService(contentrepo.New(pool), store, viewer, trashRetention, activitysvc)
+	contentSvc := contentservice.NewContentService(contentrepo.New(pool), store, viewer, trashRetention, activitysvc, downloadStampConcurrency)
 
 	authModule := auth.NewModule(pool, otpGen, jwtGen, mailer, limiter, providers, accessSvc)
 	workspaceModule := workspace.NewModule(pool, jwtGen, accessSvc, contentSvc)
 	accessModule := access.NewModule(pool, jwtGen, mailer, authsvc, otpGen, webURL, activitysvc)
 	invitationModule := invitation.NewModule(pool, jwtGen, activitysvc)
-	contentModule := content.NewModule(pool, jwtGen, store, viewer, trashRetention, activitysvc)
+	contentModule := content.NewModule(pool, jwtGen, store, viewer, trashRetention, activitysvc, downloadStampConcurrency)
 	activityModule := activity.NewModule(pool, jwtGen)
 
 	r := chi.NewRouter()
-	registerGlobalMiddleware(r)
+	registerGlobalMiddleware(r, trustedProxies)
 
 	r.Get("/check", func(w http.ResponseWriter, r *http.Request) {
 		response.Success(w, http.StatusOK, "Server Listen", nil)
@@ -150,6 +179,9 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 		bboxSweep: func(ctx context.Context) {
 			contentSvc.RunBBoxSweeper(ctx, bboxSweepInterval, bboxSweepBatch)
 		},
+		pageCacheSweep: func(ctx context.Context) {
+			contentSvc.RunPageCacheSweeper(ctx, pageCacheSweepInterval, pageCacheTTL)
+		},
 	}
 }
 
@@ -161,10 +193,18 @@ func (a *App) Run() error {
 	go a.sweep(reaperCtx)
 	go a.ocrSweep(reaperCtx)
 	go a.bboxSweep(reaperCtx)
+	go a.pageCacheSweep(reaperCtx)
 
 	srv := &http.Server{
 		Addr:    a.addr,
 		Handler: a.router,
+		// Timeout eksplisit (keputusan 9.5-d): tanpa WriteTimeout — timeout
+		// tulis global akan memutus unduhan panjang justru pada kasus yang
+		// sedang dilindungi. ReadTimeout 30s aman: body request ke Go selalu
+		// kecil (unggah besar lewat presigned PUT langsung ke Minio).
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	go func() {

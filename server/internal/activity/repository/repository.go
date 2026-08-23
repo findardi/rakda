@@ -1,7 +1,7 @@
 package repository
 
 import (
-	activitydb "github.com/findardi/Riksa-App/server/internal/activity/repository/sqlc"
+	activitydb "github.com/findardi/rakda/server/internal/activity/repository/sqlc"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 

@@ -5,15 +5,15 @@ import (
 	"errors"
 	"time"
 
-	accessrepo "github.com/findardi/Riksa-App/server/internal/access/repository"
-	accessdb "github.com/findardi/Riksa-App/server/internal/access/repository/sqlc"
-	auth "github.com/findardi/Riksa-App/server/internal/auth/repository"
-	"github.com/findardi/Riksa-App/server/internal/content/handler"
-	"github.com/findardi/Riksa-App/server/internal/content/repository"
-	"github.com/findardi/Riksa-App/server/internal/content/service"
-	"github.com/findardi/Riksa-App/server/internal/platform/middleware"
-	"github.com/findardi/Riksa-App/server/internal/platform/permission"
-	"github.com/findardi/Riksa-App/server/internal/platform/storage"
+	accessrepo "github.com/findardi/rakda/server/internal/access/repository"
+	accessdb "github.com/findardi/rakda/server/internal/access/repository/sqlc"
+	auth "github.com/findardi/rakda/server/internal/auth/repository"
+	"github.com/findardi/rakda/server/internal/content/handler"
+	"github.com/findardi/rakda/server/internal/content/repository"
+	"github.com/findardi/rakda/server/internal/content/service"
+	"github.com/findardi/rakda/server/internal/platform/middleware"
+	"github.com/findardi/rakda/server/internal/platform/permission"
+	"github.com/findardi/rakda/server/internal/platform/storage"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -44,9 +44,9 @@ type Module struct {
 	storage    storage.Storage
 }
 
-func NewModule(pool *pgxpool.Pool, verifier middleware.TokenVerifier, store storage.Storage, viewer service.Viewer, trashRetention time.Duration, activity service.ActivityRecorder) *Module {
+func NewModule(pool *pgxpool.Pool, verifier middleware.TokenVerifier, store storage.Storage, viewer service.Viewer, trashRetention time.Duration, activity service.ActivityRecorder, stampConcurrency int) *Module {
 	r := repository.New(pool)
-	s := service.NewContentService(r, store, viewer, trashRetention, activity)
+	s := service.NewContentService(r, store, viewer, trashRetention, activity, stampConcurrency)
 	h := handler.NewContentHandler(s)
 
 	mw := middleware.New(verifier, userStatusReader{repo: auth.New(pool)}, nil)
@@ -98,6 +98,7 @@ func (m *Module) RegisterRoutes(r chi.Router) {
 			r.Get("/search", m.handler.SearchContent)
 			r.Get("/search/content/pages", m.handler.SearchContentPages)
 			r.Post("/search/log", m.handler.LogSearch)
+			r.Get("/download-limits", m.handler.GetDownloadLimits)
 
 			r.Route("/folders", func(r chi.Router) {
 				r.With(m.mw.RequirePermission(permission.PermFolderView)).Get("/", m.handler.GetFoldersTree)

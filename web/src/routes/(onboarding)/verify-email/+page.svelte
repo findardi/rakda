@@ -29,7 +29,7 @@
 	onDestroy(() => clearInterval(timer));
 </script>
 
-<svelte:head><title>{t('verify.title')} · Riksa</title></svelte:head>
+<svelte:head><title>{t('verify.title')} · Rakda</title></svelte:head>
 
 <section class="flex flex-col gap-6 text-center">
 	<header>

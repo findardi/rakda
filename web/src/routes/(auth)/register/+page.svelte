@@ -13,7 +13,7 @@
 	let submitting = $state(false);
 </script>
 
-<svelte:head><title>{t('register.title')} · Riksa</title></svelte:head>
+<svelte:head><title>{t('register.title')} · Rakda</title></svelte:head>
 
 <section class="flex flex-col gap-6 text-center">
 	<header>

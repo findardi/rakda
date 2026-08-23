@@ -4,14 +4,14 @@ import (
 	"context"
 	"log"
 
-	"github.com/findardi/Riksa-App/server/internal/app"
-	contentservice "github.com/findardi/Riksa-App/server/internal/content/service"
-	"github.com/findardi/Riksa-App/server/internal/platform/config"
-	"github.com/findardi/Riksa-App/server/internal/platform/convert"
-	"github.com/findardi/Riksa-App/server/internal/platform/database"
-	"github.com/findardi/Riksa-App/server/internal/platform/render"
-	"github.com/findardi/Riksa-App/server/internal/platform/storage"
-	"github.com/findardi/Riksa-App/server/internal/platform/watermark"
+	"github.com/findardi/rakda/server/internal/app"
+	contentservice "github.com/findardi/rakda/server/internal/content/service"
+	"github.com/findardi/rakda/server/internal/platform/config"
+	"github.com/findardi/rakda/server/internal/platform/convert"
+	"github.com/findardi/rakda/server/internal/platform/database"
+	"github.com/findardi/rakda/server/internal/platform/render"
+	"github.com/findardi/rakda/server/internal/platform/storage"
+	"github.com/findardi/rakda/server/internal/platform/watermark"
 )
 
 func main() {

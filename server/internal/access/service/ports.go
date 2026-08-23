@@ -3,9 +3,9 @@ package service
 import (
 	"context"
 
-	accessdb "github.com/findardi/Riksa-App/server/internal/access/repository/sqlc"
-	activityservice "github.com/findardi/Riksa-App/server/internal/activity/service"
-	authdto "github.com/findardi/Riksa-App/server/internal/auth/dto"
+	accessdb "github.com/findardi/rakda/server/internal/access/repository/sqlc"
+	activityservice "github.com/findardi/rakda/server/internal/activity/service"
+	authdto "github.com/findardi/rakda/server/internal/auth/dto"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )

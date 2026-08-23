@@ -1,7 +1,7 @@
 import { dev } from '$app/environment';
 import type { Cookies } from '@sveltejs/kit';
 
-const STATE = 'riksa_oauth_state';
+const STATE = 'rakda_oauth_state';
 
 // sameSite:'lax' is required: the provider redirects back via a top-level GET,
 // and 'strict' would drop the cookie on that cross-site navigation.

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strconv"
 
-	activityservice "github.com/findardi/Riksa-App/server/internal/activity/service"
-	"github.com/findardi/Riksa-App/server/internal/content/dto"
-	contentdb "github.com/findardi/Riksa-App/server/internal/content/repository/sqlc"
+	activityservice "github.com/findardi/rakda/server/internal/activity/service"
+	"github.com/findardi/rakda/server/internal/content/dto"
+	contentdb "github.com/findardi/rakda/server/internal/content/repository/sqlc"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -71,8 +71,9 @@ func (s *ContentService) ListTrash(ctx context.Context, workspaceID string, acto
 	}
 
 	res := dto.TrashListResponse{
-		Folders:   make([]dto.TrashFolderItem, 0, len(folders)),
-		Documents: make([]dto.TrashDocumentItem, 0, len(documents)),
+		Folders:        make([]dto.TrashFolderItem, 0, len(folders)),
+		Documents:      make([]dto.TrashDocumentItem, 0, len(documents)),
+		RetentionHours: int64(s.trashRetention.Hours()),
 	}
 
 	for _, f := range folders {
@@ -82,6 +83,10 @@ func (s *ContentService) ListTrash(ctx context.Context, workspaceID string, acto
 			DeletedByName: f.DeletedByName,
 			DeletedAt:     f.DeletedAt.Time,
 			PurgeAfter:    f.DeletedAt.Time.Add(s.trashRetention),
+			ParentName:    f.ParentName,
+			ParentGone:    f.ParentGone,
+			FolderCount:   f.FolderCount,
+			DocumentCount: f.DocumentCount,
 		})
 	}
 
@@ -94,27 +99,30 @@ func (s *ContentService) ListTrash(ctx context.Context, workspaceID string, acto
 			PurgeAfter:    d.DeletedAt.Time.Add(s.trashRetention),
 			Mime:          deref(d.Mime),
 			Size:          deref(d.Size),
+			FolderName:    d.FolderName,
+			FolderGone:    d.FolderGone,
 		})
 	}
 
 	return res, nil
 }
 
-func (s *ContentService) RestoreFolders(ctx context.Context, workspaceID, folderID string, actor Actor) error {
+func (s *ContentService) RestoreFolders(ctx context.Context, workspaceID, folderID string, actor Actor) (dto.RestoreResponse, error) {
 	if !actor.bypassesContentAccess() {
-		return ErrContentForbidden
+		return dto.RestoreResponse{}, ErrContentForbidden
 	}
 
 	var fID, wID pgtype.UUID
 	if err := fID.Scan(folderID); err != nil {
-		return fmt.Errorf("folder id parse: %w", err)
+		return dto.RestoreResponse{}, fmt.Errorf("folder id parse: %w", err)
 	}
 
 	if err := wID.Scan(workspaceID); err != nil {
-		return fmt.Errorf("workspace id parse: %w", err)
+		return dto.RestoreResponse{}, fmt.Errorf("workspace id parse: %w", err)
 	}
 
-	return s.repo.ExecTxTx(ctx, func(q *contentdb.Queries, tx pgx.Tx) error {
+	var res dto.RestoreResponse
+	err := s.repo.ExecTxTx(ctx, func(q *contentdb.Queries, tx pgx.Tx) error {
 		if err := q.LockWorkspaceStructure(ctx, wID); err != nil {
 			return fmt.Errorf("lock workspace: %w", err)
 		}
@@ -135,11 +143,15 @@ func (s *ContentService) RestoreFolders(ctx context.Context, workspaceID, folder
 		}
 
 		parentID := folder.ParentID
+		parentName := ""
 		if parentID.Valid {
-			if _, err := q.GetFolderByID(ctx, parentID); errors.Is(err, pgx.ErrNoRows) {
+			parent, err := q.GetFolderByID(ctx, parentID)
+			if errors.Is(err, pgx.ErrNoRows) {
 				parentID = pgtype.UUID{}
 			} else if err != nil {
 				return fmt.Errorf("get parent folder: %w", err)
+			} else {
+				parentName = parent.Name
 			}
 		}
 
@@ -174,27 +186,41 @@ func (s *ContentService) RestoreFolders(ctx context.Context, workspaceID, folder
 			return fmt.Errorf("restore swept documents: %w", err)
 		}
 
+		res = dto.RestoreResponse{
+			ID:         folderID,
+			Name:       name,
+			Renamed:    name != folder.Name,
+			FolderID:   uuidString(parentID),
+			FolderName: parentName,
+		}
+
 		return s.activity.RecordTx(ctx, tx, s.activityEntry(workspaceID, actor,
 			activityservice.ActionFolderRestored, activityservice.TargetFolder,
 			folderID, name, nil))
 	})
+	if err != nil {
+		return dto.RestoreResponse{}, err
+	}
+
+	return res, nil
 }
 
-func (s *ContentService) RestoreDocument(ctx context.Context, workspaceID, documentID string, actor Actor) error {
+func (s *ContentService) RestoreDocument(ctx context.Context, workspaceID, documentID string, actor Actor) (dto.RestoreResponse, error) {
 	if !actor.bypassesContentAccess() {
-		return ErrContentForbidden
+		return dto.RestoreResponse{}, ErrContentForbidden
 	}
 
 	var dID, wID pgtype.UUID
 	if err := dID.Scan(documentID); err != nil {
-		return fmt.Errorf("document id parse: %w", err)
+		return dto.RestoreResponse{}, fmt.Errorf("document id parse: %w", err)
 	}
 
 	if err := wID.Scan(workspaceID); err != nil {
-		return fmt.Errorf("workspace id parse: %w", err)
+		return dto.RestoreResponse{}, fmt.Errorf("workspace id parse: %w", err)
 	}
 
-	return s.repo.ExecTxTx(ctx, func(q *contentdb.Queries, tx pgx.Tx) error {
+	var res dto.RestoreResponse
+	err := s.repo.ExecTxTx(ctx, func(q *contentdb.Queries, tx pgx.Tx) error {
 		if err := q.LockWorkspaceStructure(ctx, wID); err != nil {
 			return fmt.Errorf("lock workspace: %w", err)
 		}
@@ -215,14 +241,19 @@ func (s *ContentService) RestoreDocument(ctx context.Context, workspaceID, docum
 		}
 
 		folderID := doc.FolderID
-		if _, err := q.GetFolderByID(ctx, folderID); errors.Is(err, pgx.ErrNoRows) {
+		folderName := ""
+		folder, err := q.GetFolderByID(ctx, folderID)
+		if errors.Is(err, pgx.ErrNoRows) {
 			def, err := q.GetDefaultFolder(ctx, wID)
 			if err != nil {
 				return fmt.Errorf("get default folder: %w", err)
 			}
 			folderID = def.ID
+			folderName = def.Name
 		} else if err != nil {
 			return fmt.Errorf("get folder: %w", err)
+		} else {
+			folderName = folder.Name
 		}
 
 		name, err := resolveDocumentRestoreName(ctx, q, folderID, doc.Name)
@@ -244,8 +275,21 @@ func (s *ContentService) RestoreDocument(ctx context.Context, workspaceID, docum
 			return fmt.Errorf("restore document: %w", err)
 		}
 
+		res = dto.RestoreResponse{
+			ID:         documentID,
+			Name:       name,
+			Renamed:    name != doc.Name,
+			FolderID:   uuidString(folderID),
+			FolderName: folderName,
+		}
+
 		return s.activity.RecordTx(ctx, tx, s.activityEntry(workspaceID, actor,
 			activityservice.ActionDocumentRestored, activityservice.TargetDocument,
 			documentID, name, nil))
 	})
+	if err != nil {
+		return dto.RestoreResponse{}, err
+	}
+
+	return res, nil
 }

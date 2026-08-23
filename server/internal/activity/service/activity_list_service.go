@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/findardi/Riksa-App/server/internal/activity/dto"
-	activitydb "github.com/findardi/Riksa-App/server/internal/activity/repository/sqlc"
-	"github.com/findardi/Riksa-App/server/internal/platform/permission"
+	"github.com/findardi/rakda/server/internal/activity/dto"
+	activitydb "github.com/findardi/rakda/server/internal/activity/repository/sqlc"
+	"github.com/findardi/rakda/server/internal/platform/permission"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -104,6 +104,9 @@ func (s *ActivityService) ListActivity(ctx context.Context, req dto.ListActivity
 			TargetName: r.TargetName,
 			Metadata:   json.RawMessage(r.Metadata),
 			CreatedAt:  r.CreatedAt.Time,
+
+			LinkDocumentID: uuidString(r.LinkDocumentID),
+			LinkFolderID:   uuidString(r.LinkFolderID),
 		})
 	}
 

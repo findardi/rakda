@@ -5,6 +5,7 @@ import type {
 	CompleteUploadPayload,
 	CompleteVersionPayload,
 	DocumentData,
+	DownloadLimitsData,
 	InitMultipartData,
 	InitMultipartPayload,
 	MoveDocumentPayload,
@@ -15,7 +16,7 @@ import type {
 	VersionData,
 	ViewMetaData
 } from '$lib/types/content';
-import { API_URL, del, get, patch, post } from './client';
+import { API_URL, del, get, patch, post, upstreamHeaders } from './client';
 
 const foldersBase = (workspaceId: string) => `/content/workspaces/${workspaceId}/folders`;
 const documentsBase = (workspaceId: string) => `/content/workspaces/${workspaceId}/documents`;
@@ -71,6 +72,13 @@ export function downloadDocument(
 		`${API_URL}${documentsBase(workspaceId)}/${documentId}/download${versionQuery(versionId)}`,
 		{ headers: { authorization: `Bearer ${token}` } }
 	);
+}
+
+export function getDownloadLimits(
+	token: string,
+	workspaceId: string
+): Promise<ApiResult<DownloadLimitsData>> {
+	return get<DownloadLimitsData>(`/content/workspaces/${workspaceId}/download-limits`, token);
 }
 
 export function getViewMeta(

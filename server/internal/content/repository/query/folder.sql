@@ -115,9 +115,14 @@ where deleted_root_folder_id = $1;
 
 -- name: ListTrashFolders :many
 select f.id, f.name, f.deleted_at,
-    coalesce(u.username, u.email)::text as deleted_by_name
+    coalesce(u.username, u.email)::text as deleted_by_name,
+    coalesce(p.name, '')::text as parent_name,
+    (f.parent_id is not null and p.id is null)::boolean as parent_gone,
+    (select count(*) from folders c where c.deleted_root_folder_id = f.id)::bigint as folder_count,
+    (select count(*) from documents d where d.deleted_root_folder_id = f.id)::bigint as document_count
 from folders f
 join users u on u.id = f.deleted_by
+left join folders p on p.id = f.parent_id and p.deleted_at is null
 where f.workspace_id = $1
     and f.deleted_at is not null
     and f.deleted_root_folder_id is null
@@ -128,7 +133,7 @@ select * from folders
 where workspace_id = $1 and is_default = true and deleted_at is null;
 
 -- name: ListExpiredTrashFolders :many
-select id, workspace_id from folders
+select id, workspace_id, name from folders
 where deleted_at is not null 
 and deleted_root_folder_id is null
 and deleted_at < sqlc.arg(cutoff);

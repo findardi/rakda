@@ -9,6 +9,8 @@ export interface ActivityItem {
 	target_name: string;
 	metadata: Record<string, unknown> | null;
 	created_at: string;
+	link_document_id: string;
+	link_folder_id: string;
 }
 
 export interface ActivityListData {

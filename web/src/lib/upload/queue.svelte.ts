@@ -69,7 +69,7 @@ const PART_CONCURRENCY = 3;
 // Upstream rejects a batch larger than this, and presigned URLs live 15 minutes,
 // so they are requested in waves rather than all at once.
 const URL_BATCH = 100;
-const STORE_KEY = 'wadi:uploads:v1';
+const STORE_KEY = 'rakda:uploads:v1';
 
 let items = $state<UploadItem[]>([]);
 let panelOpen = $state(true);

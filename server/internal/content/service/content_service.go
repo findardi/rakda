@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	activityservice "github.com/findardi/Riksa-App/server/internal/activity/service"
-	"github.com/findardi/Riksa-App/server/internal/content/dto"
-	contentdb "github.com/findardi/Riksa-App/server/internal/content/repository/sqlc"
-	"github.com/findardi/Riksa-App/server/internal/platform/convert"
-	"github.com/findardi/Riksa-App/server/internal/platform/storage"
+	activityservice "github.com/findardi/rakda/server/internal/activity/service"
+	"github.com/findardi/rakda/server/internal/content/dto"
+	contentdb "github.com/findardi/rakda/server/internal/content/repository/sqlc"
+	"github.com/findardi/rakda/server/internal/platform/convert"
+	"github.com/findardi/rakda/server/internal/platform/storage"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -29,41 +29,54 @@ const (
 	maxPartURLsPerCall = 100
 	maxUploadBytes     = 500 << 20
 	maxRenditionPages  = 750
+
+	// maxWatermarkDownloadPages: plafon unduhan varian ber-watermark
+	// (9.5-d, dinaikkan 9.5-f). Sejak import dibatch per stampPagesPerRun,
+	// RAM tidak lagi mengikuti jumlah halaman (~380 MB puncak untuk 60
+	// maupun 400 halaman); yang tersisa adalah batas waktu ~300 s dari
+	// timeout fetch proxy web. Diukur di dev 0,31 s/halaman dengan 2
+	// pekerja; dengan asumsi kotak sasaran 4 vCPU sampai 4× lebih lambat,
+	// 150 halaman ≈ 190 s. Naikkan hanya setelah diukur di kotak sasaran.
+	maxWatermarkDownloadPages = 150
+	stampPagesPerRun          = 25
+	stampWorkers              = 2
 )
 
 var (
-	ErrParentCrossWorkspace = errors.New("parent cross workspace")
-	ErrParentNotFound       = errors.New("parent not found")
-	ErrFolderNameTaken      = errors.New("folder already exists")
-	ErrFolderNotFound       = errors.New("folder not found")
-	ErrCycle                = errors.New("cannot move folder into its own subtree")
-	ErrFolderTreeTooDeep    = errors.New("folder nesting is too deep")
-	ErrDocumentNotFound     = errors.New("document not found")
-	ErrUploadNotFound       = errors.New("uploaded object not found")
-	ErrDeleteDefault        = errors.New("folder is default by system, cant deleted")
-	ErrMoveDefault          = errors.New("folder is default by system, cant moved")
-	ErrAccessTargetInvalid  = errors.New("group or access level not found in this workspace")
-	ErrAccessFlagsConflict  = errors.New("watermark and clean download cannot both be enabled for one group")
-	ErrContentForbidden     = errors.New("no access to this content")
-	ErrNotViewable          = errors.New("file type cannot be viewed, download only")
-	ErrNotUploadable        = errors.New("file type cannot be stored, no PDF can be produced")
-	ErrTooManyPages         = errors.New("document has too many pages to view")
-	ErrStampFailed          = errors.New("cannot produce a watermarked copy of this document")
-	ErrRenditionFailed      = errors.New("this document could not be prepared for viewing")
-	ErrPageOutOfRange       = errors.New("page out of range")
-	ErrBulkTooManyFolders   = errors.New("too many folders in one request")
-	ErrBulkTooDeep          = errors.New("folder tree in request is too deep")
-	ErrFolderNameInvalid    = errors.New("folder name is invalid")
-	ErrInvalidStorageKey    = errors.New("storage key does not belong to this folder")
-	ErrUploadTooLarge       = errors.New("file is too large")
-	ErrInvalidPartNumber    = errors.New("invalid part number")
-	ErrTooManyParts         = errors.New("too many parts requested at once")
-	ErrDocumentNameTaken    = errors.New("a document with this name already exists in the folder")
-	ErrVersionNotFound      = errors.New("version not found")
-	ErrAlreadyCurrent       = errors.New("version is already current")
-	ErrNotInTrash           = errors.New("item not found in trash")
-	ErrTextExtractionFailed = errors.New("text extraction failed")
-	ErrOCRFailed            = errors.New("ocr failed")
+	ErrParentCrossWorkspace      = errors.New("parent cross workspace")
+	ErrParentNotFound            = errors.New("parent not found")
+	ErrFolderNameTaken           = errors.New("folder already exists")
+	ErrFolderNotFound            = errors.New("folder not found")
+	ErrCycle                     = errors.New("cannot move folder into its own subtree")
+	ErrFolderTreeTooDeep         = errors.New("folder nesting is too deep")
+	ErrDocumentNotFound          = errors.New("document not found")
+	ErrUploadNotFound            = errors.New("uploaded object not found")
+	ErrDeleteDefault             = errors.New("folder is default by system, cant deleted")
+	ErrMoveDefault               = errors.New("folder is default by system, cant moved")
+	ErrAccessTargetInvalid       = errors.New("group or access level not found in this workspace")
+	ErrAccessFlagsConflict       = errors.New("watermark and clean download cannot both be enabled for one group")
+	ErrContentForbidden          = errors.New("no access to this content")
+	ErrNotViewable               = errors.New("file type cannot be viewed, download only")
+	ErrNotUploadable             = errors.New("file type cannot be stored, no PDF can be produced")
+	ErrTooManyPages              = errors.New("document has too many pages to view")
+	ErrStampFailed               = errors.New("cannot produce a watermarked copy of this document")
+	ErrRenditionFailed           = errors.New("this document could not be prepared for viewing")
+	ErrPageOutOfRange            = errors.New("page out of range")
+	ErrBulkTooManyFolders        = errors.New("too many folders in one request")
+	ErrBulkTooDeep               = errors.New("folder tree in request is too deep")
+	ErrFolderNameInvalid         = errors.New("folder name is invalid")
+	ErrInvalidStorageKey         = errors.New("storage key does not belong to this folder")
+	ErrUploadTooLarge            = errors.New("file is too large")
+	ErrInvalidPartNumber         = errors.New("invalid part number")
+	ErrTooManyParts              = errors.New("too many parts requested at once")
+	ErrDocumentNameTaken         = errors.New("a document with this name already exists in the folder")
+	ErrVersionNotFound           = errors.New("version not found")
+	ErrAlreadyCurrent            = errors.New("version is already current")
+	ErrNotInTrash                = errors.New("item not found in trash")
+	ErrTextExtractionFailed      = errors.New("text extraction failed")
+	ErrOCRFailed                 = errors.New("ocr failed")
+	ErrDownloadBusy              = errors.New("too many watermarked downloads in progress, retry later")
+	ErrWatermarkDownloadTooLarge = errors.New("document is too large to download as a watermarked copy, use the viewer")
 )
 
 type ContentService struct {
@@ -72,15 +85,27 @@ type ContentService struct {
 	viewer         Viewer
 	trashRetention time.Duration
 	activity       ActivityRecorder
+
+	// stampSem membatasi perakitan unduhan ber-watermark yang berjalan
+	// bersamaan (keputusan 9.5-d): ImportImages menahan piksel terdekompresi
+	// dalam RSS Go, jadi dua unduhan besar bersamaan bisa saling menjatuhkan
+	// di kotak 4 GB. Non-blocking: penuh → ErrDownloadBusy (429), tidak
+	// menunggu.
+	stampSem chan struct{}
 }
 
-func NewContentService(repo ContentRepository, store storage.Storage, viewer Viewer, trashRetention time.Duration, activity ActivityRecorder) *ContentService {
+func NewContentService(repo ContentRepository, store storage.Storage, viewer Viewer, trashRetention time.Duration, activity ActivityRecorder, stampConcurrency int) *ContentService {
+	if stampConcurrency < 1 {
+		stampConcurrency = 1
+	}
+
 	return &ContentService{
 		repo:           repo,
 		store:          store,
 		viewer:         viewer,
 		trashRetention: trashRetention,
 		activity:       activity,
+		stampSem:       make(chan struct{}, stampConcurrency),
 	}
 }
 

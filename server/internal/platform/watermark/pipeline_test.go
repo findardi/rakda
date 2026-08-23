@@ -13,10 +13,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/findardi/Riksa-App/server/internal/platform/config"
-	"github.com/findardi/Riksa-App/server/internal/platform/convert"
-	"github.com/findardi/Riksa-App/server/internal/platform/render"
-	"github.com/findardi/Riksa-App/server/internal/platform/watermark"
+	"github.com/findardi/rakda/server/internal/platform/config"
+	"github.com/findardi/rakda/server/internal/platform/convert"
+	"github.com/findardi/rakda/server/internal/platform/render"
+	"github.com/findardi/rakda/server/internal/platform/watermark"
 	"github.com/stretchr/testify/require"
 )
 
@@ -28,7 +28,7 @@ func TestViewerPipeline(t *testing.T) {
 
 	var body strings.Builder
 	for i := 1; i <= 80; i++ {
-		fmt.Fprintf(&body, "Baris %d — Riksa secure viewer smoke test\n", i)
+		fmt.Fprintf(&body, "Baris %d — Rakda secure viewer smoke test\n", i)
 	}
 
 	pdf, err := convert.NewGotenberg(cfg).ToPDF(ctx, strings.NewReader(body.String()), "sample.txt")

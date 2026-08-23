@@ -15,16 +15,16 @@
 	);
 </script>
 
-<div role="alert" class="riksa-alert-in alert alert-soft {variantClass} {alignClass} text-sm">
+<div role="alert" class="rakda-alert-in alert alert-soft {variantClass} {alignClass} text-sm">
 	{@render children()}
 </div>
 
 <style>
 	/* State feedback enters with a subtle settle; instant for reduced motion. */
-	.riksa-alert-in {
-		animation: riksa-alert-in 180ms ease-out;
+	.rakda-alert-in {
+		animation: rakda-alert-in 180ms ease-out;
 	}
-	@keyframes riksa-alert-in {
+	@keyframes rakda-alert-in {
 		from {
 			opacity: 0;
 			transform: translateY(-2px);
@@ -35,7 +35,7 @@
 		}
 	}
 	@media (prefers-reduced-motion: reduce) {
-		.riksa-alert-in {
+		.rakda-alert-in {
 			animation: none;
 		}
 	}

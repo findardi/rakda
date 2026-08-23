@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 
-	activityservice "github.com/findardi/Riksa-App/server/internal/activity/service"
-	invitationdb "github.com/findardi/Riksa-App/server/internal/invitation/repository/sqlc"
+	activityservice "github.com/findardi/rakda/server/internal/activity/service"
+	invitationdb "github.com/findardi/rakda/server/internal/invitation/repository/sqlc"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )

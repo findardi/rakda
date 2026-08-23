@@ -28,7 +28,7 @@
 			</div>
 		</div>
 
-		<p class="hidden text-sm text-muted min-[880px]:block">© Riksa</p>
+		<p class="hidden text-sm text-muted min-[880px]:block">© Rakda</p>
 	</aside>
 
 	<main class="flex justify-center px-5 pt-10 pb-14 min-[880px]:items-center min-[880px]:p-8">

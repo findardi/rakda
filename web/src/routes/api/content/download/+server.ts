@@ -26,6 +26,8 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 	if (!upstream.ok) {
 		if (upstream.status === 403) error(403, t('doc.docs.err.forbiddenDownload'));
 		if (upstream.status === 404) error(404, t('doc.docs.err.notFound'));
+		if (upstream.status === 429) error(429, t('doc.docs.err.downloadBusy'));
+		if (upstream.status === 413) error(413, t('doc.docs.err.downloadTooLarge'));
 		error(upstream.status || 500, upstream.statusText || t('err.generic'));
 	}
 

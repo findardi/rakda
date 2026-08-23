@@ -1,5 +1,6 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import {
+	getDownloadLimits,
 	getFolderAccess,
 	removeFolderAccess,
 	resolveWorkspaceId,
@@ -40,7 +41,8 @@ export const load: PageServerLoad = async ({ locals, params, parent }) => {
 
 	const ancestors = path.slice(0, -1).reverse();
 
-	const [self, ...chain] = await Promise.all([
+	const [limits, self, ...chain] = await Promise.all([
+		getDownloadLimits(token, workspace.id),
 		getFolderAccess(token, workspace.id, params.folderId),
 		...ancestors.map((a) => getFolderAccess(token, workspace.id, a.id))
 	]);
@@ -75,7 +77,8 @@ export const load: PageServerLoad = async ({ locals, params, parent }) => {
 		.sort((a, b) => a.group_name.localeCompare(b.group_name));
 
 	const panel: FolderAccessPanel = { folder_id: params.folderId, direct, inherited };
-	return { panel };
+	const watermarkMaxPages = limits.ok ? limits.data.watermark_download_max_pages : null;
+	return { panel, watermarkMaxPages };
 };
 
 export const actions: Actions = {

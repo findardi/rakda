@@ -43,7 +43,7 @@
 	);
 </script>
 
-<svelte:head><title>{t('forgot.title')} · Riksa</title></svelte:head>
+<svelte:head><title>{t('forgot.title')} · Rakda</title></svelte:head>
 
 <section class="flex flex-col gap-6 text-center">
 	<header>

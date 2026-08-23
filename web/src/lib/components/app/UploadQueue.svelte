@@ -74,7 +74,7 @@
 					class="grid h-6 w-6 flex-none place-items-center rounded-field text-muted transition-colors hover:bg-base-content/5 hover:text-base-content"
 				>
 					<svg
-						class="riksa-chevron h-3.5 w-3.5 {uploadQueue.open ? '' : 'rotate-180'}"
+						class="rakda-chevron h-3.5 w-3.5 {uploadQueue.open ? '' : 'rotate-180'}"
 						viewBox="0 0 24 24"
 						fill="none"
 						stroke="currentColor"
@@ -174,7 +174,7 @@
 									aria-label={t('doc.upload.progressOf', { name: item.name })}
 								>
 									<div
-										class="riksa-bar h-full w-full origin-left bg-primary"
+										class="rakda-bar h-full w-full origin-left bg-primary"
 										style="transform: scaleX({item.progress / 100})"
 									></div>
 								</div>
@@ -196,15 +196,15 @@
 {/if}
 
 <style>
-	.riksa-bar {
+	.rakda-bar {
 		transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
 	}
-	.riksa-chevron {
+	.rakda-chevron {
 		transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
 	}
 	@media (prefers-reduced-motion: reduce) {
-		.riksa-bar,
-		.riksa-chevron {
+		.rakda-bar,
+		.rakda-chevron {
 			transition: none;
 		}
 	}

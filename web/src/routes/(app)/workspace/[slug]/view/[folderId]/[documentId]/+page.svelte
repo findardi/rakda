@@ -1,11 +1,15 @@
 <script lang="ts">
 	import { tick } from 'svelte';
+	import { prefersReducedMotion } from 'svelte/motion';
+	import { fade } from 'svelte/transition';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { canManageAccess } from '$lib/access/roles';
 	import { createDwellTracker, type DwellTracker } from '$lib/activity/dwell';
 	import { DocumentEngagement, ViewerPage } from '$lib/components/app';
+	import { Toaster, showToast } from '$lib/components/common';
+	import { downloadRendition } from '$lib/download';
 	import { formatDate } from '$lib/format';
 	import { t } from '$lib/i18n';
 	import type { WorkspaceData, MyAccessWorkspace } from '$lib/types/workspace';
@@ -173,11 +177,96 @@
 	});
 
 	$effect(() => {
-		dwell?.setPage(anyVisible ? currentPage : null);
+		dwell?.setPage(curtained || !anyVisible ? null : currentPage);
+	});
+
+	const CURTAIN_DELAY_MS = 500;
+	let curtained = $state(false);
+	let curtainTimer: ReturnType<typeof setTimeout> | undefined;
+
+	function raiseCurtainLater() {
+		if (curtainTimer !== undefined) return;
+		curtainTimer = setTimeout(() => {
+			curtainTimer = undefined;
+			if (!document.hasFocus() || document.visibilityState !== 'visible') curtained = true;
+		}, CURTAIN_DELAY_MS);
+	}
+
+	function dropCurtain() {
+		clearTimeout(curtainTimer);
+		curtainTimer = undefined;
+		curtained = false;
+	}
+
+	function onVisibilityChange() {
+		if (document.visibilityState === 'hidden') raiseCurtainLater();
+		else dropCurtain();
+	}
+
+	$effect(() => () => clearTimeout(curtainTimer));
+
+	$effect(() => {
+		document.documentElement.classList.add('rakda-print-gate');
+		return () => document.documentElement.classList.remove('rakda-print-gate');
+	});
+
+	const PRIVACY_KEY = 'rakda:privacy-mode:v1';
+	let privacyOn = $state(false);
+	let bandWrapEl = $state<HTMLElement>();
+
+	$effect(() => {
+		try {
+			privacyOn = localStorage.getItem(PRIVACY_KEY) === '1';
+		} catch {
+			privacyOn = false;
+		}
+	});
+
+	function togglePrivacy() {
+		privacyOn = !privacyOn;
+		try {
+			if (privacyOn) localStorage.setItem(PRIVACY_KEY, '1');
+			else localStorage.removeItem(PRIVACY_KEY);
+		} catch {
+			return;
+		}
+	}
+
+	$effect(() => {
+		const wrap = bandWrapEl;
+		if (!wrap || !privacyOn) return;
+
+		let top = wrap.getBoundingClientRect().top;
+		let pendingY = 0;
+		let frame = 0;
+
+		const measure = () => {
+			top = wrap.getBoundingClientRect().top;
+		};
+		const onMove = (e: PointerEvent) => {
+			if (e.pointerType !== 'mouse' && e.pointerType !== 'pen') return;
+			pendingY = e.clientY - top;
+			if (frame) return;
+			frame = requestAnimationFrame(() => {
+				frame = 0;
+				wrap.style.setProperty('--band-y', `${pendingY}px`);
+			});
+		};
+
+		const ro = new ResizeObserver(measure);
+		ro.observe(wrap);
+		window.addEventListener('resize', measure);
+		wrap.addEventListener('pointermove', onMove, { passive: true });
+		return () => {
+			cancelAnimationFrame(frame);
+			ro.disconnect();
+			window.removeEventListener('resize', measure);
+			wrap.removeEventListener('pointermove', onMove);
+		};
 	});
 
 	// --- engagement panel (owner/admin only) ---
-	let panelOpen = $state(false);
+	let panelOpen = $state(page.url.searchParams.has('readers'));
 
 	// Below `lg` the panel takes the reader's place, so a jump has to give the
 	// reader back before it can scroll to anything.
@@ -348,12 +437,41 @@
 		goToFind(findBoxes[findIndex]);
 	}
 
-	function goToFind(hit: { page: number; box: SearchBox }) {
-		scrollToPage(hit.page);
-		// The page image may not have registered yet; scroll again once it has.
-		if (!pageEls.has(hit.page)) {
-			setTimeout(() => scrollToPage(hit.page), 300);
+	function goToFind(hit: { page: number; box: SearchBox }, retried = false) {
+		const reader = readerEl;
+		const pageEl = pageEls.get(hit.page);
+		if (!reader || !pageEl) {
+			if (!retried) setTimeout(() => goToFind(hit, true), 300);
+			return;
 		}
+
+		const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+		const boxCenter = (pr: DOMRect) => pr.top + (hit.box.y + hit.box.h / 2) * pr.height;
+		const pr = pageEl.getBoundingClientRect();
+		const rr = reader.getBoundingClientRect();
+		const from = reader.scrollTop;
+		const target = Math.min(
+			Math.max(0, from + boxCenter(pr) - (rr.top + rr.height / 2)),
+			reader.scrollHeight - reader.clientHeight
+		);
+		const settleBand = () => {
+			bandWrapEl?.style.setProperty(
+				'--band-y',
+				`${boxCenter(pageEl.getBoundingClientRect()) - reader.getBoundingClientRect().top}px`
+			);
+		};
+
+		bandWrapEl?.style.setProperty('--band-y', `${boxCenter(pr) - rr.top - (target - from)}px`);
+		reader.scrollTo({ top: target, behavior: reduce ? 'auto' : 'smooth' });
+		if (reduce) {
+			settleBand();
+			return;
+		}
+		setTimeout(() => {
+			if (reader.scrollTop === from && target !== from)
+				reader.scrollTo({ top: target, behavior: 'auto' });
+			settleBand();
+		}, 250);
 	}
 
 	// Deep link ?page=N&q=… (from 9-d results): run the find once meta is here.
@@ -368,21 +486,53 @@
 
 	// --- download (view-and-download access) ---
 	let downloading = $state(false);
-	function download() {
-		downloading = true;
-		// Download what is on screen, not whatever became current since.
-		const q = new URLSearchParams(
-			meta?.version_id
-				? { workspaceId: workspace.id, documentId, version: meta.version_id }
-				: { workspaceId: workspace.id, documentId }
-		);
-		window.location.href = `/api/content/download?${q}`;
-	}
 
 	const canDownload = $derived(!!meta && (meta.can_download || meta.can_download_original));
+	const downloadBlocked = $derived(
+		!!meta &&
+			!meta.can_download_original &&
+			meta.page_count > (meta.watermark_download_max_pages ?? Infinity)
+	);
 	const downloadLabel = $derived(
 		meta?.can_download_original ? t('doc.view.downloadClean') : t('doc.view.downloadMarked')
 	);
+	const downloadHint = $derived(
+		downloadBlocked
+			? t('doc.view.downloadTooLargeHint', {
+					pages: meta?.page_count ?? 0,
+					max: meta?.watermark_download_max_pages ?? 0
+				})
+			: meta?.can_download_original
+				? downloadLabel
+				: t('doc.view.downloadMarkedHint', { max: meta?.watermark_download_max_pages ?? 0 })
+	);
+	const downloadA11yLabel = $derived(
+		downloading
+			? t('doc.view.downloadPreparing')
+			: downloadBlocked
+				? `${downloadLabel} — ${downloadHint}`
+				: downloadLabel
+	);
+
+	const downloadAbort = new AbortController();
+	$effect(() => () => downloadAbort.abort());
+
+	async function download() {
+		if (downloading || downloadBlocked) return;
+		downloading = true;
+		// Download what is on screen, not whatever became current since.
+		const outcome = await downloadRendition(
+			{
+				workspaceId: workspace.id,
+				documentId,
+				versionId: meta?.version_id,
+				fallbackName: meta?.name ?? 'document'
+			},
+			downloadAbort.signal
+		);
+		downloading = false;
+		if (!outcome.ok) showToast(outcome.message, 'error');
+	}
 
 	// --- rendition failure (owner-only retry) ---
 	// The failing version is the one the URL pins, or the current one when
@@ -411,7 +561,8 @@
 	<title>{meta?.name ?? t('doc.view.tab')} · {t('brand.name')}</title>
 </svelte:head>
 
-<svelte:window onkeydown={onWindowKey} />
+<svelte:window onkeydown={onWindowKey} onblur={raiseCurtainLater} onfocus={dropCurtain} />
+<svelte:document onvisibilitychange={onVisibilityChange} />
 
 <div class="flex h-full min-h-0 flex-col bg-base-200">
 	<!-- Reader chrome -->
@@ -595,6 +746,36 @@
 				<span class="hidden lg:inline">{t('doc.view.watermarked')}</span>
 			</span>
 
+			<button
+				type="button"
+				onclick={togglePrivacy}
+				aria-pressed={privacyOn}
+				title="{privacyOn ? t('doc.view.privacy.off') : t('doc.view.privacy.on')} — {t(
+					'doc.view.privacy.hint'
+				)}"
+				class="grid h-8 w-8 flex-none place-items-center rounded-field transition-colors
+					{privacyOn
+					? 'bg-primary/10 text-primary'
+					: 'text-muted hover:bg-base-content/5 hover:text-base-content'}"
+			>
+				<svg
+					class="h-4 w-4"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="1.8"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					aria-hidden="true"
+				>
+					<rect x="3" y="4" width="18" height="16" rx="2" />
+					<path d="M3 10h18M3 14h18" />
+				</svg>
+				<span class="sr-only">
+					{privacyOn ? t('doc.view.privacy.off') : t('doc.view.privacy.on')}
+				</span>
+			</button>
+
 			<!-- Who read what is owner/admin knowledge. A guest is recorded, never a
 			     reader of the record, so the control does not exist for them. -->
 			{#if managesRoom}
@@ -632,9 +813,11 @@
 					type="button"
 					onclick={download}
 					disabled={downloading}
-					aria-label={downloadLabel}
-					title={meta?.can_download_original ? downloadLabel : t('doc.view.downloadMarkedHint')}
-					class="btn btn-ghost btn-sm flex-none gap-1.5"
+					aria-disabled={downloading || downloadBlocked}
+					aria-label={downloadA11yLabel}
+					title={downloadHint}
+					class="btn btn-ghost btn-sm flex-none gap-1.5
+						{downloadBlocked ? 'cursor-not-allowed text-base-content/30 hover:bg-transparent' : ''}"
 				>
 					{#if downloading}
 						<span class="loading loading-spinner loading-xs"></span>
@@ -653,7 +836,9 @@
 							<path d="M5 19h14" />
 						</svg>
 					{/if}
-					<span class="hidden sm:inline">{downloadLabel}</span>
+					<span class="hidden sm:inline">
+						{downloading ? t('doc.view.downloadPreparing') : downloadLabel}
+					</span>
 				</button>
 			{/if}
 		{/if}
@@ -901,25 +1086,44 @@
 			<!-- Hidden rather than unmounted below `lg`: the pages keep their decoded
 			     images, and the beacon reads the hiding as "not being read". -->
 			<div
-				bind:this={readerEl}
-				class="min-h-0 flex-1 overflow-y-auto {panelOpen ? 'hidden lg:block' : ''}"
-				aria-label={meta.name}
+				bind:this={bandWrapEl}
+				class="relative min-h-0 flex-1 {panelOpen ? 'hidden lg:block' : ''}"
 			>
-				<div class="mx-auto flex max-w-205 flex-col gap-4 px-3 py-6 sm:px-4">
-					<!-- Keyed by version too: switching must remount the pages rather than
-					     leave the previous version's images on screen while they reload. -->
-					{#each pages as n (`${meta.version_id}-${n}`)}
-						<ViewerPage
-							pageNumber={n}
-							total={pageCount}
-							src={pageSrc(n)}
-							boxes={boxesByPage.get(n)}
-							activeIndex={activeIndexByPage?.page === n ? activeIndexByPage.index : undefined}
-							{onactive}
-							{onregister}
-						/>
-					{/each}
+				<div bind:this={readerEl} class="h-full overflow-y-auto" aria-label={meta.name}>
+					<div class="mx-auto flex max-w-205 flex-col gap-4 px-3 py-6 sm:px-4">
+						<!-- Keyed by version too: switching must remount the pages rather than
+						     leave the previous version's images on screen while they reload. -->
+						{#each pages as n (`${meta.version_id}-${n}`)}
+							<ViewerPage
+								pageNumber={n}
+								total={pageCount}
+								src={pageSrc(n)}
+								boxes={boxesByPage.get(n)}
+								activeIndex={activeIndexByPage?.page === n ? activeIndexByPage.index : undefined}
+								{onactive}
+								{onregister}
+							/>
+						{/each}
+					</div>
 				</div>
+
+				{#if privacyOn}
+					<div
+						class="rakda-band pointer-events-none absolute inset-0 z-panel"
+						aria-hidden="true"
+						transition:fade={{ duration: prefersReducedMotion.current ? 0 : 150 }}
+					></div>
+				{/if}
+
+				{#if curtained}
+					<div
+						class="absolute inset-0 z-panel flex flex-col items-center justify-center gap-1 bg-base-200 px-6 text-center"
+						out:fade={{ duration: prefersReducedMotion.current ? 0 : 150 }}
+					>
+						<p class="text-sm font-medium">{t('doc.view.curtain.title')}</p>
+						<p class="text-sm text-muted">{t('doc.view.curtain.hint')}</p>
+					</div>
+				{/if}
 			</div>
 
 			{#if panelOpen && managesRoom}
@@ -938,4 +1142,49 @@
 			<p class="max-w-sm text-center text-sm text-muted text-pretty">{t('doc.view.emptyPages')}</p>
 		</div>
 	{/if}
+
+	<div class="rakda-print-notice hidden p-8 print:block">
+		<p class="text-sm font-semibold">{t('brand.name')}</p>
+		{#if meta}
+			<p class="mt-1 text-sm">{meta.name}</p>
+		{/if}
+		<h1 class="mt-6 text-lg font-semibold">{t('doc.view.print.title')}</h1>
+		<p class="mt-2 text-sm">{t('doc.view.print.reason')}</p>
+		{#if canDownload}
+			<p class="mt-2 text-sm">{t('doc.view.print.download')}</p>
+		{/if}
+	</div>
 </div>
+
+<Toaster />
+
+<style>
+	.rakda-band {
+		--band-half: 50px;
+		--band-edge: 24px;
+		background-color: color-mix(in oklch, var(--color-base-200) 60%, transparent);
+		-webkit-backdrop-filter: blur(16px);
+		backdrop-filter: blur(16px);
+		mask-image: linear-gradient(
+			to bottom,
+			black 0,
+			black calc(var(--band-y, 50%) - var(--band-half) - var(--band-edge)),
+			transparent calc(var(--band-y, 50%) - var(--band-half)),
+			transparent calc(var(--band-y, 50%) + var(--band-half)),
+			black calc(var(--band-y, 50%) + var(--band-half) + var(--band-edge)),
+			black 100%
+		);
+	}
+	@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+		.rakda-band {
+			background-color: var(--color-base-content);
+		}
+	}
+	@media (prefers-reduced-transparency: reduce) {
+		.rakda-band {
+			background-color: var(--color-base-content);
+			-webkit-backdrop-filter: none;
+			backdrop-filter: none;
+		}
+	}
+</style>

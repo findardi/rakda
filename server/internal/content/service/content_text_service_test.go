@@ -9,9 +9,9 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	contentdb "github.com/findardi/Riksa-App/server/internal/content/repository/sqlc"
-	"github.com/findardi/Riksa-App/server/internal/platform/render"
-	"github.com/findardi/Riksa-App/server/internal/platform/storage"
+	contentdb "github.com/findardi/rakda/server/internal/content/repository/sqlc"
+	"github.com/findardi/rakda/server/internal/platform/render"
+	"github.com/findardi/rakda/server/internal/platform/storage"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -96,6 +96,10 @@ func (f fakeRenderer) PageCount(ctx context.Context, pdf io.Reader) (int, error)
 }
 
 func (f fakeRenderer) RenderPage(ctx context.Context, pdf io.Reader, page int) ([]byte, error) {
+	return nil, nil
+}
+
+func (f fakeRenderer) Open(pdf io.Reader) (render.Document, error) {
 	return nil, nil
 }
 
@@ -227,7 +231,7 @@ func newTextTestService(t *testing.T, repo *textFakeRepo, store fakeStorage, ren
 		Renderer:      renderer,
 		TextExtractor: extractor,
 		DPI:           150,
-	}, 0, nil)
+	}, 0, nil, 2)
 }
 
 func TestExtractVersionText(t *testing.T) {
@@ -506,7 +510,7 @@ func TestOCRSweeperWritesResultAndFailure(t *testing.T) {
 		TextExtractor: fakeTextExtractor{extractFn: func(ctx context.Context, pdf io.Reader) (string, error) { return "", nil }},
 		OCR:           ocr,
 		DPI:           150,
-	}, 0, nil)
+	}, 0, nil, 2)
 
 	svc.sweepOCROnce(context.Background(), 10)
 

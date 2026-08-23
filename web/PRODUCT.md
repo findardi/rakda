@@ -14,11 +14,11 @@ sensitif ke pihak luar dengan akses terkontrol dan teraudit. Target awal SaaS
 
 ## Product Purpose
 
-Wadi adalah Virtual Data Room: ruang aman untuk menyimpan, membagikan, dan
+Rakda adalah Virtual Data Room: ruang aman untuk menyimpan, membagikan, dan
 mengaudit dokumen rahasia selama proses deal. Inti nilainya bukan fitur, tapi
 kepercayaan — para pihak harus yakin datanya aman dan akurat, lalu bisa
 menemukan serta membagikan dokumen dengan cepat. Sukses = pengguna mempercayakan
-dokumen paling sensitif mereka ke Wadi dan tidak pernah ragu siapa mengakses apa.
+dokumen paling sensitif mereka ke Rakda dan tidak pernah ragu siapa mengakses apa.
 
 ## Brand Personality
 
@@ -65,3 +65,47 @@ teks** (tak bisa diseleksi, disalin, di-Ctrl+F, atau dibaca pembaca layar),
 ukurannya membengkak, dan CPU dibayar tiap unduhan karena tandanya unik per
 permintaan. Pemegang `can_download_original` menerima PDF tanpa tanda dan tanpa
 perubahan — keputusan produk, bukan celah teknis.
+
+**Unduhan ber-watermark dibatasi 150 halaman.** Di atas itu tombol unduhnya mati
+dan menjelaskan alasannya dengan dua angka — batasnya, dan jumlah halaman
+dokumen itu — lalu mengarahkan ke viewer. Batas ini ongkos, bukan izin:
+merakit PDF raster menahan sekitar 10 MB piksel per halaman, dan proxy web
+memutus permintaan di 300 detik. Pemegang `can_download_original` tidak kena
+batas ini sama sekali — berkasnya cuma disalin, tidak dirakit ulang.
+
+Angka 150 dikirim server ke klien, tidak ditulis di kode web. Kalau batasnya
+berubah, UI ikut tanpa perlu disentuh.
+
+## Perlindungan layar
+
+Viewer meraster halaman dan membakar watermark per permintaan. Di atas itu,
+Fase 10 menambah lapisan yang melawan jalur kebocoran yang **tidak** ditutup
+watermark: mata orang lain, berbagi layar tak sengaja, dan kamera ponsel.
+
+**Yang selalu aktif, untuk semua peran, tanpa sakelar:**
+
+- Klik kanan di halaman dokumen tidak menawarkan "Simpan gambar sebagai…".
+- Ctrl+P tidak mencetak isi. Yang keluar satu halaman pemberitahuan, dan ia
+  menyebut tombol Unduh **hanya** bila pembaca benar-benar punya izinnya.
+- Isi tertutup saat jendela kehilangan fokus lebih dari setengah detik, dan
+  terbuka sendiri saat pembaca kembali. Selama tertutup, waktu baca tidak
+  dihitung.
+
+**Yang dinyalakan pembaca sendiri — "Mode privasi":** pita yang mengikuti
+kursor; sisanya dikaburkan. Diingat lintas dokumen. Bukan izin: owner tidak
+bisa memaksakannya dan tidak bisa melihat siapa yang memakainya.
+
+**Yang TIDAK dijanjikan — dan tidak boleh dijanjikan di salinan UI mana pun:**
+
+- Kami **tidak** memblokir tangkapan layar. Tidak ada API peramban yang bisa.
+  Win+Shift+S membekukan isi layar sebelum kami sempat menutupinya.
+- Terhadap kamera ponsel, Mode privasi hanya **mengurangi** hasilnya. Pemotret
+  yang sabar tetap bisa mengambil banyak jepretan.
+- Blur menghapus teks isi, bukan struktur. Letak paragraf dan tabel tetap
+  terlihat, dan **judul besar masih bisa tertebak bentuk katanya**.
+- Gambar halaman utuh tetap sampai ke peramban dan bisa diambil lewat DevTools.
+
+Frasa **"proteksi screenshot" dilarang**. Yang melindungi sungguhan tetap
+tiga hal: viewer raster tanpa lapisan teks, watermark yang dibakar dan tidak
+bisa dilucuti, dan jejak audit yang menamai pembacanya.
+

@@ -30,10 +30,14 @@ export const ACTIVITY_GROUPS: { key: TKey; actions: string[] }[] = [
 			'document_restored',
 			'document_purged',
 			'document_downloaded',
-			'document_viewed'
+			'document_viewed',
+			'search_performed'
 		]
 	},
-	{ key: 'activity.group.version', actions: ['version_uploaded', 'version_restored'] },
+	{
+		key: 'activity.group.version',
+		actions: ['version_uploaded', 'version_restored', 'rendition_retried']
+	},
 	{
 		key: 'activity.group.member',
 		actions: [
@@ -75,6 +79,8 @@ const PHRASE_KEY: Record<string, TKey> = {
 	document_viewed: 'activity.action.document_viewed',
 	version_uploaded: 'activity.action.version_uploaded',
 	version_restored: 'activity.action.version_restored',
+	rendition_retried: 'activity.action.rendition_retried',
+	search_performed: 'activity.action.search_performed',
 	invite_sent: 'activity.action.invite_sent',
 	invite_resent: 'activity.action.invite_resent',
 	invite_revoked: 'activity.action.invite_revoked',
@@ -107,6 +113,8 @@ const LABEL_KEY: Record<string, TKey> = {
 	document_viewed: 'activity.label.document_viewed',
 	version_uploaded: 'activity.label.version_uploaded',
 	version_restored: 'activity.label.version_restored',
+	rendition_retried: 'activity.label.rendition_retried',
+	search_performed: 'activity.label.search_performed',
 	invite_sent: 'activity.label.invite_sent',
 	invite_resent: 'activity.label.invite_resent',
 	invite_revoked: 'activity.label.invite_revoked',
@@ -213,10 +221,33 @@ export function describeActivity(item: ActivityItem): ActivityPhrase {
 				vars: { ...vars, caps: capabilitySummary(meta) }
 			};
 
+		case 'folder_purged':
+		case 'document_purged':
+			return item.target_name
+				? { key: PHRASE_KEY[item.action], vars }
+				: {
+						key:
+							item.action === 'folder_purged'
+								? 'activity.action.folder_purged_unnamed'
+								: 'activity.action.document_purged_unnamed',
+						vars: { id: item.target_id.slice(0, 8) }
+					};
+
 		case 'document_downloaded':
+			return {
+				key:
+					meta.variant === 'watermarked'
+						? 'activity.action.document_downloaded_watermarked'
+						: meta.variant === 'clean'
+							? 'activity.action.document_downloaded_clean'
+							: 'activity.action.document_downloaded',
+				vars: { ...vars, version: number(meta.version_no) }
+			};
+
 		case 'document_viewed':
 		case 'version_uploaded':
 		case 'version_restored':
+		case 'rendition_retried':
 			return { key: PHRASE_KEY[item.action], vars: { ...vars, version: number(meta.version_no) } };
 
 		default:

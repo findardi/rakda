@@ -7,13 +7,14 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 
-	activityservice "github.com/findardi/Riksa-App/server/internal/activity/service"
-	"github.com/findardi/Riksa-App/server/internal/content/dto"
-	contentdb "github.com/findardi/Riksa-App/server/internal/content/repository/sqlc"
-	"github.com/findardi/Riksa-App/server/internal/platform/convert"
-	"github.com/findardi/Riksa-App/server/internal/platform/render"
-	"github.com/findardi/Riksa-App/server/internal/platform/watermark"
+	activityservice "github.com/findardi/rakda/server/internal/activity/service"
+	"github.com/findardi/rakda/server/internal/content/dto"
+	contentdb "github.com/findardi/rakda/server/internal/content/repository/sqlc"
+	"github.com/findardi/rakda/server/internal/platform/convert"
+	"github.com/findardi/rakda/server/internal/platform/render"
+	"github.com/findardi/rakda/server/internal/platform/watermark"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -39,8 +40,15 @@ func renditionPDFKey(workspaceID, versionID string) string {
 	return fmt.Sprintf("%s/renditions/%s/rendition.pdf", workspaceID, versionID)
 }
 
-func renditionPageKey(workspaceID, versionID string, page, dpi int) string {
-	return fmt.Sprintf("%s/renditions/%s/pages/%d@%d.png", workspaceID, versionID, page, dpi)
+// pageCacheKey dan pageCachePrefix tinggal di prefix puncak sendiri,
+// page-cache/, supaya PNG halaman bisa kedaluwarsa tanpa menyentuh
+// rendition.pdf yang berbagi prefix renditions/ (keputusan 9.5-c).
+func pageCacheKey(workspaceID, versionID string, page, dpi int) string {
+	return fmt.Sprintf("page-cache/%s/%s/%d@%d.png", workspaceID, versionID, page, dpi)
+}
+
+func pageCachePrefix(workspaceID, versionID string) string {
+	return fmt.Sprintf("page-cache/%s/%s/", workspaceID, versionID)
 }
 
 func renditionPrefix(workspaceID, versionID string) string {
@@ -183,16 +191,34 @@ func (s *ContentService) ensureRendition(ctx context.Context, workspaceID string
 		}
 		defer pdf.Close()
 
-		buf, err := io.ReadAll(pdf)
+		// Tumpahkan sekali ke berkas sementara (9.5-b): poppler sudah men-spool
+		// ke disk untuk PageCount, jadi menahan seluruh PDF di RAM hanyalah
+		// membayar dua kali. Berkas yang sama dipakai untuk Put lalu PageCount.
+		f, err := os.CreateTemp("", "rakda-rendition-*.pdf")
 		if err != nil {
-			return "", 0, fmt.Errorf("read pdf: %w", err)
+			return "", 0, fmt.Errorf("temp rendition: %w", err)
+		}
+		defer f.Close()
+		defer os.Remove(f.Name())
+
+		n, err := io.Copy(f, pdf)
+		if err != nil {
+			return "", 0, fmt.Errorf("spool rendition: %w", err)
 		}
 
-		if err := s.store.Put(ctx, renditionKey, bytes.NewReader(buf), int64(len(buf)), "application/pdf"); err != nil {
+		if _, err := f.Seek(0, io.SeekStart); err != nil {
+			return "", 0, fmt.Errorf("rewind rendition: %w", err)
+		}
+
+		if err := s.store.Put(ctx, renditionKey, f, n, "application/pdf"); err != nil {
 			return "", 0, fmt.Errorf("store rendition: %w", err)
 		}
 
-		pageCount, err = s.viewer.Renderer.PageCount(ctx, bytes.NewReader(buf))
+		if _, err := f.Seek(0, io.SeekStart); err != nil {
+			return "", 0, fmt.Errorf("rewind rendition: %w", err)
+		}
+
+		pageCount, err = s.viewer.Renderer.PageCount(ctx, f)
 		if err != nil {
 			return "", 0, s.markRenditionFailed(ctx, version.ID, err)
 		}
@@ -259,14 +285,15 @@ func (s *ContentService) GetViewMeta(ctx context.Context, workspaceID, documentI
 		documentID, doc.Name, map[string]any{"version_no": version.VersionNo}))
 
 	return dto.ViewMetaResponse{
-		DocumentID:          uuidString(doc.ID),
-		Name:                doc.Name,
-		Mime:                version.Mime,
-		VersionID:           uuidString(version.ID),
-		VersionNo:           version.VersionNo,
-		PageCount:           pageCount,
-		CanDownload:         access.canDownload,
-		CanDownloadOriginal: access.canDownloadOriginal,
+		DocumentID:                uuidString(doc.ID),
+		Name:                      doc.Name,
+		Mime:                      version.Mime,
+		VersionID:                 uuidString(version.ID),
+		VersionNo:                 version.VersionNo,
+		PageCount:                 pageCount,
+		CanDownload:               access.canDownload,
+		CanDownloadOriginal:       access.canDownloadOriginal,
+		WatermarkDownloadMaxPages: maxWatermarkDownloadPages,
 	}, nil
 }
 
@@ -336,7 +363,7 @@ func (s *ContentService) GetPageImage(ctx context.Context, req dto.ViewPageReque
 }
 
 func (s *ContentService) loadOrRenderPage(ctx context.Context, workspaceID, versionID, renditionKey string, page int) ([]byte, error) {
-	key := renditionPageKey(workspaceID, versionID, page, s.viewer.DPI)
+	key := pageCacheKey(workspaceID, versionID, page, s.viewer.DPI)
 
 	if r, err := s.store.Get(ctx, key); err == nil {
 		b, rerr := io.ReadAll(r)
@@ -379,10 +406,11 @@ func (s *ContentService) renderPage(ctx context.Context, renditionKey string, pa
 
 // pageForDownload memakai cache PNG bila ada dan merender ke berkas
 // sementara bila tidak — unduhan menyentuh semua halaman termasuk yang tak
-// pernah dibaca, dan cache tidak punya penghapus untuk dokumen hidup, jadi
-// jalur ini tidak pernah mengisi cache (aturan 9-e / keputusan 9-g).
-func (s *ContentService) pageForDownload(ctx context.Context, workspaceID, versionID, renditionKey string, page int) ([]byte, error) {
-	key := renditionPageKey(workspaceID, versionID, page, s.viewer.DPI)
+// pernah dibaca, jadi mengisi cache dari sini hanya men-churn cache dengan
+// halaman yang tidak dilihat siapa pun; jalur ini tidak pernah mengisi cache
+// (keputusan 9-g, dipertahankan oleh 9.5-c).
+func (s *ContentService) pageForDownload(ctx context.Context, workspaceID, versionID string, doc render.Document, page int) ([]byte, error) {
+	key := pageCacheKey(workspaceID, versionID, page, s.viewer.DPI)
 
 	if r, err := s.store.Get(ctx, key); err == nil {
 		b, rerr := io.ReadAll(r)
@@ -392,5 +420,17 @@ func (s *ContentService) pageForDownload(ctx context.Context, workspaceID, versi
 		}
 	}
 
-	return s.renderPage(ctx, renditionKey, page)
+	img, err := doc.RenderPage(ctx, page)
+	if errors.Is(err, render.ErrPageOutOfRange) {
+		return nil, ErrPageOutOfRange
+	}
+	if err != nil {
+		return nil, fmt.Errorf("render page: %w", err)
+	}
+
+	return img, nil
+}
+
+func (s *ContentService) DownloadLimits() dto.DownloadLimitsResponse {
+	return dto.DownloadLimitsResponse{WatermarkDownloadMaxPages: maxWatermarkDownloadPages}
 }

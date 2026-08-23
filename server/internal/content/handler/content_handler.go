@@ -10,12 +10,12 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/findardi/Riksa-App/server/internal/content/dto"
-	"github.com/findardi/Riksa-App/server/internal/content/service"
-	"github.com/findardi/Riksa-App/server/internal/platform/middleware"
-	"github.com/findardi/Riksa-App/server/internal/platform/response"
-	"github.com/findardi/Riksa-App/server/internal/platform/validation"
-	"github.com/findardi/Riksa-App/server/internal/platform/watermark"
+	"github.com/findardi/rakda/server/internal/content/dto"
+	"github.com/findardi/rakda/server/internal/content/service"
+	"github.com/findardi/rakda/server/internal/platform/middleware"
+	"github.com/findardi/rakda/server/internal/platform/response"
+	"github.com/findardi/rakda/server/internal/platform/validation"
+	"github.com/findardi/rakda/server/internal/platform/watermark"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -526,6 +526,11 @@ func (h *ContentHandler) GetDownloadURL(w http.ResponseWriter, r *http.Request) 
 			response.Error(w, http.StatusForbidden, err.Error(), nil)
 		case errors.Is(err, service.ErrDocumentNotFound), errors.Is(err, service.ErrVersionNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
+		case errors.Is(err, service.ErrDownloadBusy):
+			w.Header().Set("Retry-After", "10")
+			response.Error(w, http.StatusTooManyRequests, err.Error(), nil)
+		case errors.Is(err, service.ErrWatermarkDownloadTooLarge):
+			response.Error(w, http.StatusRequestEntityTooLarge, err.Error(), nil)
 		case errors.Is(err, service.ErrNotViewable), errors.Is(err, service.ErrStampFailed),
 			errors.Is(err, service.ErrRenditionFailed), errors.Is(err, service.ErrTooManyPages):
 			response.Error(w, http.StatusUnprocessableEntity, err.Error(), nil)
@@ -632,7 +637,8 @@ func (h *ContentHandler) RestoreTrashDocument(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	if err := h.svc.RestoreDocument(r.Context(), wID, dID, actor); err != nil {
+	res, err := h.svc.RestoreDocument(r.Context(), wID, dID, actor)
+	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrContentForbidden):
 			response.Error(w, http.StatusForbidden, err.Error(), nil)
@@ -647,7 +653,7 @@ func (h *ContentHandler) RestoreTrashDocument(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	response.Success(w, http.StatusOK, "restore document success", nil)
+	response.Success(w, http.StatusOK, "restore document success", res)
 }
 
 func (h *ContentHandler) RestoreTrashFolder(w http.ResponseWriter, r *http.Request) {
@@ -660,7 +666,8 @@ func (h *ContentHandler) RestoreTrashFolder(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if err := h.svc.RestoreFolders(r.Context(), wID, fID, actor); err != nil {
+	res, err := h.svc.RestoreFolders(r.Context(), wID, fID, actor)
+	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrContentForbidden):
 			response.Error(w, http.StatusForbidden, err.Error(), nil)
@@ -675,7 +682,7 @@ func (h *ContentHandler) RestoreTrashFolder(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	response.Success(w, http.StatusOK, "restore folder success", nil)
+	response.Success(w, http.StatusOK, "restore folder success", res)
 }
 
 func (h *ContentHandler) MoveDocument(w http.ResponseWriter, r *http.Request) {
@@ -869,6 +876,10 @@ func (h *ContentHandler) GetViewPage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Length", strconv.Itoa(len(img)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(img)
+}
+
+func (h *ContentHandler) GetDownloadLimits(w http.ResponseWriter, _ *http.Request) {
+	response.Success(w, http.StatusOK, "success get download limits", h.svc.DownloadLimits())
 }
 
 func (h *ContentHandler) ListFolderAccess(w http.ResponseWriter, r *http.Request) {

@@ -5,9 +5,9 @@
 	themes: false;
 }
 
-/* "Riksa" theme — "The Clean Room". Palette + sharp radii from DESIGN.md. */
+/* "Rakda" theme — "The Clean Room". Palette + sharp radii from DESIGN.md. */
 @plugin 'daisyui/theme' {
-	name: 'riksa';
+	name: 'rakda';
 	default: true;
 	prefersdark: false;
 	color-scheme: 'light';
@@ -56,6 +56,8 @@
 	--font-mono: 'JetBrains Mono Variable', ui-monospace, 'SF Mono', monospace;
 	/* Secondary text — kept explicit for ≥4.5:1 (don't rely on faded opacity). */
 	--color-muted: oklch(0.48 0.02 235);
+	/* Warning as *text*: the fill-grade --color-warning is ~2.5:1 on white. */
+	--color-warning-ink: oklch(0.52 0.12 70);
 
 	/* Stacking order, named. Native <dialog> lives in the top layer and needs
 	   no z-index, so modals are absent by design. */
@@ -107,5 +109,18 @@
 		outline: 2px solid var(--color-primary);
 		outline-offset: 2px;
 		border-radius: 3px;
+	}
+}
+
+@media print {
+	html.rakda-print-gate
+		body
+		*:not(:has(.rakda-print-notice)):not(.rakda-print-notice):not(.rakda-print-notice *) {
+		display: none !important;
+	}
+	html.rakda-print-gate body :has(.rakda-print-notice) {
+		display: block;
+		height: auto;
+		overflow: visible;
 	}
 }

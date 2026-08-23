@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/findardi/Riksa-App/server/internal/platform/config"
+	"github.com/findardi/rakda/server/internal/platform/config"
 )
 
 type PopplerRenderer struct {
@@ -73,23 +73,45 @@ func (p *PopplerRenderer) RenderPage(ctx context.Context, pdf io.Reader, page in
 		return nil, ErrPageOutOfRange
 	}
 
+	doc, err := p.Open(pdf)
+	if err != nil {
+		return nil, err
+	}
+	defer doc.Close()
+
+	return doc.RenderPage(ctx, page)
+}
+
+func (p *PopplerRenderer) Open(pdf io.Reader) (Document, error) {
 	work, cleanup, err := spool(pdf)
 	if err != nil {
 		return nil, err
 	}
 
-	defer cleanup()
+	return &popplerDocument{p: p, work: work, cleanup: cleanup}, nil
+}
+
+type popplerDocument struct {
+	p       *PopplerRenderer
+	work    spooled
+	cleanup func()
+}
+
+func (d *popplerDocument) RenderPage(ctx context.Context, page int) ([]byte, error) {
+	if page < 1 {
+		return nil, ErrPageOutOfRange
+	}
 
 	n := strconv.Itoa(page)
-	prefix := filepath.Join(work.dir, "page")
+	prefix := filepath.Join(d.work.dir, "page-"+n)
 
-	if _, err := p.run(ctx, "pdftoppm",
+	if _, err := d.p.run(ctx, "pdftoppm",
 		"-png",
-		"-r", strconv.Itoa(p.dpi),
+		"-r", strconv.Itoa(d.p.dpi),
 		"-f", n,
 		"-l", n,
 		"-singlefile",
-		work.pdf, prefix,
+		d.work.pdf, prefix,
 	); err != nil {
 		return nil, err
 	}
@@ -103,11 +125,18 @@ func (p *PopplerRenderer) RenderPage(ctx context.Context, pdf io.Reader, page in
 		return nil, fmt.Errorf("%w: read page: %v", ErrRenderFailed, err)
 	}
 
+	os.Remove(prefix + ".png")
+
 	if len(out) == 0 {
 		return nil, ErrPageOutOfRange
 	}
 
 	return out, nil
+}
+
+func (d *popplerDocument) Close() error {
+	d.cleanup()
+	return nil
 }
 
 type spooled struct {
@@ -116,7 +145,7 @@ type spooled struct {
 }
 
 func spool(r io.Reader) (spooled, func(), error) {
-	dir, err := os.MkdirTemp("", "riksa-view-*")
+	dir, err := os.MkdirTemp("", "rakda-view-*")
 	if err != nil {
 		return spooled{}, nil, fmt.Errorf("temp dir: %w", err)
 	}

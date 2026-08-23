@@ -3,7 +3,7 @@
 import type { Dict } from './id';
 
 export const en: Record<keyof Dict, string> = {
-	'brand.name': 'Riksa',
+	'brand.name': 'Rakda',
 	'brand.tagline': 'A secure data room for your deal documents.',
 	'brand.reassure.title': 'Built for confidential documents',
 	'brand.reassure.body':
@@ -14,7 +14,7 @@ export const en: Record<keyof Dict, string> = {
 	'nav.toRegister': "Don't have an account?",
 	'nav.toRegisterCta': 'Create account',
 
-	'login.title': 'Sign in to Riksa',
+	'login.title': 'Sign in to Rakda',
 	'login.subtitle': 'Continue to your data room.',
 	'login.identifier': 'Email or username',
 	'login.password': 'Password',
@@ -33,7 +33,7 @@ export const en: Record<keyof Dict, string> = {
 	'sso.github': 'Continue with GitHub',
 	'sso.redirecting': 'Redirecting…',
 
-	'register.title': 'Create your Riksa account',
+	'register.title': 'Create your Rakda account',
 	'register.subtitle': 'Start managing your data room in minutes.',
 	'register.email': 'Email',
 	'register.username': 'Username',
@@ -186,7 +186,7 @@ export const en: Record<keyof Dict, string> = {
 
 	// Home (post-login landing)
 	'home.welcome': 'Welcome, {name}',
-	'home.welcomeGeneric': 'Welcome to Riksa',
+	'home.welcomeGeneric': 'Welcome to Rakda',
 	'home.subtitle': 'Open a data room to continue, or create a new one.',
 	'home.quickActions': 'Quick actions',
 	'home.action.workspaces': 'Data rooms',
@@ -361,6 +361,16 @@ export const en: Record<keyof Dict, string> = {
 	'doc.docs.empty.cta': 'Choose files',
 	'doc.docs.dropHint': 'Drop files here to upload them into this folder.',
 	'doc.docs.versionTitle': 'Version {n}',
+	'doc.docs.rendition.pending': 'Preparing…',
+	'doc.docs.rendition.pendingTitle':
+		'The document is being converted for the secure viewer. This usually takes a few minutes.',
+	'doc.docs.rendition.failed': 'Preparation failed',
+	'doc.docs.rendition.failedTitle':
+		'The file contents could not be converted. The document cannot be opened or downloaded yet.',
+	'doc.docs.rendition.retry': 'Retry',
+	'doc.docs.rendition.retryOf': 'Retry preparing {name}',
+	'doc.docs.rendition.retried': 'Preparation of “{name}” has been rescheduled.',
+	'doc.docs.rendition.notReady': '{n} not ready',
 	'doc.docs.download': 'Download',
 	'doc.docs.downloadOf': 'Download {name}',
 	'doc.docs.move': 'Move',
@@ -389,6 +399,10 @@ export const en: Record<keyof Dict, string> = {
 	'doc.docs.err.notFound': 'That document no longer exists.',
 	'doc.docs.err.invalidMove': 'That destination folder is not valid for this document.',
 	'doc.docs.err.forbiddenDownload': 'Your group may view this document, but not download it.',
+	'doc.docs.err.downloadBusy':
+		'Another watermarked download is in progress. Try again in a moment — or use the viewer to read now.',
+	'doc.docs.err.downloadTooLarge':
+		'The document exceeds the page limit for watermarked downloads. Read it in the viewer.',
 	'doc.docs.noAccess.title': 'This folder is not shared with you',
 	'doc.docs.noAccess.body':
 		'Your group has not been given access to this folder. Ask the room owner to open it up to your group.',
@@ -452,8 +466,11 @@ export const en: Record<keyof Dict, string> = {
 		'Your group has not been given permission to view this document. Ask the room owner to open it up to your group.',
 	'doc.view.downloadMarked': 'Download PDF',
 	'doc.view.downloadMarkedHint':
-		'Watermarked PDF without a text layer — cannot be selected, copied, or searched.',
+		'Watermarked PDF without a text layer: cannot be selected, copied, or searched. Download limit {max} pages.',
 	'doc.view.downloadClean': 'Download clean PDF',
+	'doc.view.downloadPreparing': 'Preparing PDF… this can take a few minutes',
+	'doc.view.downloadTooLargeHint':
+		'Cannot be downloaded. This document has {pages} pages; watermarked downloads are limited to {max} pages. Read it in the viewer.',
 	'doc.view.unsupported.title': 'This document cannot be displayed',
 	'doc.view.unsupported.body':
 		'This file type cannot be converted to PDF, so it can be neither opened nor downloaded. Ask a room manager to re-upload it in another format.',
@@ -463,6 +480,15 @@ export const en: Record<keyof Dict, string> = {
 	'doc.view.failed.retry': 'Try preparing again',
 	'doc.view.failed.noPerm': 'Only a room manager can prepare this document again.',
 	'doc.view.emptyPages': 'This document has no pages to display.',
+	'doc.view.curtain.title': 'Document content hidden',
+	'doc.view.curtain.hint': 'Return to this window to continue reading.',
+	'doc.view.print.title': 'Document content is not printed',
+	'doc.view.print.reason': 'Documents in this data room can only be read in the viewer.',
+	'doc.view.print.download': 'To get a PDF copy, use the Download button in the viewer.',
+	'doc.view.privacy.on': 'Turn on Privacy mode',
+	'doc.view.privacy.off': 'Turn off Privacy mode',
+	'doc.view.privacy.hint':
+		'Only a band around the cursor is open; the rest of the page is blurred.',
 	'doc.view.err.notFound': 'That document no longer exists.',
 	'doc.view.err.load': 'Could not load the document.',
 	'doc.noAccess.title': 'No folders shared with you yet',
@@ -471,23 +497,42 @@ export const en: Record<keyof Dict, string> = {
 
 	'trash.title': 'Trash',
 	'trash.desc': 'Deleted items can be restored from here until they are permanently purged.',
+	'trash.retention.days':
+		'Items stay in the trash for {n} days. Restoring brings back versions, folder permissions, and the audit trail intact.',
+	'trash.retention.hours':
+		'Items stay in the trash for {n} hours. Restoring brings back versions, folder permissions, and the audit trail intact.',
 	'trash.empty.title': 'Trash is empty',
 	'trash.empty.body':
-		'Deleted folders and documents move here and can be restored until they are permanently purged.',
+		'Deleted folders and documents move here. Documents deleted along with their folder are counted on that folder’s row, not listed separately.',
+	'trash.empty.back': 'Back to Documents',
 	'trash.section.folders': 'Folders',
 	'trash.section.documents': 'Documents',
-	'trash.deletedBy': 'Deleted by {who}',
-	'trash.deletedAtTitle': 'Deleted at {when}',
-	'trash.purgeIn': '≤ {n}h',
-	'trash.purgeInTitle': 'Permanently purged after {when}',
+	'trash.deletedBy': 'deleted by {who}',
+	'trash.deletedAt': 'at {when}',
+	'trash.origin.folder': 'from “{name}”',
+	'trash.origin.root': 'from the top level',
+	'trash.origin.goneFolder': 'original folder is gone — restores to the top level',
+	'trash.origin.goneDoc': 'original folder is gone — restores to the default folder',
+	'trash.contains.folders': '{n} subfolders',
+	'trash.contains.documents': '{n} documents',
+	'trash.contains.restoredWith': 'restored together',
+	'trash.purge.at': 'purged {when}',
+	'trash.purge.overdue': 'purging shortly',
+	'trash.purge.underHour': 'less than 1 hour left',
+	'trash.purge.hours': '{n} hours left',
+	'trash.purge.days': '{n} days left',
 	'trash.action.restore': 'Restore',
 	'trash.action.restoreOf': 'Restore {name}',
-	'trash.folderRestored': 'Folder “{name}” restored.',
-	'trash.docRestored': 'Document “{name}” restored.',
+	'trash.restored.folder': 'Folder “{name}” restored to {dest}.',
+	'trash.restored.doc': 'Document “{name}” restored to {dest}.',
+	'trash.restored.root': 'the top level',
+	'trash.restored.renamed': 'It was renamed because the original name is already in use there.',
+	'trash.restored.open': 'Open',
 	'trash.err.load': 'Could not load the trash.',
 	'trash.err.forbidden': 'Only the owner or an admin can restore items.',
 	'trash.err.gone': 'That item is no longer in the trash.',
-	'trash.err.nameConflict': 'A name conflict blocked the restore. Try again.',
+	'trash.err.nameConflict':
+		'A name conflict blocked the restore and every name variant is taken. Rename the item already there, then restore again.',
 
 	'activity.title': 'Activity',
 	'activity.desc':
@@ -530,16 +575,24 @@ export const en: Record<keyof Dict, string> = {
 	'activity.action.folder_moved_root': 'moved the folder “{target}” to the root level',
 	'activity.action.folder_deleted': 'moved the folder “{target}” to the trash',
 	'activity.action.folder_restored': 'restored the folder “{target}” from the trash',
-	'activity.action.folder_purged': 'permanently purged a folder from the trash',
+	'activity.action.folder_purged': 'permanently purged the folder “{target}” from the trash',
+	'activity.action.folder_purged_unnamed': 'permanently purged folder {id} from the trash',
 	'activity.action.document_uploaded': 'uploaded the document “{target}”',
 	'activity.action.document_moved': 'moved the document “{target}” to another folder',
 	'activity.action.document_deleted': 'moved the document “{target}” to the trash',
 	'activity.action.document_restored': 'restored the document “{target}” from the trash',
-	'activity.action.document_purged': 'permanently purged a document from the trash',
+	'activity.action.document_purged': 'permanently purged the document “{target}” from the trash',
+	'activity.action.document_purged_unnamed': 'permanently purged document {id} from the trash',
 	'activity.action.document_downloaded': 'downloaded the document “{target}” (v{version})',
+	'activity.action.document_downloaded_watermarked':
+		'downloaded the document “{target}” (v{version}, watermarked)',
+	'activity.action.document_downloaded_clean':
+		'downloaded the document “{target}” (v{version}, clean copy)',
+	'activity.action.search_performed': 'searched for “{target}”',
 	'activity.action.document_viewed': 'opened the document “{target}” (v{version})',
 	'activity.action.version_uploaded': 'uploaded version v{version} of “{target}”',
 	'activity.action.version_restored': 'made v{version} of “{target}” the served version',
+	'activity.action.rendition_retried': 'retried preparing v{version} of “{target}”',
 	'activity.action.invite_sent': 'invited {target} as {role}',
 	'activity.action.invite_resent': 'resent the invitation to {target}',
 	'activity.action.invite_revoked': 'revoked the invitation for {target}',
@@ -569,7 +622,9 @@ export const en: Record<keyof Dict, string> = {
 	'activity.label.document_downloaded': 'Document downloaded',
 	'activity.label.document_viewed': 'Document opened',
 	'activity.label.version_uploaded': 'Version uploaded',
-	'activity.label.version_restored': 'Version re-served',
+	'activity.label.version_restored': 'Version restored',
+	'activity.label.rendition_retried': 'Preparation retried',
+	'activity.label.search_performed': 'Search performed',
 	'activity.label.invite_sent': 'Invitation sent',
 	'activity.label.invite_resent': 'Invitation resent',
 	'activity.label.invite_revoked': 'Invitation revoked',
@@ -584,6 +639,12 @@ export const en: Record<keyof Dict, string> = {
 	'activity.label.group_unassigned': 'Member removed from group',
 	'activity.label.folder_access_changed': 'Folder access changed',
 	'activity.label.folder_access_removed': 'Folder access revoked',
+
+	'activity.link.open': 'Open “{name}”',
+	'activity.link.readers': 'View reading activity',
+	'activity.link.filterActor': 'Show only activity by {name}',
+	'activity.actor.formerName': 'then: {name}',
+	'activity.actor.idOnly': 'User ID {id}',
 
 	'activity.engagement.title': 'Read activity',
 	'activity.engagement.open': 'Show read activity',
@@ -640,6 +701,11 @@ export const en: Record<keyof Dict, string> = {
 	'facc.cap.rule': 'Clean PDF download turns on Download; Download and watermark turn on View.',
 	'facc.cap.exclusive':
 		'Watermark and clean download cannot both be on: marking the screen while handing out a clean file protects nothing.',
+	'facc.cap.wmLimit':
+		'Watermarked downloads are limited to {max} pages. Documents over the limit cannot be downloaded and can only be read in the viewer.',
+	'facc.cap.wmLimitUnknown':
+		'Watermarked downloads are limited by page count. Documents over the limit cannot be downloaded and can only be read in the viewer.',
+	'facc.cap.wmLimitChip': 'Watermarked downloads are capped at {max} pages.',
 
 	'facc.flow':
 		'Access flows down to everything inside this folder, subfolders included — except a subfolder that sets a rule of its own.',
@@ -670,6 +736,7 @@ export const en: Record<keyof Dict, string> = {
 	'facc.will.blockSub':
 		'{group} will not be able to see this folder or the {n} subfolders inside it.',
 	'facc.will.wmOn': 'Documents are watermarked when {group} opens them.',
+	'facc.will.wmLimit': 'Documents over {max} pages cannot be downloaded.',
 	'facc.will.origOn': '{group} can download clean PDFs.',
 	'facc.revoke.back': 'Once revoked, {group} goes back to inheriting {level} from {name}.',
 	'facc.revoke.gone': '{group} will no longer have any access to this folder.',

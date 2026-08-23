@@ -88,9 +88,36 @@
 	const dayLabel = (day: string) =>
 		day === todayKey ? t('activity.today') : day === yesterdayKey ? t('activity.yesterday') : '';
 
-	const basePath = $derived(
-		resolve('/(app)/workspace/[slug]/activity', { slug: page.params.slug ?? '' })
-	);
+	const slug = $derived(page.params.slug ?? '');
+	const basePath = $derived(resolve('/(app)/workspace/[slug]/activity', { slug }));
+
+	const actorById = $derived(new Map(data.actors.map((a) => [a.id, a])));
+
+	const READ_ACTIONS = new Set(['document_viewed', 'document_downloaded']);
+
+	const viewerHref = (item: ActivityItem) =>
+		resolve('/(app)/workspace/[slug]/view/[folderId]/[documentId]', {
+			slug,
+			folderId: item.link_folder_id,
+			documentId: item.link_document_id
+		});
+
+	function targetHref(item: ActivityItem): string | null {
+		if (!item.link_folder_id) return null;
+		if (item.link_document_id) return viewerHref(item);
+		if (item.target_type === 'folder') {
+			return resolve('/(app)/workspace/[slug]/document/[folderId]', {
+				slug,
+				folderId: item.link_folder_id
+			});
+		}
+		return null;
+	}
+
+	const readersHref = (item: ActivityItem) =>
+		READ_ACTIONS.has(item.action) && item.link_document_id && item.link_folder_id
+			? `${viewerHref(item)}?readers=1`
+			: null;
 
 	const queryString = (entries: [string, string][]) =>
 		entries
@@ -154,6 +181,10 @@
 
 {#snippet entry(item: ActivityItem)}
 	{@const phrase = describeActivity(item)}
+	{@const member = actorById.get(item.actor_id)}
+	{@const actorLabel = member?.name || item.actor_name}
+	{@const openHref = targetHref(item)}
+	{@const readHref = readersHref(item)}
 	<li class="flex items-baseline gap-3 py-2.5">
 		<time
 			datetime={item.created_at}
@@ -183,10 +214,29 @@
 			     display name, not the system. Calling that "System" credits a
 			     person's action to nobody — the one thing an audit trail may not
 			     do. The id is what is actually known, so the id is what is shown. -->
-			{#if item.actor_name}
-				<span class="font-medium">{item.actor_name}</span>
+			{#if actorLabel}
+				<button
+					type="button"
+					class="font-medium underline-offset-2 hover:underline"
+					title={t('activity.link.filterActor', { name: actorLabel })}
+					onclick={() => applyFilter({ actor_id: item.actor_id })}
+				>
+					{actorLabel}
+				</button>
+				{#if member && item.actor_name && member.name !== item.actor_name}
+					<span class="text-xs text-muted"
+						>({t('activity.actor.formerName', { name: item.actor_name })})</span
+					>
+				{/if}
 			{:else if item.actor_id}
-				<span class="font-mono text-xs" title={item.actor_id}>{item.actor_id.slice(0, 8)}</span>
+				<button
+					type="button"
+					class="font-mono text-xs underline-offset-2 hover:underline"
+					title={t('activity.actor.idOnly', { id: item.actor_id })}
+					onclick={() => applyFilter({ actor_id: item.actor_id })}
+				>
+					{item.actor_id.slice(0, 8)}
+				</button>
 			{:else}
 				<span class="font-medium">{t('activity.actor.system')}</span>
 			{/if}
@@ -201,6 +251,26 @@
 			{:else}
 				<code class="font-mono text-xs">{item.action}</code>
 				{item.target_name}
+			{/if}
+			{#if openHref || readHref}
+				<!-- eslint-disable svelte/no-navigation-without-resolve -- both hrefs come from resolve(); the rule cannot see through the helper -->
+				<span class="ml-1 inline-flex gap-2 text-xs whitespace-nowrap">
+					{#if openHref}
+						<a
+							href={openHref}
+							class="text-muted underline decoration-base-content/30 underline-offset-2 hover:text-base-content hover:decoration-current"
+							>{t('activity.link.open', { name: item.target_name })}</a
+						>
+					{/if}
+					{#if readHref}
+						<a
+							href={readHref}
+							class="text-muted underline decoration-base-content/30 underline-offset-2 hover:text-base-content hover:decoration-current"
+							>{t('activity.link.readers')}</a
+						>
+					{/if}
+				</span>
+				<!-- eslint-enable svelte/no-navigation-without-resolve -->
 			{/if}
 		</p>
 	</li>
@@ -355,7 +425,7 @@
 		</div>
 	{:else}
 		{#if hasFilter}
-			<p class="mt-4 text-xs text-muted">
+			<p class="mt-4 text-xs text-muted" aria-live="polite">
 				{#if cursor}
 					{t('activity.countMore', { n: items.length })}
 				{:else if items.length === 1}

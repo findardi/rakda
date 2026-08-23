@@ -1,17 +1,17 @@
 ## <!-- SEED: re-run /impeccable document once there's code to capture the actual tokens and components. -->
 
-name: Wadi
+name: Rakda
 description: Virtual Data Room — secure, document-first, controlled-access workspace for deals.
 
 ---
 
-# Design System: Wadi
+# Design System: Rakda
 
 ## 1. Overview
 
 **Creative North Star: "The Clean Room"**
 
-Wadi terasa seperti ruang bersih berakses terkontrol: dingin, presisi, dan
+Rakda terasa seperti ruang bersih berakses terkontrol: dingin, presisi, dan
 tenang. Permukaan kosong dan netral; warna hanya muncul saat punya arti —
 sebuah aksi, sebuah status, sebuah hak akses. Ketenangan visual ini bukan gaya,
 tapi pesan: data di sini aman dan akurat. Sistem ini mengambil ketenangan
@@ -130,7 +130,13 @@ mengambang (dropdown, modal, toast). Tidak ada kartu melayang tanpa alasan.
   Intralinks/Datasite). (Anti-reference PRODUCT.md.)
 - **Don't** pakai border-left/right >1px sebagai stripe warna pada card/list/alert.
 - **Don't** pakai gradient text (`background-clip: text`).
-- **Don't** pakai glassmorphism dekoratif sebagai default.
+- **Don't** pakai glassmorphism dekoratif sebagai default. **Satu pengecualian
+  yang disahkan (Fase 10):** tirai "Mode privasi" di viewer
+  (`backdrop-filter: blur(16px)` + tint `base-200` 60%, bentuk lewat
+  `mask-image`) — di sana blur adalah *mekanismenya*, bukan hiasannya. Ia wajib
+  menyertakan fallback opaque untuk `@supports not (backdrop-filter)` dan
+  `prefers-reduced-transparency: reduce`. Jangan menurunkan pengecualian ini ke
+  permukaan lain.
 - **Don't** pakai display font pada label, tombol, atau data.
 - **Don't** pakai motion dekoratif — gerak hanya menyampaikan state (150–250ms).
 - **Don't** jadikan modal pilihan pertama — habiskan alternatif inline/progressive dulu.
