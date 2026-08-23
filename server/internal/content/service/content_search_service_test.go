@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	contentdb "github.com/findardi/Riksa-App/server/internal/content/repository/sqlc"
+	contentdb "github.com/findardi/rakda/server/internal/content/repository/sqlc"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

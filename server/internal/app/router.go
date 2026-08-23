@@ -3,7 +3,7 @@ package app
 import (
 	"net/netip"
 
-	platformmw "github.com/findardi/Riksa-App/server/internal/platform/middleware"
+	platformmw "github.com/findardi/rakda/server/internal/platform/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )

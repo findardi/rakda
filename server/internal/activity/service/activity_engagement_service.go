@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/findardi/Riksa-App/server/internal/activity/dto"
-	activitydb "github.com/findardi/Riksa-App/server/internal/activity/repository/sqlc"
-	"github.com/findardi/Riksa-App/server/internal/platform/permission"
+	"github.com/findardi/rakda/server/internal/activity/dto"
+	activitydb "github.com/findardi/rakda/server/internal/activity/repository/sqlc"
+	"github.com/findardi/rakda/server/internal/platform/permission"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )

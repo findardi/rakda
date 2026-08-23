@@ -9,9 +9,9 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	contentdb "github.com/findardi/Riksa-App/server/internal/content/repository/sqlc"
-	"github.com/findardi/Riksa-App/server/internal/platform/render"
-	"github.com/findardi/Riksa-App/server/internal/platform/storage"
+	contentdb "github.com/findardi/rakda/server/internal/content/repository/sqlc"
+	"github.com/findardi/rakda/server/internal/platform/render"
+	"github.com/findardi/rakda/server/internal/platform/storage"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"

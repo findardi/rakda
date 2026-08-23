@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/findardi/Riksa-App/server/internal/platform/config"
+	"github.com/findardi/rakda/server/internal/platform/config"
 )
 
 type PopplerRenderer struct {

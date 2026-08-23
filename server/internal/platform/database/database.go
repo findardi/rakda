@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/findardi/Riksa-App/server/internal/platform/config"
+	"github.com/findardi/rakda/server/internal/platform/config"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 

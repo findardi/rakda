@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/findardi/Riksa-App/server/internal/auth/dto"
-	authdb "github.com/findardi/Riksa-App/server/internal/auth/repository/sqlc"
-	"github.com/findardi/Riksa-App/server/internal/platform/token"
+	"github.com/findardi/rakda/server/internal/auth/dto"
+	authdb "github.com/findardi/rakda/server/internal/auth/repository/sqlc"
+	"github.com/findardi/rakda/server/internal/platform/token"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/crypto/bcrypt"

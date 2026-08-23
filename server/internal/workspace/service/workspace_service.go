@@ -7,8 +7,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/findardi/Riksa-App/server/internal/workspace/dto"
-	workspacedb "github.com/findardi/Riksa-App/server/internal/workspace/repository/sqlc"
+	"github.com/findardi/rakda/server/internal/workspace/dto"
+	workspacedb "github.com/findardi/rakda/server/internal/workspace/repository/sqlc"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"

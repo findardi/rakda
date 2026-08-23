@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/findardi/Riksa-App/server/internal/platform/response"
-	"github.com/findardi/Riksa-App/server/internal/platform/token"
+	"github.com/findardi/rakda/server/internal/platform/response"
+	"github.com/findardi/rakda/server/internal/platform/token"
 	"github.com/go-chi/chi/v5"
 )
 

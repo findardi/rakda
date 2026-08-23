@@ -17,9 +17,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/findardi/Riksa-App/server/internal/platform/config"
-	"github.com/findardi/Riksa-App/server/internal/platform/render"
-	"github.com/findardi/Riksa-App/server/internal/platform/watermark"
+	"github.com/findardi/rakda/server/internal/platform/config"
+	"github.com/findardi/rakda/server/internal/platform/render"
+	"github.com/findardi/rakda/server/internal/platform/watermark"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

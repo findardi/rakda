@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	activityservice "github.com/findardi/Riksa-App/server/internal/activity/service"
+	activityservice "github.com/findardi/rakda/server/internal/activity/service"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 

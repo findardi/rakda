@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	activityservice "github.com/findardi/Riksa-App/server/internal/activity/service"
-	"github.com/findardi/Riksa-App/server/internal/content/dto"
-	contentdb "github.com/findardi/Riksa-App/server/internal/content/repository/sqlc"
-	"github.com/findardi/Riksa-App/server/internal/platform/permission"
+	activityservice "github.com/findardi/rakda/server/internal/activity/service"
+	"github.com/findardi/rakda/server/internal/content/dto"
+	contentdb "github.com/findardi/rakda/server/internal/content/repository/sqlc"
+	"github.com/findardi/rakda/server/internal/platform/permission"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )

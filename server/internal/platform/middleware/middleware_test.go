@@ -8,7 +8,7 @@ import (
 	"net/netip"
 	"testing"
 
-	"github.com/findardi/Riksa-App/server/internal/platform/token"
+	"github.com/findardi/rakda/server/internal/platform/token"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

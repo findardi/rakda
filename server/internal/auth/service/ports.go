@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 
-	authdb "github.com/findardi/Riksa-App/server/internal/auth/repository/sqlc"
-	"github.com/findardi/Riksa-App/server/internal/platform/token"
+	authdb "github.com/findardi/rakda/server/internal/auth/repository/sqlc"
+	"github.com/findardi/rakda/server/internal/platform/token"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )

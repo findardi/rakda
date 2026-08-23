@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	accessdb "github.com/findardi/Riksa-App/server/internal/access/repository/sqlc"
-	authservice "github.com/findardi/Riksa-App/server/internal/auth/service"
+	accessdb "github.com/findardi/rakda/server/internal/access/repository/sqlc"
+	authservice "github.com/findardi/rakda/server/internal/auth/service"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"

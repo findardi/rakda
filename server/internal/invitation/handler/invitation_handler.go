@@ -5,9 +5,9 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/findardi/Riksa-App/server/internal/invitation/service"
-	"github.com/findardi/Riksa-App/server/internal/platform/middleware"
-	"github.com/findardi/Riksa-App/server/internal/platform/response"
+	"github.com/findardi/rakda/server/internal/invitation/service"
+	"github.com/findardi/rakda/server/internal/platform/middleware"
+	"github.com/findardi/rakda/server/internal/platform/response"
 	"github.com/go-chi/chi/v5"
 )
 

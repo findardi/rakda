@@ -10,12 +10,12 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/findardi/Riksa-App/server/internal/content/dto"
-	"github.com/findardi/Riksa-App/server/internal/content/service"
-	"github.com/findardi/Riksa-App/server/internal/platform/middleware"
-	"github.com/findardi/Riksa-App/server/internal/platform/response"
-	"github.com/findardi/Riksa-App/server/internal/platform/validation"
-	"github.com/findardi/Riksa-App/server/internal/platform/watermark"
+	"github.com/findardi/rakda/server/internal/content/dto"
+	"github.com/findardi/rakda/server/internal/content/service"
+	"github.com/findardi/rakda/server/internal/platform/middleware"
+	"github.com/findardi/rakda/server/internal/platform/response"
+	"github.com/findardi/rakda/server/internal/platform/validation"
+	"github.com/findardi/rakda/server/internal/platform/watermark"
 	"github.com/go-chi/chi/v5"
 )
 

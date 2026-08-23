@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Wadi (product name: **Riksa**) — a Virtual Data Room. Two-package monorepo:
 
 - `web/` — SvelteKit 5 frontend. **Uses Bun, not npm** (`web/README.md` npm instructions are scaffold boilerplate).
-- `server/` — Go 1.26 backend (Chi, PostgreSQL/pgx, Minio). Module path: `github.com/findardi/Riksa-App/server`.
+- `server/` — Go 1.26 backend (Chi, PostgreSQL/pgx, Minio). Module path: `github.com/findardi/rakda/server`.
 - `brainstorm-folder/` — discussion and decision notes for the active phase. See "Discussion notes" below.
 
 `AGENTS.md` is the pre-existing agent instructions file; keep the two in sync when editing either.

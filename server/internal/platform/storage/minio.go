@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/findardi/Riksa-App/server/internal/platform/config"
+	"github.com/findardi/rakda/server/internal/platform/config"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	invitationdb "github.com/findardi/Riksa-App/server/internal/invitation/repository/sqlc"
+	invitationdb "github.com/findardi/rakda/server/internal/invitation/repository/sqlc"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
