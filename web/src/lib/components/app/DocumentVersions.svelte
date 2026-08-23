@@ -285,7 +285,7 @@
 			</span>
 			<div class="flex flex-none items-center gap-2">
 				<span
-					class="riksa-verbar h-1 w-20 overflow-hidden rounded-full bg-base-content/10"
+					class="rakda-verbar h-1 w-20 overflow-hidden rounded-full bg-base-content/10"
 					role="progressbar"
 					aria-valuenow={uploadPct}
 					aria-valuemin="0"
@@ -328,11 +328,11 @@
 		<ul class="mt-1" aria-busy="true" aria-label={t('doc.ver.loading')}>
 			{#each SKELETON_ROWS as row (row)}
 				<li class="flex items-center gap-2.5 py-1.5">
-					<span class="riksa-verskel h-3.5 w-8 flex-none rounded-selector"></span>
-					<span class="riksa-verskel h-3.5 w-28 rounded-selector"></span>
+					<span class="rakda-verskel h-3.5 w-8 flex-none rounded-selector"></span>
+					<span class="rakda-verskel h-3.5 w-28 rounded-selector"></span>
 					<span class="flex-1"></span>
-					<span class="riksa-verskel hidden h-3.5 w-16 flex-none rounded-selector md:block"></span>
-					<span class="riksa-verskel hidden h-3.5 w-32 flex-none rounded-selector sm:block"></span>
+					<span class="rakda-verskel hidden h-3.5 w-16 flex-none rounded-selector md:block"></span>
+					<span class="rakda-verskel hidden h-3.5 w-32 flex-none rounded-selector sm:block"></span>
 				</li>
 			{/each}
 		</ul>
@@ -457,24 +457,24 @@
 </div>
 
 <style>
-	.riksa-verskel {
+	.rakda-verskel {
 		background-color: color-mix(in oklch, var(--color-base-content) 8%, transparent);
-		animation: riksa-verpulse 1400ms ease-in-out infinite;
+		animation: rakda-verpulse 1400ms ease-in-out infinite;
 	}
-	@keyframes riksa-verpulse {
+	@keyframes rakda-verpulse {
 		50% {
 			opacity: 0.45;
 		}
 	}
 	/* Width is the only thing moving here, and it is the progress itself. */
-	.riksa-verbar > :global(span) {
+	.rakda-verbar > :global(span) {
 		transition: width 180ms cubic-bezier(0.22, 1, 0.36, 1);
 	}
 	@media (prefers-reduced-motion: reduce) {
-		.riksa-verskel {
+		.rakda-verskel {
 			animation: none;
 		}
-		.riksa-verbar > :global(span) {
+		.rakda-verbar > :global(span) {
 			transition: none;
 		}
 	}

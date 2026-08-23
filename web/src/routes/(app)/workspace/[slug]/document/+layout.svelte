@@ -1016,7 +1016,7 @@
 						>
 							{#if targeted && dropEdge !== 'into'}
 								<span
-									class="riksa-dropline pointer-events-none absolute right-1 {dropEdge === 'before'
+									class="rakda-dropline pointer-events-none absolute right-1 {dropEdge === 'before'
 										? '-top-px'
 										: '-bottom-px'}"
 									style="left: {indentRem(row.depth)}"
@@ -1032,7 +1032,7 @@
 									class="grid h-6 w-6 flex-none place-items-center rounded text-muted transition-colors hover:text-base-content pointer-coarse:h-9 pointer-coarse:w-9"
 								>
 									<svg
-										class="riksa-caret h-3.5 w-3.5 {open ? 'rotate-90' : ''}"
+										class="rakda-caret h-3.5 w-3.5 {open ? 'rotate-90' : ''}"
 										viewBox="0 0 24 24"
 										fill="none"
 										stroke="currentColor"
@@ -1289,7 +1289,7 @@
 
 {#if fileDragging && canUpload}
 	<div
-		class="riksa-overlay pointer-events-none fixed inset-x-0 top-4 z-overlay flex justify-center px-4"
+		class="rakda-overlay pointer-events-none fixed inset-x-0 top-4 z-overlay flex justify-center px-4"
 		aria-hidden="true"
 	>
 		<div
@@ -1411,20 +1411,20 @@
 <Toaster />
 
 <style>
-	.riksa-caret {
+	.rakda-caret {
 		transition: transform 150ms cubic-bezier(0.22, 1, 0.36, 1);
 	}
-	.riksa-overlay {
-		animation: riksa-fade-in 150ms ease-out;
+	.rakda-overlay {
+		animation: rakda-fade-in 150ms ease-out;
 	}
 	/* The insertion point reads as a caret, not a border: a 2px rule with a knob
 	   at its left end, starting at the indent of the level being joined. */
-	.riksa-dropline {
+	.rakda-dropline {
 		height: 2px;
 		border-radius: 1px;
 		background: var(--color-primary);
 	}
-	.riksa-dropline::before {
+	.rakda-dropline::before {
 		content: '';
 		position: absolute;
 		left: 0;
@@ -1435,7 +1435,7 @@
 		border-radius: 9999px;
 		background: var(--color-primary);
 	}
-	@keyframes riksa-fade-in {
+	@keyframes rakda-fade-in {
 		from {
 			opacity: 0;
 		}
@@ -1444,10 +1444,10 @@
 		}
 	}
 	@media (prefers-reduced-motion: reduce) {
-		.riksa-caret {
+		.rakda-caret {
 			transition: none;
 		}
-		.riksa-overlay {
+		.rakda-overlay {
 			animation: none;
 		}
 	}

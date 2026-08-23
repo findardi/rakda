@@ -13,7 +13,7 @@
 	let invalid = $derived(data.invalid || form?.invalid === true);
 </script>
 
-<svelte:head><title>{t('invAccept.title')} · Riksa</title></svelte:head>
+<svelte:head><title>{t('invAccept.title')} · Rakda</title></svelte:head>
 
 <AuthShell>
 	{#if invalid}

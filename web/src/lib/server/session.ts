@@ -2,8 +2,8 @@ import { dev } from '$app/environment';
 import type { Cookies } from '@sveltejs/kit';
 import type { LoginData } from '$lib/types';
 
-const ACCESS = 'riksa_session';
-const REFRESH = 'riksa_refresh';
+const ACCESS = 'rakda_session';
+const REFRESH = 'rakda_refresh';
 
 const base = {
 	path: '/',

@@ -93,7 +93,7 @@
 	data-page={pageNumber}
 	role="presentation"
 	oncontextmenu={(e) => e.preventDefault()}
-	class="riksa-vp relative mx-auto w-full overflow-hidden rounded-box border border-base-content/10 bg-base-100"
+	class="rakda-vp relative mx-auto w-full overflow-hidden rounded-box border border-base-content/10 bg-base-100"
 	style={loaded ? undefined : 'aspect-ratio: 1 / 1.414;'}
 >
 	<div class="pointer-events-none absolute left-2 top-2 z-10">
@@ -117,7 +117,7 @@
 			onerror={() => {
 				errored = true;
 			}}
-			class="riksa-vp-img block h-auto w-full select-none {loaded ? 'is-loaded' : 'opacity-0'}"
+			class="rakda-vp-img block h-auto w-full select-none {loaded ? 'is-loaded' : 'opacity-0'}"
 		/>
 	{/if}
 
@@ -166,32 +166,32 @@
 			</button>
 		</div>
 	{:else if !loaded}
-		<div class="riksa-vp-skel absolute inset-0" aria-hidden="true"></div>
+		<div class="rakda-vp-skel absolute inset-0" aria-hidden="true"></div>
 	{/if}
 </div>
 
 <style>
-	.riksa-vp-skel {
+	.rakda-vp-skel {
 		background-color: color-mix(in oklch, var(--color-base-content) 6%, transparent);
-		animation: riksa-vp-pulse 1400ms ease-in-out infinite;
+		animation: rakda-vp-pulse 1400ms ease-in-out infinite;
 	}
-	@keyframes riksa-vp-pulse {
+	@keyframes rakda-vp-pulse {
 		50% {
 			opacity: 0.5;
 		}
 	}
-	.riksa-vp-img {
+	.rakda-vp-img {
 		-webkit-touch-callout: none;
 		transition: opacity 220ms cubic-bezier(0.22, 1, 0.36, 1);
 	}
-	.riksa-vp-img.is-loaded {
+	.rakda-vp-img.is-loaded {
 		opacity: 1;
 	}
 	@media (prefers-reduced-motion: reduce) {
-		.riksa-vp-skel {
+		.rakda-vp-skel {
 			animation: none;
 		}
-		.riksa-vp-img {
+		.rakda-vp-img {
 			transition: none;
 		}
 	}

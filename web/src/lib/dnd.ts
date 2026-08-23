@@ -1,8 +1,8 @@
 // Drag payload types. A drag carrying `Files` is an upload from the OS; these
 // two mark drags that started inside the app, and `dataTransfer.types` is the
 // only part of a drag readable during `dragover` — so they are the switch.
-export const FOLDER_MIME = 'application/x-riksa-folder';
-export const DOCUMENT_MIME = 'application/x-riksa-document';
+export const FOLDER_MIME = 'application/x-rakda-folder';
+export const DOCUMENT_MIME = 'application/x-rakda-document';
 
 // `items` carries directory entries too; only real files survive. Falls back to
 // `files` for browsers that leave `items` empty on drop.

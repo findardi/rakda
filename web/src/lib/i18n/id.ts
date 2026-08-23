@@ -1,6 +1,6 @@
 // Bahasa Indonesia — default locale. Add en.ts and register it in index.ts to expand.
 export const id = {
-	'brand.name': 'Riksa',
+	'brand.name': 'Rakda',
 	'brand.tagline': 'Ruang data aman untuk dokumen deal Anda.',
 	'brand.reassure.title': 'Dibangun untuk dokumen rahasia',
 	'brand.reassure.body':
@@ -11,7 +11,7 @@ export const id = {
 	'nav.toRegister': 'Belum punya akun?',
 	'nav.toRegisterCta': 'Buat akun',
 
-	'login.title': 'Masuk ke Riksa',
+	'login.title': 'Masuk ke Rakda',
 	'login.subtitle': 'Lanjutkan ke ruang data Anda.',
 	'login.identifier': 'Email atau username',
 	'login.password': 'Kata sandi',
@@ -29,7 +29,7 @@ export const id = {
 	'sso.github': 'Lanjutkan dengan GitHub',
 	'sso.redirecting': 'Mengalihkan…',
 
-	'register.title': 'Buat akun Riksa',
+	'register.title': 'Buat akun Rakda',
 	'register.subtitle': 'Mulai kelola ruang data Anda dalam hitungan menit.',
 	'register.email': 'Email',
 	'register.username': 'Username',
@@ -181,7 +181,7 @@ export const id = {
 
 	// Home (post-login landing)
 	'home.welcome': 'Selamat datang, {name}',
-	'home.welcomeGeneric': 'Selamat datang di Riksa',
+	'home.welcomeGeneric': 'Selamat datang di Rakda',
 	'home.subtitle': 'Buka ruang data untuk melanjutkan, atau buat yang baru.',
 	'home.quickActions': 'Aksi cepat',
 	'home.action.workspaces': 'Ruang data',

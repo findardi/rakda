@@ -23,8 +23,8 @@ interface StubUser {
 const users: StubUser[] = [
 	{
 		id: 'usr_demo',
-		email: 'demo@riksa.app',
-		username: 'demoriksa',
+		email: 'demo@rakda.app',
+		username: 'demorakda',
 		password: 'secret123',
 		status: 'active'
 	}

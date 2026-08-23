@@ -484,7 +484,7 @@ func (r *spooledReadCloser) Close() error {
 // diikat ke ukuran run, bukan ke panjang dokumen. Import berjalan bergantian,
 // bukan paralel — paralel berarti beberapa run di RAM sekaligus.
 func (s *ContentService) rasterWatermarkPDF(ctx context.Context, workspaceID, versionID, renditionKey string, pageCount int, mark watermark.Mark) (io.ReadCloser, error) {
-	dir, err := os.MkdirTemp("", "riksa-wm-*")
+	dir, err := os.MkdirTemp("", "rakda-wm-*")
 	if err != nil {
 		return nil, fmt.Errorf("temp dir: %w", err)
 	}

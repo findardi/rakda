@@ -1,4 +1,4 @@
-export const LOCALE_COOKIE = 'riksa_locale';
+export const LOCALE_COOKIE = 'rakda_locale';
 
 export const LOCALES = ['id', 'en'] as const;
 export type Locale = (typeof LOCALES)[number];

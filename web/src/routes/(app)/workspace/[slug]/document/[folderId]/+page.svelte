@@ -515,11 +515,11 @@
 		<ul class="divide-y divide-base-content/6" aria-hidden="true">
 			{#each SKELETON_ROWS as width (width)}
 				<li class="flex items-center gap-2.5 px-4 py-2.5">
-					<span class="riksa-skeleton h-4 w-4 flex-none rounded-selector"></span>
-					<span class="riksa-skeleton h-3.5 rounded-selector" style="width: {width}%"></span>
+					<span class="rakda-skeleton h-4 w-4 flex-none rounded-selector"></span>
+					<span class="rakda-skeleton h-3.5 rounded-selector" style="width: {width}%"></span>
 					<span class="flex-1"></span>
-					<span class="riksa-skeleton hidden h-3.5 w-20 flex-none rounded-selector md:block"></span>
-					<span class="riksa-skeleton hidden h-3.5 w-24 flex-none rounded-selector sm:block"></span>
+					<span class="rakda-skeleton hidden h-3.5 w-20 flex-none rounded-selector md:block"></span>
+					<span class="rakda-skeleton hidden h-3.5 w-24 flex-none rounded-selector sm:block"></span>
 				</li>
 			{/each}
 		</ul>
@@ -588,10 +588,10 @@
 						{reorderingId === doc.id ? 'opacity-60' : ''}"
 				>
 					{#if insertAt === i}
-						<span class="riksa-dropline pointer-events-none absolute inset-x-4 -top-px"></span>
+						<span class="rakda-dropline pointer-events-none absolute inset-x-4 -top-px"></span>
 					{/if}
 					{#if insertAt === documents.length && i === documents.length - 1}
-						<span class="riksa-dropline pointer-events-none absolute inset-x-4 -bottom-px"></span>
+						<span class="rakda-dropline pointer-events-none absolute inset-x-4 -bottom-px"></span>
 					{/if}
 					{@render fileIcon(kindOf(doc.mime))}
 
@@ -631,7 +631,7 @@
 						>
 							v{doc.version_no}
 							<svg
-								class="riksa-verchev h-3 w-3"
+								class="rakda-verchev h-3 w-3"
 								class:is-open={openVersions === doc.id}
 								viewBox="0 0 24 24"
 								fill="none"
@@ -898,12 +898,12 @@
 
 <style>
 	/* Matches the tree's insertion caret: a 2px rule with a knob at its left end. */
-	.riksa-dropline {
+	.rakda-dropline {
 		height: 2px;
 		border-radius: 1px;
 		background: var(--color-primary);
 	}
-	.riksa-dropline::before {
+	.rakda-dropline::before {
 		content: '';
 		position: absolute;
 		left: 0;
@@ -914,27 +914,27 @@
 		border-radius: 9999px;
 		background: var(--color-primary);
 	}
-	.riksa-skeleton {
+	.rakda-skeleton {
 		background-color: color-mix(in oklch, var(--color-base-content) 8%, transparent);
-		animation: riksa-pulse 1400ms ease-in-out infinite;
+		animation: rakda-pulse 1400ms ease-in-out infinite;
 	}
-	@keyframes riksa-pulse {
+	@keyframes rakda-pulse {
 		50% {
 			opacity: 0.45;
 		}
 	}
 	/* The only thing the chevron says is open or shut; it turns, nothing else. */
-	.riksa-verchev {
+	.rakda-verchev {
 		transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
 	}
-	.riksa-verchev.is-open {
+	.rakda-verchev.is-open {
 		transform: rotate(180deg);
 	}
 	@media (prefers-reduced-motion: reduce) {
-		.riksa-skeleton {
+		.rakda-skeleton {
 			animation: none;
 		}
-		.riksa-verchev {
+		.rakda-verchev {
 			transition: none;
 		}
 	}

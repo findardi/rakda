@@ -51,7 +51,7 @@ func LoadDatabaseConfig() (DatabaseConfig, error) {
 		Port:            port,
 		User:            GetEnv("DB_USER", "root"),
 		Password:        GetEnv("DB_PASSWORD", "mypassword"),
-		Name:            GetEnv("DB_NAME", "dev_riksa"),
+		Name:            GetEnv("DB_NAME", "dev_rakda"),
 		SSLMode:         GetEnv("DB_SSLMODE", "disable"),
 		MaxOpenConns:    maxOpen,
 		MaxIdleConns:    maxIdle,

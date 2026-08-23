@@ -14,11 +14,11 @@ sensitif ke pihak luar dengan akses terkontrol dan teraudit. Target awal SaaS
 
 ## Product Purpose
 
-Wadi adalah Virtual Data Room: ruang aman untuk menyimpan, membagikan, dan
+Rakda adalah Virtual Data Room: ruang aman untuk menyimpan, membagikan, dan
 mengaudit dokumen rahasia selama proses deal. Inti nilainya bukan fitur, tapi
 kepercayaan — para pihak harus yakin datanya aman dan akurat, lalu bisa
 menemukan serta membagikan dokumen dengan cepat. Sukses = pengguna mempercayakan
-dokumen paling sensitif mereka ke Wadi dan tidak pernah ragu siapa mengakses apa.
+dokumen paling sensitif mereka ke Rakda dan tidak pernah ragu siapa mengakses apa.
 
 ## Brand Personality
 

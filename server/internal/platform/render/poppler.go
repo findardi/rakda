@@ -145,7 +145,7 @@ type spooled struct {
 }
 
 func spool(r io.Reader) (spooled, func(), error) {
-	dir, err := os.MkdirTemp("", "riksa-view-*")
+	dir, err := os.MkdirTemp("", "rakda-view-*")
 	if err != nil {
 		return spooled{}, nil, fmt.Errorf("temp dir: %w", err)
 	}

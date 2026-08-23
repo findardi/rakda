@@ -206,11 +206,11 @@
 	$effect(() => () => clearTimeout(curtainTimer));
 
 	$effect(() => {
-		document.documentElement.classList.add('riksa-print-gate');
-		return () => document.documentElement.classList.remove('riksa-print-gate');
+		document.documentElement.classList.add('rakda-print-gate');
+		return () => document.documentElement.classList.remove('rakda-print-gate');
 	});
 
-	const PRIVACY_KEY = 'wadi:privacy-mode:v1';
+	const PRIVACY_KEY = 'rakda:privacy-mode:v1';
 	let privacyOn = $state(false);
 	let bandWrapEl = $state<HTMLElement>();
 
@@ -1109,7 +1109,7 @@
 
 				{#if privacyOn}
 					<div
-						class="riksa-band pointer-events-none absolute inset-0 z-panel"
+						class="rakda-band pointer-events-none absolute inset-0 z-panel"
 						aria-hidden="true"
 						transition:fade={{ duration: prefersReducedMotion.current ? 0 : 150 }}
 					></div>
@@ -1143,7 +1143,7 @@
 		</div>
 	{/if}
 
-	<div class="riksa-print-notice hidden p-8 print:block">
+	<div class="rakda-print-notice hidden p-8 print:block">
 		<p class="text-sm font-semibold">{t('brand.name')}</p>
 		{#if meta}
 			<p class="mt-1 text-sm">{meta.name}</p>
@@ -1159,7 +1159,7 @@
 <Toaster />
 
 <style>
-	.riksa-band {
+	.rakda-band {
 		--band-half: 50px;
 		--band-edge: 24px;
 		background-color: color-mix(in oklch, var(--color-base-200) 60%, transparent);
@@ -1176,12 +1176,12 @@
 		);
 	}
 	@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-		.riksa-band {
+		.rakda-band {
 			background-color: var(--color-base-content);
 		}
 	}
 	@media (prefers-reduced-transparency: reduce) {
-		.riksa-band {
+		.rakda-band {
 			background-color: var(--color-base-content);
 			-webkit-backdrop-filter: none;
 			backdrop-filter: none;

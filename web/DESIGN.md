@@ -1,17 +1,17 @@
 ## <!-- SEED: re-run /impeccable document once there's code to capture the actual tokens and components. -->
 
-name: Wadi
+name: Rakda
 description: Virtual Data Room — secure, document-first, controlled-access workspace for deals.
 
 ---
 
-# Design System: Wadi
+# Design System: Rakda
 
 ## 1. Overview
 
 **Creative North Star: "The Clean Room"**
 
-Wadi terasa seperti ruang bersih berakses terkontrol: dingin, presisi, dan
+Rakda terasa seperti ruang bersih berakses terkontrol: dingin, presisi, dan
 tenang. Permukaan kosong dan netral; warna hanya muncul saat punya arti —
 sebuah aksi, sebuah status, sebuah hak akses. Ketenangan visual ini bukan gaya,
 tapi pesan: data di sini aman dan akurat. Sistem ini mengambil ketenangan

@@ -286,11 +286,11 @@
 	<ul aria-busy="true" aria-label={t('activity.engagement.loading')}>
 		{#each LIST_SKELETON as widths, i (i)}
 			<li class="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2.5">
-				<span class="riksa-eng-skel h-3 rounded-selector" style="width: {widths[0]}%"></span>
-				<span class="riksa-eng-skel h-3 w-10 rounded-selector"></span>
-				<span class="riksa-eng-skel col-span-2 h-2.5 rounded-selector" style="width: {widths[1]}%"
+				<span class="rakda-eng-skel h-3 rounded-selector" style="width: {widths[0]}%"></span>
+				<span class="rakda-eng-skel h-3 w-10 rounded-selector"></span>
+				<span class="rakda-eng-skel col-span-2 h-2.5 rounded-selector" style="width: {widths[1]}%"
 				></span>
-				<span class="riksa-eng-skel col-span-2 h-2.5 rounded-selector" style="width: {widths[2]}%"
+				<span class="rakda-eng-skel col-span-2 h-2.5 rounded-selector" style="width: {widths[2]}%"
 				></span>
 			</li>
 		{/each}
@@ -301,9 +301,9 @@
 	<ul aria-busy="true" aria-label={t('activity.engagement.loading')}>
 		{#each PAGE_SKELETON as width (width)}
 			<li class="grid grid-cols-[1.75rem_1fr] items-center gap-x-2.5 gap-y-1.5 px-3 py-2.5">
-				<span class="riksa-eng-skel row-span-2 h-3 rounded-selector"></span>
-				<span class="riksa-eng-skel h-1.5 rounded-full" style="width: {width}%"></span>
-				<span class="riksa-eng-skel h-3 w-28 rounded-selector"></span>
+				<span class="rakda-eng-skel row-span-2 h-3 rounded-selector"></span>
+				<span class="rakda-eng-skel h-1.5 rounded-full" style="width: {width}%"></span>
+				<span class="rakda-eng-skel h-3 w-28 rounded-selector"></span>
 			</li>
 		{/each}
 	</ul>
@@ -469,7 +469,7 @@
 				     would be a claim, not a placeholder. Boxed to the line height the real
 				     summary occupies so the header does not jump when it lands. -->
 				<span class="flex h-4 items-center">
-					<span class="riksa-eng-skel block h-3 w-32 rounded-selector"></span>
+					<span class="rakda-eng-skel block h-3 w-32 rounded-selector"></span>
 				</span>
 			{/if}
 		</div>
@@ -553,13 +553,13 @@
 
 									<span class="flex min-w-0 items-center gap-2">
 										<span
-											class="riksa-eng-track h-1.5 min-w-0 flex-1 overflow-hidden rounded-full {blank
+											class="rakda-eng-track h-1.5 min-w-0 flex-1 overflow-hidden rounded-full {blank
 												? 'bg-base-content/6'
 												: 'bg-base-content/10'}"
 											aria-hidden="true"
 										>
 											<span
-												class="riksa-eng-fill block h-full rounded-full bg-primary"
+												class="rakda-eng-fill block h-full rounded-full bg-primary"
 												style="width: {barWidth(page.read_ms, maxPageMs)}%"
 											></span>
 										</span>
@@ -647,24 +647,24 @@
 </aside>
 
 <style>
-	.riksa-eng-skel {
+	.rakda-eng-skel {
 		background-color: color-mix(in oklch, var(--color-base-content) 8%, transparent);
-		animation: riksa-eng-pulse 1400ms ease-in-out infinite;
+		animation: rakda-eng-pulse 1400ms ease-in-out infinite;
 	}
-	@keyframes riksa-eng-pulse {
+	@keyframes rakda-eng-pulse {
 		50% {
 			opacity: 0.45;
 		}
 	}
 	/* Width is the datum itself; it only moves when a refresh brings new numbers. */
-	.riksa-eng-track > :global(.riksa-eng-fill) {
+	.rakda-eng-track > :global(.rakda-eng-fill) {
 		transition: width 200ms cubic-bezier(0.22, 1, 0.36, 1);
 	}
 	@media (prefers-reduced-motion: reduce) {
-		.riksa-eng-skel {
+		.rakda-eng-skel {
 			animation: none;
 		}
-		.riksa-eng-track > :global(.riksa-eng-fill) {
+		.rakda-eng-track > :global(.rakda-eng-fill) {
 			transition: none;
 		}
 	}

@@ -473,9 +473,9 @@
 			<div class="space-y-2" aria-busy="true">
 				{#each SKELETON_ROWS as width (width)}
 					<div class="flex items-center gap-2 py-2">
-						<span class="riksa-skeleton h-3.5 rounded-selector" style="width: {width}%"></span>
+						<span class="rakda-skeleton h-3.5 rounded-selector" style="width: {width}%"></span>
 						<span class="flex-1"></span>
-						<span class="riksa-skeleton h-8 w-44 flex-none rounded-field"></span>
+						<span class="rakda-skeleton h-8 w-44 flex-none rounded-field"></span>
 					</div>
 				{/each}
 			</div>
@@ -862,17 +862,17 @@
 </section>
 
 <style>
-	.riksa-skeleton {
+	.rakda-skeleton {
 		background-color: color-mix(in oklch, var(--color-base-content) 8%, transparent);
-		animation: riksa-pulse 1400ms ease-in-out infinite;
+		animation: rakda-pulse 1400ms ease-in-out infinite;
 	}
-	@keyframes riksa-pulse {
+	@keyframes rakda-pulse {
 		50% {
 			opacity: 0.45;
 		}
 	}
 	@media (prefers-reduced-motion: reduce) {
-		.riksa-skeleton {
+		.rakda-skeleton {
 			animation: none;
 		}
 	}

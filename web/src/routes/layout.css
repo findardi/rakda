@@ -5,9 +5,9 @@
 	themes: false;
 }
 
-/* "Riksa" theme — "The Clean Room". Palette + sharp radii from DESIGN.md. */
+/* "Rakda" theme — "The Clean Room". Palette + sharp radii from DESIGN.md. */
 @plugin 'daisyui/theme' {
-	name: 'riksa';
+	name: 'rakda';
 	default: true;
 	prefersdark: false;
 	color-scheme: 'light';
@@ -113,12 +113,12 @@
 }
 
 @media print {
-	html.riksa-print-gate
+	html.rakda-print-gate
 		body
-		*:not(:has(.riksa-print-notice)):not(.riksa-print-notice):not(.riksa-print-notice *) {
+		*:not(:has(.rakda-print-notice)):not(.rakda-print-notice):not(.rakda-print-notice *) {
 		display: none !important;
 	}
-	html.riksa-print-gate body :has(.riksa-print-notice) {
+	html.rakda-print-gate body :has(.rakda-print-notice) {
 		display: block;
 		height: auto;
 		overflow: visible;

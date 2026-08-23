@@ -28,7 +28,7 @@ func TestViewerPipeline(t *testing.T) {
 
 	var body strings.Builder
 	for i := 1; i <= 80; i++ {
-		fmt.Fprintf(&body, "Baris %d — Riksa secure viewer smoke test\n", i)
+		fmt.Fprintf(&body, "Baris %d — Rakda secure viewer smoke test\n", i)
 	}
 
 	pdf, err := convert.NewGotenberg(cfg).ToPDF(ctx, strings.NewReader(body.String()), "sample.txt")

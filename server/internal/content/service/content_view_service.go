@@ -194,7 +194,7 @@ func (s *ContentService) ensureRendition(ctx context.Context, workspaceID string
 		// Tumpahkan sekali ke berkas sementara (9.5-b): poppler sudah men-spool
 		// ke disk untuk PageCount, jadi menahan seluruh PDF di RAM hanyalah
 		// membayar dua kali. Berkas yang sama dipakai untuk Put lalu PageCount.
-		f, err := os.CreateTemp("", "riksa-rendition-*.pdf")
+		f, err := os.CreateTemp("", "rakda-rendition-*.pdf")
 		if err != nil {
 			return "", 0, fmt.Errorf("temp rendition: %w", err)
 		}

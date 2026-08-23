@@ -3,7 +3,7 @@
 import type { Dict } from './id';
 
 export const en: Record<keyof Dict, string> = {
-	'brand.name': 'Riksa',
+	'brand.name': 'Rakda',
 	'brand.tagline': 'A secure data room for your deal documents.',
 	'brand.reassure.title': 'Built for confidential documents',
 	'brand.reassure.body':
@@ -14,7 +14,7 @@ export const en: Record<keyof Dict, string> = {
 	'nav.toRegister': "Don't have an account?",
 	'nav.toRegisterCta': 'Create account',
 
-	'login.title': 'Sign in to Riksa',
+	'login.title': 'Sign in to Rakda',
 	'login.subtitle': 'Continue to your data room.',
 	'login.identifier': 'Email or username',
 	'login.password': 'Password',
@@ -33,7 +33,7 @@ export const en: Record<keyof Dict, string> = {
 	'sso.github': 'Continue with GitHub',
 	'sso.redirecting': 'Redirecting…',
 
-	'register.title': 'Create your Riksa account',
+	'register.title': 'Create your Rakda account',
 	'register.subtitle': 'Start managing your data room in minutes.',
 	'register.email': 'Email',
 	'register.username': 'Username',
@@ -186,7 +186,7 @@ export const en: Record<keyof Dict, string> = {
 
 	// Home (post-login landing)
 	'home.welcome': 'Welcome, {name}',
-	'home.welcomeGeneric': 'Welcome to Riksa',
+	'home.welcomeGeneric': 'Welcome to Rakda',
 	'home.subtitle': 'Open a data room to continue, or create a new one.',
 	'home.quickActions': 'Quick actions',
 	'home.action.workspaces': 'Data rooms',
