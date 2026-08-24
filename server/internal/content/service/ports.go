@@ -23,6 +23,8 @@ type ContentRepository interface {
 	CreateDocument(ctx context.Context, arg contentdb.CreateDocumentParams) (contentdb.Document, error)
 	CreateDocumentVersion(ctx context.Context, arg contentdb.CreateDocumentVersionParams) (contentdb.DocumentVersion, error)
 	SetCurrentVersion(ctx context.Context, arg contentdb.SetCurrentVersionParams) error
+	SetStagedVersion(ctx context.Context, arg contentdb.SetStagedVersionParams) error
+	PromoteStagedVersion(ctx context.Context, arg contentdb.PromoteStagedVersionParams) (int64, error)
 	GetNextVersionNo(ctx context.Context, documentID pgtype.UUID) (int32, error)
 	GetDocumentByID(ctx context.Context, id pgtype.UUID) (contentdb.Document, error)
 	GetDocumentByNameInFolder(ctx context.Context, arg contentdb.GetDocumentByNameInFolderParams) (contentdb.Document, error)

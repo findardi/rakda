@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"image"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -168,6 +169,7 @@ func (s *ContentService) CompletedUpload(ctx context.Context, req dto.CompleteUp
 		Mime:             ver.Mime,
 		Size:             ver.Size,
 		RenditionStatus:  renditionStatus(ver.RenditionKey, ver.RenditionFailedAt),
+		VersionCount:     1,
 		CreatedAt:        doc.CreatedAt.Time,
 		UpdatedAt:        doc.UpdatedAt.Time,
 	}, nil
@@ -227,6 +229,11 @@ func (s *ContentService) CompletedVersion(ctx context.Context, req dto.CompleteV
 		return dto.DocumentResponse{}, ErrDocumentNotFound
 	}
 
+	if err := assertVersionType(doc.Name, req.FileName); err != nil {
+		_ = s.store.Delete(ctx, req.StorageKey)
+		return dto.DocumentResponse{}, err
+	}
+
 	size, mime, err := s.store.Stat(ctx, req.StorageKey)
 	if err != nil {
 		return dto.DocumentResponse{}, ErrUploadNotFound
@@ -257,9 +264,12 @@ func (s *ContentService) CompletedVersion(ctx context.Context, req dto.CompleteV
 			return err
 		}
 
-		if err := q.SetCurrentVersion(ctx, contentdb.SetCurrentVersionParams{
-			ID:               dID,
-			CurrentVersionID: ver.ID,
+		// Staged, not current: the pointer moves only after the rendition proves
+		// out (ensureRendition → PromoteStagedVersion). Until then every reader
+		// keeps getting the old version, so a broken upload never breaks the room.
+		if err := q.SetStagedVersion(ctx, contentdb.SetStagedVersionParams{
+			ID:              dID,
+			StagedVersionID: ver.ID,
 		}); err != nil {
 			return err
 		}
@@ -274,18 +284,58 @@ func (s *ContentService) CompletedVersion(ctx context.Context, req dto.CompleteV
 		return dto.DocumentResponse{}, fmt.Errorf("create version: %w", err)
 	}
 
+	s.convertVersionAsync(req.WorkspaceID, dID, ver.ID)
+
+	cur, err := s.repo.GetCurrentVersion(ctx, dID)
+	if err != nil {
+		return dto.DocumentResponse{}, fmt.Errorf("get current version: %w", err)
+	}
+
 	return dto.DocumentResponse{
-		ID:               uuidString(doc.ID),
-		FolderID:         uuidString(doc.FolderID),
-		Name:             doc.Name,
-		VersionNo:        ver.VersionNo,
-		CurrentVersionID: uuidString(ver.ID),
-		Mime:             ver.Mime,
-		Size:             ver.Size,
-		RenditionStatus:  renditionStatus(ver.RenditionKey, ver.RenditionFailedAt),
-		CreatedAt:        doc.CreatedAt.Time,
-		UpdatedAt:        ver.CreatedAt.Time,
+		ID:                    uuidString(doc.ID),
+		FolderID:              uuidString(doc.FolderID),
+		Name:                  doc.Name,
+		VersionNo:             cur.VersionNo,
+		CurrentVersionID:      uuidString(cur.ID),
+		Mime:                  cur.Mime,
+		Size:                  cur.Size,
+		RenditionStatus:       renditionStatus(cur.RenditionKey, cur.RenditionFailedAt),
+		VersionCount:          ver.VersionNo,
+		StagedVersionID:       uuidString(ver.ID),
+		StagedVersionNo:       &ver.VersionNo,
+		StagedRenditionStatus: dto.RenditionPending,
+		CreatedAt:             doc.CreatedAt.Time,
+		UpdatedAt:             ver.CreatedAt.Time,
 	}, nil
+}
+
+// convertVersionAsync runs the rendition conversion detached from the request,
+// so completing an upload or a retry answers immediately while gotenberg works.
+// It re-reads both rows: the staged pointer was written after the caller's doc
+// was loaded, and promotion in ensureRendition trusts the row it is handed.
+// Every failure path only logs — the version stays pending/failed and the next
+// open of it converts lazily, exactly as before this kick existed.
+func (s *ContentService) convertVersionAsync(workspaceID string, documentID, versionID pgtype.UUID) {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), asyncConvertTimeout)
+		defer cancel()
+
+		doc, err := s.repo.GetDocumentByID(ctx, documentID)
+		if err != nil {
+			log.Printf("async convert: get document: %v", err)
+			return
+		}
+
+		version, err := s.repo.GetVersionByID(ctx, versionID)
+		if err != nil {
+			log.Printf("async convert: get version: %v", err)
+			return
+		}
+
+		if _, _, err := s.ensureRendition(ctx, workspaceID, doc, version); err != nil {
+			log.Printf("async convert version %s: %v", uuidString(versionID), err)
+		}
+	}()
 }
 
 func (s *ContentService) ListDocuments(ctx context.Context, workspaceID, folderID string, actor Actor) ([]dto.DocumentResponse, error) {
@@ -318,7 +368,7 @@ func (s *ContentService) ListDocuments(ctx context.Context, workspaceID, folderI
 
 	docs := make([]dto.DocumentResponse, 0, len(rows))
 	for _, r := range rows {
-		docs = append(docs, dto.DocumentResponse{
+		d := dto.DocumentResponse{
 			ID:               uuidString(r.ID),
 			FolderID:         uuidString(r.FolderID),
 			Name:             r.Name,
@@ -327,9 +377,20 @@ func (s *ContentService) ListDocuments(ctx context.Context, workspaceID, folderI
 			Mime:             r.Mime,
 			Size:             r.Size,
 			RenditionStatus:  renditionStatus(r.RenditionKey, r.RenditionFailedAt),
+			VersionCount:     r.VersionCount,
 			CreatedAt:        r.CreatedAt.Time,
 			UpdatedAt:        r.UpdatedAt.Time,
-		})
+		}
+
+		// Staged state is manager knowledge, like the history it belongs to:
+		// a guest only ever knows the served version.
+		if actor.bypassesContentAccess() && r.StagedVersionID.Valid {
+			d.StagedVersionID = uuidString(r.StagedVersionID)
+			d.StagedVersionNo = r.StagedVersionNo
+			d.StagedRenditionStatus = renditionStatus(r.StagedRenditionKey, r.StagedRenditionFailedAt)
+		}
+
+		docs = append(docs, d)
 	}
 
 	return docs, nil
@@ -353,14 +414,16 @@ func (s *ContentService) ListVersions(ctx context.Context, workspaceID, document
 	vers := make([]dto.VersionResponse, 0, len(rows))
 	for _, r := range rows {
 		vers = append(vers, dto.VersionResponse{
-			ID:             uuidString(r.ID),
-			VersionNo:      r.VersionNo,
-			Mime:           r.Mime,
-			Size:           r.Size,
-			UploadedBy:     uuidString(r.UploadedBy),
-			UploadedByName: r.UploadedByName,
-			IsCurrent:      r.IsCurrent,
-			CreatedAt:      r.CreatedAt.Time,
+			ID:              uuidString(r.ID),
+			VersionNo:       r.VersionNo,
+			Mime:            r.Mime,
+			Size:            r.Size,
+			UploadedBy:      uuidString(r.UploadedBy),
+			UploadedByName:  r.UploadedByName,
+			IsCurrent:       r.IsCurrent,
+			IsStaged:        r.IsStaged,
+			RenditionStatus: renditionStatus(r.RenditionKey, r.RenditionFailedAt),
+			CreatedAt:       r.CreatedAt.Time,
 		})
 	}
 
@@ -446,6 +509,10 @@ func (s *ContentService) RetryRendition(ctx context.Context, workspaceID, docume
 	if err := s.repo.ClearVersionRenditionFailure(ctx, version.ID); err != nil {
 		return fmt.Errorf("clear rendition failure: %w", err)
 	}
+
+	// The retry does the work, not just permits it: without this kick the toast
+	// would promise a conversion that only the next reader's open triggers.
+	s.convertVersionAsync(workspaceID, doc.ID, version.ID)
 
 	s.activity.Record(ctx, s.activityEntry(workspaceID, actor,
 		activityservice.ActionRenditionRetried, activityservice.TargetVersion,
@@ -1036,10 +1103,18 @@ func (s *ContentService) RestoreVersion(ctx context.Context, workspaceID, docume
 	}
 
 	// SetCurrentVersion stamps updated_at; the row read before the transaction
-	// still carries the old one.
+	// still carries the old one. It also cleared any staged version — the
+	// explicit choice wins — so the staged fields stay empty here.
 	fresh, err := s.repo.GetDocumentByID(ctx, doc.ID)
 	if err != nil {
 		return dto.DocumentResponse{}, fmt.Errorf("get document: %w", err)
+	}
+
+	// Versions are never deleted individually, so numbering is dense and the
+	// next number minus one is the count.
+	next, err := s.repo.GetNextVersionNo(ctx, doc.ID)
+	if err != nil {
+		return dto.DocumentResponse{}, fmt.Errorf("count versions: %w", err)
 	}
 
 	return dto.DocumentResponse{
@@ -1051,6 +1126,7 @@ func (s *ContentService) RestoreVersion(ctx context.Context, workspaceID, docume
 		Mime:             target.Mime,
 		Size:             target.Size,
 		RenditionStatus:  renditionStatus(target.RenditionKey, target.RenditionFailedAt),
+		VersionCount:     next - 1,
 		CreatedAt:        fresh.CreatedAt.Time,
 		UpdatedAt:        fresh.UpdatedAt.Time,
 	}, nil

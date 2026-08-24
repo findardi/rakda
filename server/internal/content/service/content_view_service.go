@@ -149,9 +149,57 @@ func (s *ContentService) ensureRendition(ctx context.Context, workspaceID string
 			return "", 0, fmt.Errorf("%w: %d, max %d", ErrTooManyPages, *version.PageCount, maxRenditionPages)
 		}
 
+		s.promoteStaged(ctx, doc, version)
 		return *version.RenditionKey, int(*version.PageCount), nil
 	}
 
+	// Singleflight per version id: the detached kick from an upload or retry
+	// and a reader opening the viewer at the same moment share one gotenberg
+	// conversion instead of racing two.
+	type built struct {
+		key   string
+		pages int
+	}
+
+	v, err, _ := s.convertSF.Do(uuidString(version.ID), func() (any, error) {
+		key, pages, err := s.buildRendition(ctx, workspaceID, doc, version)
+		if err != nil {
+			return nil, err
+		}
+		return built{key: key, pages: pages}, nil
+	})
+	if err != nil {
+		return "", 0, err
+	}
+
+	res := v.(built)
+	if res.pages > maxRenditionPages {
+		return "", 0, fmt.Errorf("%w: %d, max %d", ErrTooManyPages, res.pages, maxRenditionPages)
+	}
+
+	s.promoteStaged(ctx, doc, version)
+	return res.key, res.pages, nil
+}
+
+// promoteStaged serves a staged version the moment its rendition proves out —
+// and only then: promotion never fires from CompletedVersion itself. The
+// in-memory comparison is a cheap gate (most renditions have nothing staged);
+// truth lives in PromoteStagedVersion's where-guard, which no-ops when a
+// restore or newer upload moved the pointers while this conversion ran.
+func (s *ContentService) promoteStaged(ctx context.Context, doc contentdb.Document, version contentdb.DocumentVersion) {
+	if !doc.StagedVersionID.Valid || doc.StagedVersionID != version.ID {
+		return
+	}
+
+	if _, err := s.repo.PromoteStagedVersion(ctx, contentdb.PromoteStagedVersionParams{
+		ID:        doc.ID,
+		VersionID: version.ID,
+	}); err != nil {
+		log.Printf("promote staged version %s: %v", uuidString(version.ID), err)
+	}
+}
+
+func (s *ContentService) buildRendition(ctx context.Context, workspaceID string, doc contentdb.Document, version contentdb.DocumentVersion) (string, int, error) {
 	versionID := uuidString(version.ID)
 
 	var (
@@ -233,10 +281,8 @@ func (s *ContentService) ensureRendition(ctx context.Context, workspaceID string
 		return "", 0, fmt.Errorf("set rendition: %w", err)
 	}
 
-	if pageCount > maxRenditionPages {
-		return "", 0, fmt.Errorf("%w: %d, max %d", ErrTooManyPages, pageCount, maxRenditionPages)
-	}
-
+	// The page-count ceiling is judged by the caller, after the count is
+	// recorded — an oversized document keeps its rendition row either way.
 	return renditionKey, pageCount, nil
 }
 

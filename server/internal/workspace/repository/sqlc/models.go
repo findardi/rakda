@@ -49,6 +49,7 @@ type Document struct {
 	DeletedAt           pgtype.Timestamptz `json:"deleted_at"`
 	DeletedBy           pgtype.UUID        `json:"deleted_by"`
 	DeletedRootFolderID pgtype.UUID        `json:"deleted_root_folder_id"`
+	StagedVersionID     pgtype.UUID        `json:"staged_version_id"`
 }
 
 type DocumentPageText struct {

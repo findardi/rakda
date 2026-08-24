@@ -13,10 +13,30 @@ values
 returning *;
 
 -- name: SetCurrentVersion :exec
-update documents set 
+-- An explicit pointer set (first upload, restore) supersedes any staging in
+-- flight: a version left staged after the owner chose another would promote
+-- itself behind their back the moment its conversion finished.
+update documents set
     current_version_id = $2,
+    staged_version_id = null,
     updated_at = now()
 where id = $1;
+
+-- name: SetStagedVersion :exec
+update documents set
+    staged_version_id = $2,
+    updated_at = now()
+where id = $1;
+
+-- name: PromoteStagedVersion :execrows
+-- The where-guard makes promotion atomic and idempotent: it only fires while
+-- the document still stages this exact version, so a restore or a newer upload
+-- that raced the conversion wins and this becomes a no-op.
+update documents set
+    current_version_id = sqlc.arg(version_id),
+    staged_version_id = null,
+    updated_at = now()
+where id = sqlc.arg(id) and staged_version_id = sqlc.arg(version_id);
 
 -- name: GetNextVersionNo :one
 select coalesce(max(version_no),0)::int + 1 as next_no
@@ -38,9 +58,15 @@ select
     v.mime,
     v.size,
     v.rendition_key,
-    v.rendition_failed_at
+    v.rendition_failed_at,
+    sv.id as staged_version_id,
+    sv.version_no as staged_version_no,
+    sv.rendition_key as staged_rendition_key,
+    sv.rendition_failed_at as staged_rendition_failed_at,
+    coalesce((select count(*) from document_versions dv where dv.document_id = d.id), 0)::int as version_count
 from documents d
 join document_versions v on v.id = d.current_version_id
+left join document_versions sv on sv.id = d.staged_version_id
 where d.folder_id = $1 and d.deleted_at is null
 order by d.position, d.name, d.created_at;
 
@@ -104,10 +130,13 @@ where t.id = o.document_id and t.position <> o.rn;
 -- name: ListVersionsWithUploader :many
 -- `is_current` is the served version, which restore repoints freely, so it is
 -- not necessarily the highest version_no. current_version_id is nullable.
+-- `is_staged` marks an upload waiting for its rendition to prove out before it
+-- is served; at most one version per document carries it.
 select
     v.*,
     coalesce(u.username, u.email)::text as uploaded_by_name,
-    coalesce(d.current_version_id = v.id, false)::bool as is_current
+    coalesce(d.current_version_id = v.id, false)::bool as is_current,
+    coalesce(d.staged_version_id = v.id, false)::bool as is_staged
 from document_versions v
 join users u on u.id = v.uploaded_by
 join documents d on d.id = v.document_id
