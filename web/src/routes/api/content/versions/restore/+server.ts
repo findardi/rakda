@@ -3,9 +3,10 @@ import { restoreVersion } from '$lib/server/api';
 import { t } from '$lib/i18n';
 import type { RequestHandler } from './$types';
 
-// Restore copies the chosen version forward as a new current one — nothing is
-// overwritten, so this is reversible by restoring again. 409 means the version
-// picked is already current, which the UI prevents but a stale panel can hit.
+// Restore repoints `current_version_id` at the chosen version — no row is
+// copied, nothing is overwritten, so this is reversible by restoring again.
+// 409 means the version picked is already current, which the UI prevents but a
+// stale panel can hit.
 export const POST: RequestHandler = async ({ locals, request }) => {
 	if (!locals.session) error(401, t('err.invalidCredentials'));
 

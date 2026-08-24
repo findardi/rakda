@@ -78,7 +78,9 @@
 
 	const retrying = new SvelteSet<string>();
 
-	async function retryRendition(doc: DocumentData) {
+	// Also called for a staged version that failed, with its own version id;
+	// default is the current version, the one the row's failed state describes.
+	async function retryRendition(doc: DocumentData, versionId = doc.current_version_id) {
 		if (retrying.has(doc.id)) return;
 		retrying.add(doc.id);
 		try {
@@ -88,7 +90,7 @@
 				body: JSON.stringify({
 					workspaceId: workspace.id,
 					documentId: doc.id,
-					versionId: doc.current_version_id
+					versionId
 				})
 			});
 			if (!res.ok) {
@@ -104,6 +106,23 @@
 			retrying.delete(doc.id);
 		}
 	}
+
+	// Conversions now run server-side the moment an upload or retry lands, so a
+	// pending state is genuinely in motion — refresh until none is left rather
+	// than showing a spinner over data that never changes.
+	const anyConverting = $derived(
+		documents.some(
+			(d) => d.rendition_status === 'pending' || d.staged_rendition_status === 'pending'
+		)
+	);
+
+	$effect(() => {
+		if (!anyConverting) return;
+		const timer = setInterval(() => {
+			if (document.visibilityState === 'visible') void invalidateAll();
+		}, 10_000);
+		return () => clearInterval(timer);
+	});
 
 	// One row's history open at a time: two panels of near-identical numbers
 	// invite comparing the wrong pair.
@@ -682,6 +701,39 @@
 						</span>
 					{/if}
 
+					<!-- A staged version is manager knowledge (the server omits it for
+					     guests): readers keep the served version until it proves out. -->
+					{#if doc.staged_version_no}
+						{#if doc.staged_rendition_status === 'failed'}
+							<span
+								class="flex flex-none items-center gap-1.5 font-mono text-[0.6875rem] text-error"
+								title={t('doc.docs.staged.failedTitle')}
+							>
+								{t('doc.docs.staged.failed', { n: doc.staged_version_no })}
+								{#if canSeeVersions && doc.staged_version_id}
+									<button
+										type="button"
+										onclick={() => void retryRendition(doc, doc.staged_version_id)}
+										disabled={retrying.has(doc.id)}
+										aria-busy={retrying.has(doc.id)}
+										aria-label={t('doc.docs.rendition.retryOf', { name: doc.name })}
+										class="underline underline-offset-2 hover:text-base-content disabled:opacity-50"
+									>
+										{t('doc.docs.rendition.retry')}
+									</button>
+								{/if}
+							</span>
+						{:else}
+							<span
+								class="flex flex-none items-center gap-1 font-mono text-[0.6875rem] text-warning-ink"
+								title={t('doc.docs.staged.pendingTitle')}
+							>
+								<span class="loading loading-spinner loading-xs" aria-hidden="true"></span>
+								{t('doc.docs.staged.pending', { n: doc.staged_version_no })}
+							</span>
+						{/if}
+					{/if}
+
 					<span
 						class="hidden w-20 flex-none text-right font-mono text-xs text-muted tabular-nums md:inline"
 					>
@@ -700,13 +752,19 @@
 						class="flex flex-none items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:gap-1 pointer-coarse:opacity-100"
 					>
 						{#if canDownload}
+							<!-- Non-ready renditions cannot be downloaded; the disabled state
+							     explains itself instead of ending in a server error toast. -->
 							<button
 								type="button"
 								onclick={() => void download(doc)}
-								disabled={downloading.has(doc.id)}
+								disabled={downloading.has(doc.id) || doc.rendition_status !== 'ready'}
 								aria-busy={downloading.has(doc.id)}
 								draggable="false"
-								title={t('doc.docs.download')}
+								title={doc.rendition_status === 'failed'
+									? t('doc.docs.rendition.failedTitle')
+									: doc.rendition_status === 'pending'
+										? t('doc.docs.rendition.pendingTitle')
+										: t('doc.docs.download')}
 								aria-label={t('doc.docs.downloadOf', { name: doc.name })}
 								class="grid h-8 w-8 place-items-center rounded-field text-muted transition-colors hover:bg-base-content/5 hover:text-base-content disabled:pointer-events-none disabled:opacity-50 pointer-coarse:h-11 pointer-coarse:w-11"
 							>
@@ -861,9 +919,11 @@
 			<p class="mt-1 text-sm text-muted text-pretty">
 				{t('doc.docs.delete.warning', { name: deleting.name })}
 			</p>
-			{#if deleting.version_no > 1}
+			<!-- version_count, never version_no: the served number follows the
+			     pointer, so after a restore it can undercount what goes to trash. -->
+			{#if deleting.version_count > 1}
 				<p class="mt-2 text-sm font-medium text-error text-pretty">
-					{t('doc.docs.delete.versions', { n: deleting.version_no })}
+					{t('doc.docs.delete.versions', { n: deleting.version_count })}
 				</p>
 			{/if}
 		{/if}

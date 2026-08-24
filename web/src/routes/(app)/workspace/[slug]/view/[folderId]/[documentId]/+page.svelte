@@ -518,7 +518,13 @@
 	$effect(() => () => downloadAbort.abort());
 
 	async function download() {
-		if (downloading || downloadBlocked) return;
+		if (downloading) return;
+		// The blocked state's explanation lives in `title`, which touch never
+		// shows — so the tap says it instead of silently doing nothing.
+		if (downloadBlocked) {
+			showToast(downloadHint, 'error');
+			return;
+		}
 		downloading = true;
 		// Download what is on screen, not whatever became current since.
 		const outcome = await downloadRendition(
@@ -549,10 +555,13 @@
 		})
 			.then((res) => {
 				if (!res.ok) throw new Error(String(res.status));
+				// The retry started the conversion server-side; reloading joins it
+				// and lands on the pages once they exist.
 				window.location.reload();
 			})
 			.catch(() => {
 				retrying = false;
+				showToast(t('doc.view.failed.retryErr'), 'error');
 			});
 	}
 </script>
@@ -610,7 +619,9 @@
 						<option value={v.id}>
 							{v.is_current
 								? t('doc.view.ver.optionCurrent', { n: v.version_no })
-								: t('doc.view.ver.option', { n: v.version_no, when: formatDate(v.created_at) })}
+								: v.is_staged
+									? t('doc.view.ver.optionStaged', { n: v.version_no })
+									: t('doc.view.ver.option', { n: v.version_no, when: formatDate(v.created_at) })}
 						</option>
 					{/each}
 				</select>
@@ -1065,6 +1076,9 @@
 				<div>
 					<p class="text-[0.9375rem] font-medium">{t('doc.view.failed.title')}</p>
 					<p class="mt-1 text-sm text-muted text-pretty">{t('doc.view.failed.body')}</p>
+					{#if !managesRoom}
+						<p class="mt-1 text-sm text-muted text-pretty">{t('doc.view.failed.noPerm')}</p>
+					{/if}
 				</div>
 				{#if managesRoom && retryVersionId}
 					<button

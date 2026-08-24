@@ -3,8 +3,9 @@ import { retryRendition } from '$lib/server/api';
 import { t } from '$lib/i18n';
 import type { RequestHandler } from './$types';
 
-// Clears the recorded rendition failure for a version; the next open of the
-// document retries the conversion. Owner/admin only upstream — guests get 403.
+// Clears the recorded rendition failure for a version and starts the conversion
+// again server-side, detached from this request. Owner/admin only upstream —
+// guests get 403.
 export const POST: RequestHandler = async ({ locals, request }) => {
 	if (!locals.session) error(401, t('err.invalidCredentials'));
 

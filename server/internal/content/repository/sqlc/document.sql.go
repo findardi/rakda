@@ -28,7 +28,7 @@ insert into documents
     (workspace_id, folder_id, name, position, uploaded_by)
 values
     ($1, $2, $3, $4, $5)
-returning id, workspace_id, folder_id, name, current_version_id, uploaded_by, created_at, updated_at, position, deleted_at, deleted_by, deleted_root_folder_id
+returning id, workspace_id, folder_id, name, current_version_id, uploaded_by, created_at, updated_at, position, deleted_at, deleted_by, deleted_root_folder_id, staged_version_id
 `
 
 type CreateDocumentParams struct {
@@ -61,6 +61,7 @@ func (q *Queries) CreateDocument(ctx context.Context, arg CreateDocumentParams) 
 		&i.DeletedAt,
 		&i.DeletedBy,
 		&i.DeletedRootFolderID,
+		&i.StagedVersionID,
 	)
 	return i, err
 }
@@ -142,7 +143,7 @@ func (q *Queries) GetCurrentVersion(ctx context.Context, id pgtype.UUID) (Docume
 }
 
 const getDocumentByID = `-- name: GetDocumentByID :one
-select id, workspace_id, folder_id, name, current_version_id, uploaded_by, created_at, updated_at, position, deleted_at, deleted_by, deleted_root_folder_id from documents where id = $1 and deleted_at is null
+select id, workspace_id, folder_id, name, current_version_id, uploaded_by, created_at, updated_at, position, deleted_at, deleted_by, deleted_root_folder_id, staged_version_id from documents where id = $1 and deleted_at is null
 `
 
 func (q *Queries) GetDocumentByID(ctx context.Context, id pgtype.UUID) (Document, error) {
@@ -161,12 +162,13 @@ func (q *Queries) GetDocumentByID(ctx context.Context, id pgtype.UUID) (Document
 		&i.DeletedAt,
 		&i.DeletedBy,
 		&i.DeletedRootFolderID,
+		&i.StagedVersionID,
 	)
 	return i, err
 }
 
 const getDocumentByNameInFolder = `-- name: GetDocumentByNameInFolder :one
-select id, workspace_id, folder_id, name, current_version_id, uploaded_by, created_at, updated_at, position, deleted_at, deleted_by, deleted_root_folder_id from documents where folder_id = $1 and name = $2 and deleted_at is null
+select id, workspace_id, folder_id, name, current_version_id, uploaded_by, created_at, updated_at, position, deleted_at, deleted_by, deleted_root_folder_id, staged_version_id from documents where folder_id = $1 and name = $2 and deleted_at is null
 `
 
 type GetDocumentByNameInFolderParams struct {
@@ -190,6 +192,7 @@ func (q *Queries) GetDocumentByNameInFolder(ctx context.Context, arg GetDocument
 		&i.DeletedAt,
 		&i.DeletedBy,
 		&i.DeletedRootFolderID,
+		&i.StagedVersionID,
 	)
 	return i, err
 }
@@ -220,7 +223,7 @@ func (q *Queries) GetNextVersionNo(ctx context.Context, documentID pgtype.UUID) 
 }
 
 const getTrashedDocumentByID = `-- name: GetTrashedDocumentByID :one
-select id, workspace_id, folder_id, name, current_version_id, uploaded_by, created_at, updated_at, position, deleted_at, deleted_by, deleted_root_folder_id from documents where id = $1 and deleted_at is not null
+select id, workspace_id, folder_id, name, current_version_id, uploaded_by, created_at, updated_at, position, deleted_at, deleted_by, deleted_root_folder_id, staged_version_id from documents where id = $1 and deleted_at is not null
 `
 
 func (q *Queries) GetTrashedDocumentByID(ctx context.Context, id pgtype.UUID) (Document, error) {
@@ -239,6 +242,7 @@ func (q *Queries) GetTrashedDocumentByID(ctx context.Context, id pgtype.UUID) (D
 		&i.DeletedAt,
 		&i.DeletedBy,
 		&i.DeletedRootFolderID,
+		&i.StagedVersionID,
 	)
 	return i, err
 }
@@ -283,26 +287,37 @@ select
     v.mime,
     v.size,
     v.rendition_key,
-    v.rendition_failed_at
+    v.rendition_failed_at,
+    sv.id as staged_version_id,
+    sv.version_no as staged_version_no,
+    sv.rendition_key as staged_rendition_key,
+    sv.rendition_failed_at as staged_rendition_failed_at,
+    (select count(*) from document_versions dv where dv.document_id = d.id)::int as version_count
 from documents d
 join document_versions v on v.id = d.current_version_id
+left join document_versions sv on sv.id = d.staged_version_id
 where d.folder_id = $1 and d.deleted_at is null
 order by d.position, d.name, d.created_at
 `
 
 type ListDocumentsByFolderRow struct {
-	ID                pgtype.UUID        `json:"id"`
-	Name              string             `json:"name"`
-	FolderID          pgtype.UUID        `json:"folder_id"`
-	CurrentVersionID  pgtype.UUID        `json:"current_version_id"`
-	UploadedBy        pgtype.UUID        `json:"uploaded_by"`
-	CreatedAt         pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
-	VersionNo         int32              `json:"version_no"`
-	Mime              string             `json:"mime"`
-	Size              int64              `json:"size"`
-	RenditionKey      *string            `json:"rendition_key"`
-	RenditionFailedAt pgtype.Timestamptz `json:"rendition_failed_at"`
+	ID                      pgtype.UUID        `json:"id"`
+	Name                    string             `json:"name"`
+	FolderID                pgtype.UUID        `json:"folder_id"`
+	CurrentVersionID        pgtype.UUID        `json:"current_version_id"`
+	UploadedBy              pgtype.UUID        `json:"uploaded_by"`
+	CreatedAt               pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt               pgtype.Timestamptz `json:"updated_at"`
+	VersionNo               int32              `json:"version_no"`
+	Mime                    string             `json:"mime"`
+	Size                    int64              `json:"size"`
+	RenditionKey            *string            `json:"rendition_key"`
+	RenditionFailedAt       pgtype.Timestamptz `json:"rendition_failed_at"`
+	StagedVersionID         pgtype.UUID        `json:"staged_version_id"`
+	StagedVersionNo         *int32             `json:"staged_version_no"`
+	StagedRenditionKey      *string            `json:"staged_rendition_key"`
+	StagedRenditionFailedAt pgtype.Timestamptz `json:"staged_rendition_failed_at"`
+	VersionCount            int32              `json:"version_count"`
 }
 
 func (q *Queries) ListDocumentsByFolder(ctx context.Context, folderID pgtype.UUID) ([]ListDocumentsByFolderRow, error) {
@@ -327,6 +342,11 @@ func (q *Queries) ListDocumentsByFolder(ctx context.Context, folderID pgtype.UUI
 			&i.Size,
 			&i.RenditionKey,
 			&i.RenditionFailedAt,
+			&i.StagedVersionID,
+			&i.StagedVersionNo,
+			&i.StagedRenditionKey,
+			&i.StagedRenditionFailedAt,
+			&i.VersionCount,
 		); err != nil {
 			return nil, err
 		}
@@ -471,7 +491,8 @@ const listVersionsWithUploader = `-- name: ListVersionsWithUploader :many
 select
     v.id, v.document_id, v.version_no, v.mime, v.size, v.storage_key, v.uploaded_by, v.created_at, v.rendition_key, v.page_count, v.rendition_error, v.rendition_failed_at, v.text_extracted_at, v.text_error, v.text_failed_at,
     coalesce(u.username, u.email)::text as uploaded_by_name,
-    coalesce(d.current_version_id = v.id, false)::bool as is_current
+    coalesce(d.current_version_id = v.id, false)::bool as is_current,
+    coalesce(d.staged_version_id = v.id, false)::bool as is_staged
 from document_versions v
 join users u on u.id = v.uploaded_by
 join documents d on d.id = v.document_id
@@ -497,10 +518,13 @@ type ListVersionsWithUploaderRow struct {
 	TextFailedAt      pgtype.Timestamptz `json:"text_failed_at"`
 	UploadedByName    string             `json:"uploaded_by_name"`
 	IsCurrent         bool               `json:"is_current"`
+	IsStaged          bool               `json:"is_staged"`
 }
 
 // `is_current` is the served version, which restore repoints freely, so it is
 // not necessarily the highest version_no. current_version_id is nullable.
+// `is_staged` marks an upload waiting for its rendition to prove out before it
+// is served; at most one version per document carries it.
 func (q *Queries) ListVersionsWithUploader(ctx context.Context, documentID pgtype.UUID) ([]ListVersionsWithUploaderRow, error) {
 	rows, err := q.db.Query(ctx, listVersionsWithUploader, documentID)
 	if err != nil {
@@ -528,6 +552,7 @@ func (q *Queries) ListVersionsWithUploader(ctx context.Context, documentID pgtyp
 			&i.TextFailedAt,
 			&i.UploadedByName,
 			&i.IsCurrent,
+			&i.IsStaged,
 		); err != nil {
 			return nil, err
 		}
@@ -552,6 +577,30 @@ type MoveDocumentParams struct {
 func (q *Queries) MoveDocument(ctx context.Context, arg MoveDocumentParams) error {
 	_, err := q.db.Exec(ctx, moveDocument, arg.ID, arg.FolderID, arg.Position)
 	return err
+}
+
+const promoteStagedVersion = `-- name: PromoteStagedVersion :execrows
+update documents set
+    current_version_id = $1,
+    staged_version_id = null,
+    updated_at = now()
+where id = $2 and staged_version_id = $1
+`
+
+type PromoteStagedVersionParams struct {
+	VersionID pgtype.UUID `json:"version_id"`
+	ID        pgtype.UUID `json:"id"`
+}
+
+// The where-guard makes promotion atomic and idempotent: it only fires while
+// the document still stages this exact version, so a restore or a newer upload
+// that raced the conversion wins and this becomes a no-op.
+func (q *Queries) PromoteStagedVersion(ctx context.Context, arg PromoteStagedVersionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, promoteStagedVersion, arg.VersionID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const purgeDocument = `-- name: PurgeDocument :exec
@@ -635,8 +684,9 @@ func (q *Queries) RestoreDocumentsSweptBy(ctx context.Context, deletedRootFolder
 }
 
 const setCurrentVersion = `-- name: SetCurrentVersion :exec
-update documents set 
+update documents set
     current_version_id = $2,
+    staged_version_id = null,
     updated_at = now()
 where id = $1
 `
@@ -646,8 +696,28 @@ type SetCurrentVersionParams struct {
 	CurrentVersionID pgtype.UUID `json:"current_version_id"`
 }
 
+// An explicit pointer set (first upload, restore) supersedes any staging in
+// flight: a version left staged after the owner chose another would promote
+// itself behind their back the moment its conversion finished.
 func (q *Queries) SetCurrentVersion(ctx context.Context, arg SetCurrentVersionParams) error {
 	_, err := q.db.Exec(ctx, setCurrentVersion, arg.ID, arg.CurrentVersionID)
+	return err
+}
+
+const setStagedVersion = `-- name: SetStagedVersion :exec
+update documents set
+    staged_version_id = $2,
+    updated_at = now()
+where id = $1
+`
+
+type SetStagedVersionParams struct {
+	ID              pgtype.UUID `json:"id"`
+	StagedVersionID pgtype.UUID `json:"staged_version_id"`
+}
+
+func (q *Queries) SetStagedVersion(ctx context.Context, arg SetStagedVersionParams) error {
+	_, err := q.db.Exec(ctx, setStagedVersion, arg.ID, arg.StagedVersionID)
 	return err
 }
 

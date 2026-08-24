@@ -55,3 +55,22 @@ func TestAssertUploadable(t *testing.T) {
 		t.Errorf("assertUploadable(README) = %v, want ErrNotUploadable", err)
 	}
 }
+
+func TestAssertVersionType(t *testing.T) {
+	if err := assertVersionType("laporan.pdf", ""); err != nil {
+		t.Errorf("assertVersionType tanpa nama berkas = %v, want nil", err)
+	}
+
+	if err := assertVersionType("laporan.pdf", "laporan-final.PDF"); err != nil {
+		t.Errorf("assertVersionType beda kapitalisasi = %v, want nil", err)
+	}
+
+	err := assertVersionType("laporan.pdf", "laporan.docx")
+	if !errors.Is(err, ErrVersionTypeMismatch) {
+		t.Fatalf("assertVersionType(pdf, docx) = %v, want ErrVersionTypeMismatch", err)
+	}
+
+	if err := assertVersionType("laporan.pdf", "arsip"); !errors.Is(err, ErrVersionTypeMismatch) {
+		t.Errorf("assertVersionType tanpa ekstensi = %v, want ErrVersionTypeMismatch", err)
+	}
+}

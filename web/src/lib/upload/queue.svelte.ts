@@ -48,12 +48,29 @@ const MULTIPART_THRESHOLD = 16 * 1024 * 1024;
 // Server tetap otoritas; ini hanya supaya penolakan terjadi sebelum byte bergerak.
 const UPLOADABLE_EXT = new Set([
 	'pdf',
-	'doc', 'docx', 'odt', 'rtf', 'txt',
-	'xls', 'xlsx', 'xlsm', 'ods', 'csv',
-	'ppt', 'pptx', 'odp',
-	'jpg', 'jpeg', 'png', 'gif', 'bmp', 'tif', 'tiff', 'svg'
+	'doc',
+	'docx',
+	'odt',
+	'rtf',
+	'txt',
+	'xls',
+	'xlsx',
+	'xlsm',
+	'ods',
+	'csv',
+	'ppt',
+	'pptx',
+	'odp',
+	'jpg',
+	'jpeg',
+	'png',
+	'gif',
+	'bmp',
+	'tif',
+	'tiff',
+	'svg'
 ]);
-const MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
+export const MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
 
 function rejectReason(file: File): string | null {
 	const dot = file.name.lastIndexOf('.');

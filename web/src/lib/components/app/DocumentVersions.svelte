@@ -10,6 +10,7 @@
 	import { formatBytes, formatDateTime } from '$lib/format';
 	import { t } from '$lib/i18n';
 	import type { DocumentData, VersionData } from '$lib/types/content';
+	import { MAX_UPLOAD_BYTES } from '$lib/upload/queue.svelte';
 
 	type Props = {
 		workspaceId: string;
@@ -83,8 +84,9 @@
 	}
 
 	// --- restore -----------------------------------------------------------
-	// Copy-forward, so this is reversible and does not warrant a modal. The
-	// confirm step opens in place, under the row it belongs to.
+	// A pointer flip — `current_version_id` is repointed, no row is copied — so
+	// this is reversible and does not warrant a modal. The confirm step opens in
+	// place, under the row it belongs to.
 
 	let confirmingId = $state<string | null>(null);
 	let restoringId = $state<string | null>(null);
@@ -128,6 +130,26 @@
 	let uploadPct = $state(0);
 	// Request handle, never rendered — a reactive proxy would break xhr.send().
 	let request: XMLHttpRequest | null = null;
+	// Collapsing the panel unmounts this component; an upload left running would
+	// finish invisibly and toast out of nowhere. Aborting turns that into the
+	// same explicit "canceled" the cancel button produces.
+	$effect(() => () => request?.abort());
+
+	// The rendition pipeline converts by the document's name — a version
+	// inherits it — so replacement bytes must be the same type. Mirror of the
+	// server's gate; rejection happens before any byte moves.
+	const docExt = $derived.by(() => {
+		const dot = documentName.lastIndexOf('.');
+		return dot > 0 ? documentName.slice(dot + 1).toLowerCase() : '';
+	});
+
+	function rejectVersionReason(file: File): string | null {
+		const dot = file.name.lastIndexOf('.');
+		const ext = dot > 0 ? file.name.slice(dot + 1).toLowerCase() : '';
+		if (docExt && ext !== docExt) return t('doc.ver.err.type', { ext: ext || '—', docExt });
+		if (file.size > MAX_UPLOAD_BYTES) return t('upload.err.tooLarge');
+		return null;
+	}
 
 	function put(url: string, file: File): Promise<void> {
 		return new Promise((done, fail) => {
@@ -169,12 +191,23 @@
 			const doneRes = await fetch('/api/content/versions', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ workspaceId, documentId, storageKey: storage_key })
+				body: JSON.stringify({
+					workspaceId,
+					documentId,
+					storageKey: storage_key,
+					fileName: file.name
+				})
 			});
 			if (!doneRes.ok) throw new Error(await messageOf(doneRes));
 
+			// Staged, not served: the upload answers before conversion, and the
+			// pointer flips upstream only once the rendition proves out.
 			const doc = (await doneRes.json()) as DocumentData;
-			showToast(t('doc.ver.uploaded', { n: doc.version_no }), 'success');
+			if (doc.staged_version_no) {
+				showToast(t('doc.ver.uploadedStaged', { n: doc.staged_version_no }), 'success');
+			} else {
+				showToast(t('doc.ver.uploaded', { n: doc.version_no }), 'success');
+			}
 			await Promise.all([load(), invalidateAll()]);
 		} catch (e) {
 			showToast(e instanceof Error ? e.message : t('doc.ver.err.upload'), 'error');
@@ -188,7 +221,41 @@
 		const input = e.currentTarget as HTMLInputElement;
 		const file = input.files?.[0];
 		input.value = '';
-		if (file) void upload(file);
+		if (!file) return;
+
+		const reason = rejectVersionReason(file);
+		if (reason) {
+			showToast(reason, 'error');
+			return;
+		}
+
+		void upload(file);
+	}
+
+	// --- rendition retry (per failed version) ------------------------------
+
+	const retryingIds = new SvelteSet<string>();
+
+	async function retryPrep(v: VersionData): Promise<void> {
+		if (retryingIds.has(v.id)) return;
+		retryingIds.add(v.id);
+		try {
+			const res = await fetch('/api/content/versions/retry-rendition', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ workspaceId, documentId, versionId: v.id })
+			});
+			if (!res.ok) {
+				showToast(await messageOf(res), 'error');
+				return;
+			}
+			showToast(t('doc.docs.rendition.retried', { name: documentName }), 'success');
+			await Promise.all([load(), invalidateAll()]);
+		} catch {
+			showToast(t('err.network'), 'error');
+		} finally {
+			retryingIds.delete(v.id);
+		}
 	}
 </script>
 
@@ -255,6 +322,7 @@
 				bind:this={fileInput}
 				onchange={onPick}
 				type="file"
+				accept={docExt ? `.${docExt}` : undefined}
 				class="sr-only"
 				aria-label={t('doc.ver.uploadOf', { name: documentName })}
 			/>
@@ -354,6 +422,23 @@
 							</span>
 						{/if}
 
+						{#if v.rendition_status === 'failed'}
+							<span
+								class="flex-none rounded-selector bg-error/10 px-1.5 py-0.5 text-[0.6875rem] font-medium text-error"
+								title={t('doc.docs.rendition.failedTitle')}
+							>
+								{t('doc.ver.failedBadge')}
+							</span>
+						{:else if v.is_staged}
+							<span
+								class="flex flex-none items-center gap-1 rounded-selector bg-base-content/5 px-1.5 py-0.5 text-[0.6875rem] font-medium text-warning-ink"
+								title={t('doc.ver.stagedTitle')}
+							>
+								<span class="loading loading-spinner loading-xs" aria-hidden="true"></span>
+								{t('doc.ver.stagedBadge')}
+							</span>
+						{/if}
+
 						<span class="min-w-0 flex-1 truncate text-xs text-muted">
 							{t('doc.ver.by', { name: v.uploaded_by_name })}
 						</span>
@@ -386,12 +471,18 @@
 							</a>
 
 							{#if canDownload}
+								<!-- A rendition that is not ready cannot produce a download; the
+								     button says why instead of ending in a server error toast. -->
 								<button
 									type="button"
 									onclick={() => void download(v)}
-									disabled={downloading.has(v.id)}
+									disabled={downloading.has(v.id) || v.rendition_status !== 'ready'}
 									aria-busy={downloading.has(v.id)}
-									title={t('doc.ver.downloadOf', { n: v.version_no })}
+									title={v.rendition_status === 'failed'
+										? t('doc.docs.rendition.failedTitle')
+										: v.rendition_status === 'pending'
+											? t('doc.ver.notReadyTitle')
+											: t('doc.ver.downloadOf', { n: v.version_no })}
 									aria-label={t('doc.ver.downloadOf', { n: v.version_no })}
 									class="grid h-8 w-8 place-items-center rounded-field text-muted transition-colors hover:bg-base-content/5 hover:text-base-content disabled:pointer-events-none disabled:opacity-50 pointer-coarse:h-11 pointer-coarse:w-11"
 								>
@@ -403,7 +494,37 @@
 								</button>
 							{/if}
 
-							{#if canRestore && !isCurrent}
+							{#if v.rendition_status === 'failed'}
+								<!-- Serving a broken version would break the room for everyone, so
+								     the row offers the fix instead of the restore. -->
+								<button
+									type="button"
+									onclick={() => void retryPrep(v)}
+									disabled={retryingIds.has(v.id)}
+									aria-busy={retryingIds.has(v.id)}
+									title={t('doc.ver.retryPrepOf', { n: v.version_no })}
+									aria-label={t('doc.ver.retryPrepOf', { n: v.version_no })}
+									class="grid h-8 w-8 place-items-center rounded-field text-muted transition-colors hover:bg-base-content/5 hover:text-base-content disabled:pointer-events-none disabled:opacity-50 pointer-coarse:h-11 pointer-coarse:w-11"
+								>
+									{#if retryingIds.has(v.id)}
+										<span class="loading loading-spinner loading-xs"></span>
+									{:else}
+										<svg
+											class="h-4 w-4"
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="1.8"
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											aria-hidden="true"
+										>
+											<path d="M21 12a9 9 0 1 1-2.64-6.36" />
+											<path d="M21 3v6h-6" />
+										</svg>
+									{/if}
+								</button>
+							{:else if canRestore && !isCurrent}
 								<button
 									type="button"
 									onclick={() => (confirmingId = confirmingId === v.id ? null : v.id)}
@@ -449,8 +570,13 @@
 		</ul>
 
 		{#if versions.length <= 1}
-			<p class="mt-2 text-xs text-muted text-pretty">{t('doc.ver.empty')}</p>
-		{:else if canUpload}
+			<p class="mt-2 text-xs text-muted text-pretty">
+				{canUpload ? t('doc.ver.empty') : t('doc.ver.emptyReadonly')}
+			</p>
+		{/if}
+		{#if canUpload}
+			<!-- Shown from the first version on: the no-resume warning matters most
+			     before the first big replacement upload, not after it. -->
 			<p class="mt-2 text-xs text-muted text-pretty">{t('doc.ver.uploadHint')}</p>
 		{/if}
 	{/if}

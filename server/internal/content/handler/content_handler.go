@@ -485,6 +485,8 @@ func (h *ContentHandler) CompletedVersionUpload(w http.ResponseWriter, r *http.R
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
 		case errors.Is(err, service.ErrUploadNotFound):
 			response.Error(w, http.StatusBadRequest, err.Error(), nil)
+		case errors.Is(err, service.ErrVersionTypeMismatch):
+			response.Error(w, http.StatusUnsupportedMediaType, err.Error(), nil)
 		case errors.Is(err, service.ErrUploadTooLarge):
 			response.Error(w, http.StatusRequestEntityTooLarge, err.Error(), nil)
 		default:

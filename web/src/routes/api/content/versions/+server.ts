@@ -24,7 +24,9 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 };
 
 // Completes a new version: the bytes are already in object storage under
-// `storageKey`, this is what makes them the document's current version.
+// `storageKey`. The version is registered as *staged* — upstream serves it only
+// once its rendition succeeds, so the current version stays untouched for now.
+// `fileName` is the picked file's name, for the server's type gate.
 export const POST: RequestHandler = async ({ locals, request }) => {
 	if (!locals.session) error(401, t('err.invalidCredentials'));
 
@@ -32,15 +34,19 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 		workspaceId?: string;
 		documentId?: string;
 		storageKey?: string;
+		fileName?: string;
 	} | null;
 
 	if (!body?.workspaceId || !body.documentId || !body.storageKey) error(400, t('err.generic'));
 
 	const res = await completeVersion(locals.session, body.workspaceId, body.documentId, {
-		storage_key: body.storageKey
+		storage_key: body.storageKey,
+		file_name: body.fileName ?? ''
 	});
 	if (!res.ok) {
 		if (res.status === 404) error(404, t('doc.docs.err.notFound'));
+		if (res.status === 415) error(415, t('doc.ver.err.typeMismatch'));
+		if (res.status === 413) error(413, t('upload.err.tooLarge'));
 		error(res.status || 500, t('doc.ver.err.upload'));
 	}
 
