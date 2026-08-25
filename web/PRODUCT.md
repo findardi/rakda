@@ -109,6 +109,25 @@ Frasa **"proteksi screenshot" dilarang**. Yang melindungi sungguhan tetap
 tiga hal: viewer raster tanpa lapisan teks, watermark yang dibakar dan tidak
 bisa dilucuti, dan jejak audit yang menamai pembacanya.
 
+## Folder template
+
+Galeri 5 template struktur bawaan (Due diligence M&A, Fundraising,
+Transaksi properti, Audit & pelaporan, Legal & litigasi) — differentiator
+"setup tanpa training"; tidak satu pun benchmark punya galeri serupa.
+Aturan yang mengikat salinan UI:
+
+- **Additive, tidak pernah mengganti.** Salinan harus mengatakan template
+  "ditambahkan", bukan "menggantikan"; ruangan yang sudah berstruktur
+  mendapat kalimat peringatan + tombol ber-angka ("Terapkan — N folder
+  baru"). Friction menginformasikan, tidak pernah melarang — template
+  kedua di ruangan campuran adalah kasus sah.
+- Nama folder **tanpa prefiks angka** — nomor tampil dihitung dari urutan;
+  jangan pernah menuliskan "01" di nama.
+- Nama & deskripsi template datang dari server (dwibahasa); web tidak
+  menyimpan salinannya.
+- Jalur pulang selalu disebut: folder tak diinginkan dihapus ke Sampah
+  (15 hari), bisa bulk lewat mode pilih.
+
 ## Q&A
 
 Q&A adalah seksi tingkat ruangan: guest bertanya, pengelola (owner/admin)
