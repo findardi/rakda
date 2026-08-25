@@ -843,9 +843,12 @@ export const id = {
 	'tpl.detail.back': 'Kembali',
 	'tpl.detail.structure': 'Struktur folder',
 	'tpl.detail.existing': 'sudah ada — akan dilengkapi',
-	'tpl.apply': 'Terapkan',
+	'tpl.detail.hasStructure':
+		'Ruangan ini sudah punya struktur — template ditambahkan di bawahnya, tidak menggantikan.',
+	'tpl.applyCount': 'Terapkan — {n} folder baru',
 	'tpl.applying': 'Menerapkan…',
-	'tpl.applied': '{created} folder dibuat, {skipped} dipakai ulang.',
+	'tpl.applied':
+		'{created} folder dibuat, {skipped} dipakai ulang. Folder yang tidak diinginkan dapat dihapus ke Sampah.',
 	'tpl.manualLink': 'atau buat folder manual',
 	'tpl.err.load': 'Gagal memuat daftar template.',
 	'tpl.err.apply': 'Gagal menerapkan template.',

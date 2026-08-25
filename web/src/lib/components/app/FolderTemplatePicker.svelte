@@ -88,6 +88,23 @@
 		return !!match && match.children.some((c) => norm(c.name) === norm(nodeName(child)));
 	}
 
+	// A second template on a structured room is legal (append/merge-down), but
+	// it must not look like a first one: the seeded General alone doesn't count.
+	const hasStructure = $derived(folders.some((f) => !f.is_default));
+
+	const newCount = $derived.by(() => {
+		if (!selected) return 0;
+		let count = 0;
+		for (const node of selected.folders) {
+			const top = existsTopLevel(node);
+			if (!top) count++;
+			for (const child of node.children ?? []) {
+				if (!top || !existsChild(node, child)) count++;
+			}
+		}
+		return count;
+	});
+
 	let applySubmitting = $state(false);
 	let applyError = $state<string | null>(null);
 
@@ -149,6 +166,12 @@
 			<p class="text-[0.9375rem] font-medium">{nodeName(tpl)}</p>
 			<p class="mt-0.5 text-sm text-muted text-pretty">{templateDesc(tpl)}</p>
 		</div>
+
+		{#if hasStructure}
+			<p class="mt-3 max-w-prose text-xs text-warning-ink text-pretty">
+				{t('tpl.detail.hasStructure')}
+			</p>
+		{/if}
 
 		<p class="mt-4 text-xs font-medium text-muted">{t('tpl.detail.structure')}</p>
 		<ul class="mt-2 flex max-h-72 flex-col gap-1 overflow-y-auto text-sm">
@@ -218,7 +241,7 @@
 			<div class="mt-4 flex justify-end gap-2">
 				<Button type="button" variant="ghost" onclick={back}>{t('tpl.detail.back')}</Button>
 				<Button type="submit" loading={applySubmitting}>
-					{applySubmitting ? t('tpl.applying') : t('tpl.apply')}
+					{applySubmitting ? t('tpl.applying') : t('tpl.applyCount', { n: newCount })}
 				</Button>
 			</div>
 		</form>
