@@ -1,9 +1,11 @@
 import type { ApiResult } from '$lib/types';
 import type {
+	ApplyTemplateData,
 	BulkCreateFolderData,
 	BulkCreateFolderPayload,
 	CreateFolderPayload,
 	FolderData,
+	FolderTemplateData,
 	FolderTreeNode,
 	MoveFolderPayload,
 	RenameFolderPayload
@@ -33,6 +35,26 @@ export function bulkCreateFolders(
 	p: BulkCreateFolderPayload
 ): Promise<ApiResult<BulkCreateFolderData>> {
 	return post<BulkCreateFolderData>(`${foldersBase(workspaceId)}/bulk`, p, token);
+}
+
+export function listFolderTemplates(
+	token: string,
+	workspaceId: string
+): Promise<ApiResult<FolderTemplateData[]>> {
+	return get<FolderTemplateData[]>(`/content/workspaces/${workspaceId}/folder-templates`, token);
+}
+
+export function applyFolderTemplate(
+	token: string,
+	workspaceId: string,
+	templateKey: string,
+	locale: string
+): Promise<ApiResult<ApplyTemplateData>> {
+	return post<ApplyTemplateData>(
+		`/content/workspaces/${workspaceId}/folder-templates/${templateKey}/apply`,
+		{ locale },
+		token
+	);
 }
 
 export function renameFolder(

@@ -627,6 +627,7 @@ export const en: Record<keyof Dict, string> = {
 	'activity.action.group_unassigned': 'removed {target} from their group',
 	'activity.action.folder_access_changed': 'changed access to the folder “{target}” to {caps}',
 	'activity.action.folder_access_removed': "revoked a group's access to the folder “{target}”",
+	'activity.action.template_applied': 'applied the template “{target}” ({created} new folders)',
 	'activity.action.question_submitted': 'asked the question “{target}” (#{number} · {group})',
 	'activity.action.question_replied': 'replied to the question “{target}”',
 	'activity.action.question_answered': 'answered the question “{target}”',
@@ -666,6 +667,7 @@ export const en: Record<keyof Dict, string> = {
 	'activity.label.group_unassigned': 'Member removed from group',
 	'activity.label.folder_access_changed': 'Folder access changed',
 	'activity.label.folder_access_removed': 'Folder access revoked',
+	'activity.label.template_applied': 'Template applied',
 	'activity.label.question_submitted': 'Question asked',
 	'activity.label.question_replied': 'Question replied',
 	'activity.label.question_answered': 'Question answered',
@@ -823,6 +825,32 @@ export const en: Record<keyof Dict, string> = {
 	'qa.err.replyRequired': 'Reply is required.',
 	'qa.err.faqRequired': 'Question and answer are required.',
 	'qa.err.limitInvalid': 'Limit must be 0 or more.',
+
+	// folder template
+	'tpl.title': 'Start from a template',
+	'tpl.desc':
+		'Ready-made folder structures per deal type. Existing folders are reused and completed.',
+	'tpl.open': 'Apply template',
+	'tpl.folderCount': '{n} folders',
+	'tpl.loading': 'Loading templates…',
+	'tpl.detail.back': 'Back',
+	'tpl.detail.structure': 'Folder structure',
+	'tpl.detail.existing': 'already exists — will be completed',
+	'tpl.apply': 'Apply',
+	'tpl.applying': 'Applying…',
+	'tpl.applied': '{created} folders created, {skipped} reused.',
+	'tpl.manualLink': 'or create folders manually',
+	'tpl.err.load': 'Could not load the template list.',
+	'tpl.err.apply': 'Could not apply the template.',
+	'tpl.hint.ma-dd':
+		'Tip: give every buyer its own group so Q&A and folder access stay siloed per party.',
+	'tpl.hint.fundraising':
+		'Tip: limit download rights per investor group from the folder access panel.',
+	'tpl.hint.property':
+		'Tip: one buyer group is enough — set download rights per folder from the access panel.',
+	'tpl.hint.audit': 'Tip: consider switching Q&A off for the auditor group from the group panel.',
+	'tpl.hint.legal':
+		'Tip: switch the watermark on for evidence folders from the folder access panel.',
 
 	'fmt.dur.s': '{s}s',
 	'fmt.dur.m': '{m}m',

@@ -50,6 +50,7 @@ const (
 	ActionQuestionReopened    = "question_reopened"
 	ActionFaqPublished        = "faq_published"
 	ActionQaSettingsChanged   = "qa_settings_changed"
+	ActionTemplateApplied     = "template_applied"
 )
 
 const (
