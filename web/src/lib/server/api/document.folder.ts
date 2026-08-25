@@ -37,6 +37,16 @@ export function bulkCreateFolders(
 	return post<BulkCreateFolderData>(`${foldersBase(workspaceId)}/bulk`, p, token);
 }
 
+// Atomic: one unknown/foreign id fails the whole batch with a 404 — nothing
+// is half-deleted. Soft-delete to trash, same as the single delete.
+export function bulkDeleteFolders(
+	token: string,
+	workspaceId: string,
+	folderIds: string[]
+): Promise<ApiResult<null>> {
+	return post<null>(`${foldersBase(workspaceId)}/bulk-delete`, { folder_ids: folderIds }, token);
+}
+
 export function listFolderTemplates(
 	token: string,
 	workspaceId: string

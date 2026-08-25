@@ -284,6 +284,19 @@ export const en: Record<keyof Dict, string> = {
 	'doc.delete.confirmLabel': 'Type {name} to confirm',
 	'doc.delete.submit': 'Delete',
 	'doc.delete.submitting': 'Deleting…',
+
+	// select mode — bulk delete on both surfaces
+	'doc.select.enter': 'Select',
+	'doc.select.count': '{n} selected',
+	'doc.select.delete': 'Delete',
+	'doc.select.itemLabel': 'Select {name}',
+	'doc.select.foldersTitle': 'Delete selected folders',
+	'doc.select.folders':
+		'Delete {n} folders to Trash? Everything inside them moves along and can be restored from Trash.',
+	'doc.select.docsTitle': 'Delete selected documents',
+	'doc.select.docs': 'Delete {n} documents to Trash? All of them can be restored from Trash.',
+	'doc.select.deletedFolders': '{n} folders moved to Trash.',
+	'doc.select.deletedDocs': '{n} documents moved to Trash.',
 	'doc.err.load': 'Could not load folders.',
 	'doc.err.nameRequired': 'Enter a folder name.',
 	'doc.err.nameTaken': 'A folder with that name already exists here.',
