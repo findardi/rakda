@@ -145,6 +145,7 @@ export const id = {
 	'ws.detail.updated': 'Diperbarui',
 	'ws.section.overview': 'Ikhtisar',
 	'ws.section.documents': 'Dokumen',
+	'ws.section.qa': 'Q&A',
 	'ws.section.activity': 'Aktivitas',
 	'ws.section.access': 'Manajemen Akses',
 	'ws.section.trash': 'Sampah',
@@ -691,6 +692,115 @@ export const id = {
 	'activity.export.all': 'Unduh seluruh linimasa sebagai CSV',
 	'activity.export.filtered': 'Unduh entri yang lolos filter aktif sebagai CSV',
 	'activity.export.err': 'Gagal menyiapkan berkas ekspor.',
+
+	// q&a — pertanyaan & jawaban per ruangan, silo per grup
+	'qa.title': 'Q&A',
+	'qa.desc':
+		'Pertanyaan dan jawaban di ruang data ini. Grup hanya melihat pertanyaan grupnya sendiri.',
+	'qa.tab.questions': 'Pertanyaan',
+	'qa.tab.faq': 'FAQ',
+
+	'qa.status.waiting': 'Menunggu',
+	'qa.status.answered': 'Dijawab',
+	'qa.status.closed': 'Ditutup',
+
+	// list + filter
+	'qa.filter.status': 'Status',
+	'qa.filter.allStatus': 'Semua status',
+	'qa.filter.group': 'Grup',
+	'qa.filter.allGroups': 'Semua grup',
+	'qa.filter.reset': 'Reset',
+	'qa.replyCount': '{n} balasan',
+	'qa.count': '{n} pertanyaan',
+	'qa.countOne': '{n} pertanyaan',
+	'qa.countMore': '{n}+ pertanyaan',
+	'qa.loadMore': 'Muat lebih banyak',
+	'qa.loadingMore': 'Memuat…',
+	'qa.empty.title': 'Belum ada pertanyaan',
+	'qa.empty.body': 'Pertanyaan untuk pengelola ruangan akan tampil di sini.',
+	'qa.noMatch.title': 'Tidak ada pertanyaan yang cocok',
+	'qa.noMatch.body': 'Ubah atau reset filter untuk melihat pertanyaan lain.',
+
+	// ask dialog
+	'qa.ask.button': 'Ajukan pertanyaan',
+	'qa.ask.title': 'Ajukan pertanyaan',
+	'qa.ask.desc': 'Pertanyaan terlihat oleh anggota grup Anda dan pengelola ruangan.',
+	'qa.ask.subject': 'Subjek',
+	'qa.ask.subjectPlaceholder': 'Ringkasan singkat pertanyaan',
+	'qa.ask.body': 'Pertanyaan',
+	'qa.ask.bodyPlaceholder': 'Tulis pertanyaan Anda…',
+	'qa.ask.reference': 'Referensi',
+	'qa.ask.submit': 'Kirim',
+	'qa.ask.submitting': 'Mengirim…',
+	'qa.ask.cancel': 'Batal',
+	'qa.ask.success': 'Pertanyaan terkirim.',
+
+	// quota (angka selalu dari server)
+	'qa.limit.remaining': 'Sisa jatah: {n}',
+	'qa.limit.exhausted': 'Jatah pertanyaan grup Anda sudah habis.',
+	'qa.limit.disabled': 'Q&A dinonaktifkan untuk grup Anda.',
+
+	// thread
+	'qa.thread.back': 'Kembali ke Q&A',
+	'qa.thread.replies': 'Balasan',
+	'qa.thread.noReplies': 'Belum ada balasan.',
+	'qa.thread.replyLabel': 'Balasan Anda',
+	'qa.thread.replyPlaceholder': 'Tulis balasan…',
+	'qa.thread.send': 'Kirim',
+	'qa.thread.sending': 'Mengirim…',
+	'qa.thread.replied': 'Balasan terkirim.',
+	'qa.thread.close': 'Tutup pertanyaan',
+	'qa.thread.closedToast': 'Pertanyaan ditutup.',
+	'qa.thread.closedNote': 'Thread ini sudah ditutup.',
+	'qa.thread.askNew': 'Buat pertanyaan baru',
+	'qa.thread.reopen': 'Buka lagi',
+	'qa.thread.reopened': 'Pertanyaan dibuka lagi.',
+	'qa.thread.notFound': 'Pertanyaan tidak ditemukan.',
+
+	// promote ke FAQ
+	'qa.promote.button': 'Jadikan FAQ',
+	'qa.promote.title': 'Terbitkan sebagai FAQ',
+	'qa.promote.note': 'FAQ tampil ke semua grup tanpa identitas penanya.',
+	'qa.promote.question': 'Pertanyaan',
+	'qa.promote.answer': 'Jawaban',
+	'qa.promote.submit': 'Terbitkan',
+	'qa.promote.submitting': 'Menerbitkan…',
+
+	// tab FAQ
+	'qa.faq.write': 'Tulis FAQ',
+	'qa.faq.published': 'FAQ diterbitkan.',
+	'qa.faq.empty.title': 'Belum ada FAQ',
+	'qa.faq.empty.body':
+		'Jawaban yang berguna untuk semua grup diterbitkan pengelola ruangan di sini.',
+
+	// setelan grup
+	'qa.group.title': 'Q&A',
+	'qa.group.enabled': 'Q&A aktif',
+	'qa.group.enabledHint':
+		'Grup ini dapat mengajukan pertanyaan. Dimatikan: seksi Q&A tersembunyi, data lama tetap tersimpan.',
+	'qa.group.limit': 'Batas pertanyaan',
+	'qa.group.limitHint': 'Kosong = tanpa batas. Balasan tidak dihitung.',
+	'qa.group.save': 'Simpan',
+	'qa.group.saving': 'Menyimpan…',
+	'qa.group.saved': 'Setelan Q&A disimpan.',
+
+	// badge + entry point
+	'qa.waitingCount': '{n} pertanyaan menunggu',
+	'qa.askAbout': 'Tanya tentang dokumen ini',
+	'qa.askAboutOf': 'Tanya tentang {name}',
+
+	// errors
+	'qa.err.load': 'Gagal memuat Q&A.',
+	'qa.err.loadMore': 'Gagal memuat pertanyaan berikutnya.',
+	'qa.err.filter': 'Filter tidak valid.',
+	'qa.err.limit': 'Jatah pertanyaan grup Anda sudah habis.',
+	'qa.err.disabled': 'Q&A dinonaktifkan untuk grup Anda.',
+	'qa.err.closed': 'Thread sudah ditutup — balasan tidak dapat dikirim.',
+	'qa.err.subjectRequired': 'Subjek wajib diisi.',
+	'qa.err.bodyRequired': 'Pertanyaan wajib diisi.',
+	'qa.err.replyRequired': 'Balasan wajib diisi.',
+	'qa.err.faqRequired': 'Pertanyaan dan jawaban wajib diisi.',
+	'qa.err.limitInvalid': 'Batas harus angka 0 atau lebih.',
 
 	'fmt.dur.s': '{s}s',
 	'fmt.dur.m': '{m}m',

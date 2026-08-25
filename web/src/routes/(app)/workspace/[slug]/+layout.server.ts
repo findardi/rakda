@@ -1,5 +1,12 @@
 import { error, redirect } from '@sveltejs/kit';
-import { getMyAccessWorkspace, getWorkspace, getWorkspaces } from '$lib/server/api';
+import { canManageAccess } from '$lib/access/roles';
+import {
+	countWaitingQuestions,
+	getMyAccessWorkspace,
+	getWorkspace,
+	getWorkspaces,
+	listQuestions
+} from '$lib/server/api';
 import { t } from '$lib/i18n';
 import type { LayoutServerLoad } from './$types';
 
@@ -36,5 +43,17 @@ export const load: LayoutServerLoad = async ({ locals, params }) => {
 		error(myAccessRes.status || 500, t('err.generic'));
 	}
 
-	return { workspace: workRes.data, access: myAccessRes.data };
+	// Q&A shell data, best-effort: the manager badge needs the waiting count,
+	// guest entry points need the group's qa_enabled. Neither may break the room.
+	let qaWaiting = 0;
+	let qaEnabled = true;
+	if (canManageAccess(myAccessRes.data.role)) {
+		const countRes = await countWaitingQuestions(locals.session, match.id);
+		if (countRes.ok) qaWaiting = countRes.data.waiting_count;
+	} else {
+		const qaRes = await listQuestions(locals.session, match.id, { limit: 1 });
+		if (qaRes.ok) qaEnabled = qaRes.data.qa_enabled;
+	}
+
+	return { workspace: workRes.data, access: myAccessRes.data, qaWaiting, qaEnabled };
 };

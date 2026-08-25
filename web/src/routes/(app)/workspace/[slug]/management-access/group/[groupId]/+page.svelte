@@ -71,6 +71,36 @@
 		};
 	};
 
+	// --- Q&A settings (own PATCH action; not part of the name/description PUT) ---
+	let qaEnabled = $state(false);
+	let qaLimit = $state<number | ''>('');
+	let qaSubmitting = $state(false);
+	let qaMessage = $state<string | null>(null);
+	let lastQaGroup: typeof data.group | null = null;
+
+	$effect(() => {
+		if (lastQaGroup === data.group) return;
+		lastQaGroup = data.group;
+		qaEnabled = data.group.qa_enabled;
+		qaLimit = data.group.qa_question_limit ?? '';
+	});
+
+	const submitQa: SubmitFunction = () => {
+		qaSubmitting = true;
+		return async ({ result }) => {
+			qaSubmitting = false;
+			if (result.type === 'success') {
+				qaMessage = null;
+				await invalidateAll();
+				showToast(t('qa.group.saved'), 'success');
+			} else if (result.type === 'failure') {
+				qaMessage = (result.data?.message as string) ?? t('err.generic');
+			} else {
+				qaMessage = t('err.generic');
+			}
+		};
+	};
+
 	let unassigningId = $state<string | null>(null);
 	const submitUnassign = (m: GroupMemberData): SubmitFunction => {
 		return () => {
@@ -158,6 +188,50 @@
 {#if canReturn}
 	<p class="mt-4 text-xs text-muted text-pretty">{t('group.back.note', { name: defaultName })}</p>
 {/if}
+
+<section class="mt-6 rounded-box border border-base-content/10 bg-base-100 px-4 py-4">
+	<h2 class="text-sm font-semibold">{t('qa.group.title')}</h2>
+
+	{#if qaMessage}
+		<div class="mt-3"><Alert align="start">{qaMessage}</Alert></div>
+	{/if}
+
+	<form
+		method="POST"
+		action="?/qa"
+		use:enhance={submitQa}
+		class="mt-3 flex flex-wrap items-end gap-x-6 gap-y-3"
+	>
+		<label class="flex cursor-pointer items-center gap-2" title={t('qa.group.enabledHint')}>
+			<input
+				type="checkbox"
+				name="qa_enabled"
+				class="checkbox checkbox-sm"
+				bind:checked={qaEnabled}
+			/>
+			<span class="text-xs font-medium">{t('qa.group.enabled')}</span>
+		</label>
+
+		<label class="flex flex-col gap-1">
+			<span class="text-xs text-muted">{t('qa.group.limit')}</span>
+			<input
+				type="number"
+				name="question_limit"
+				min="0"
+				step="1"
+				placeholder="∞"
+				class="input input-sm w-24 font-mono"
+				bind:value={qaLimit}
+			/>
+		</label>
+
+		<Button type="submit" loading={qaSubmitting}>
+			{qaSubmitting ? t('qa.group.saving') : t('qa.group.save')}
+		</Button>
+
+		<p class="w-full text-[0.6875rem] text-muted">{t('qa.group.limitHint')}</p>
+	</form>
+</section>
 
 {#if members.length}
 	<ul class="mt-6 divide-y divide-base-content/10 border-y border-base-content/10">
