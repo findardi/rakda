@@ -16,7 +16,7 @@ insert into workspace_groups
     (workspace_id, name, description, is_default)
 values
     ($1, $2, $3, true)
-returning id, workspace_id, name, description, created_at, updated_at, is_default
+returning id, workspace_id, name, description, created_at, updated_at, is_default, qa_enabled, qa_question_limit
 `
 
 type CreateDefaultGroupParams struct {
@@ -36,6 +36,8 @@ func (q *Queries) CreateDefaultGroup(ctx context.Context, arg CreateDefaultGroup
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.IsDefault,
+		&i.QaEnabled,
+		&i.QaQuestionLimit,
 	)
 	return i, err
 }
@@ -45,7 +47,7 @@ insert into workspace_groups
     (workspace_id, name, description)
 values
     ($1, $2, $3)
-returning id, workspace_id, name, description, created_at, updated_at, is_default
+returning id, workspace_id, name, description, created_at, updated_at, is_default, qa_enabled, qa_question_limit
 `
 
 type CreateGroupParams struct {
@@ -65,6 +67,8 @@ func (q *Queries) CreateGroup(ctx context.Context, arg CreateGroupParams) (Works
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.IsDefault,
+		&i.QaEnabled,
+		&i.QaQuestionLimit,
 	)
 	return i, err
 }
@@ -79,7 +83,7 @@ func (q *Queries) DeleteGroup(ctx context.Context, id pgtype.UUID) error {
 }
 
 const getDefaultGroup = `-- name: GetDefaultGroup :one
-select id, workspace_id, name, description, created_at, updated_at, is_default from workspace_groups
+select id, workspace_id, name, description, created_at, updated_at, is_default, qa_enabled, qa_question_limit from workspace_groups
 where workspace_id = $1 and is_default
 `
 
@@ -94,12 +98,14 @@ func (q *Queries) GetDefaultGroup(ctx context.Context, workspaceID pgtype.UUID) 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.IsDefault,
+		&i.QaEnabled,
+		&i.QaQuestionLimit,
 	)
 	return i, err
 }
 
 const getGroup = `-- name: GetGroup :one
-select id, workspace_id, name, description, created_at, updated_at, is_default from workspace_groups
+select id, workspace_id, name, description, created_at, updated_at, is_default, qa_enabled, qa_question_limit from workspace_groups
 where id = $1
 `
 
@@ -114,12 +120,14 @@ func (q *Queries) GetGroup(ctx context.Context, id pgtype.UUID) (WorkspaceGroup,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.IsDefault,
+		&i.QaEnabled,
+		&i.QaQuestionLimit,
 	)
 	return i, err
 }
 
 const getGroups = `-- name: GetGroups :many
-select id, workspace_id, name, description, created_at, updated_at, is_default from workspace_groups
+select id, workspace_id, name, description, created_at, updated_at, is_default, qa_enabled, qa_question_limit from workspace_groups
 where workspace_id = $1
 order by created_at
 `
@@ -141,6 +149,8 @@ func (q *Queries) GetGroups(ctx context.Context, workspaceID pgtype.UUID) ([]Wor
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.IsDefault,
+			&i.QaEnabled,
+			&i.QaQuestionLimit,
 		); err != nil {
 			return nil, err
 		}
@@ -158,7 +168,7 @@ update workspace_groups set
     description = $3,
     updated_at = now()
 where id = $1
-returning id, workspace_id, name, description, created_at, updated_at, is_default
+returning id, workspace_id, name, description, created_at, updated_at, is_default, qa_enabled, qa_question_limit
 `
 
 type UpdateGroupParams struct {
@@ -178,6 +188,46 @@ func (q *Queries) UpdateGroup(ctx context.Context, arg UpdateGroupParams) (Works
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.IsDefault,
+		&i.QaEnabled,
+		&i.QaQuestionLimit,
+	)
+	return i, err
+}
+
+const updateGroupQA = `-- name: UpdateGroupQA :one
+update workspace_groups set
+    qa_enabled = $1,
+    qa_question_limit = $2,
+    updated_at = now()
+where id = $3 and workspace_id = $4
+returning id, workspace_id, name, description, created_at, updated_at, is_default, qa_enabled, qa_question_limit
+`
+
+type UpdateGroupQAParams struct {
+	QaEnabled       bool        `json:"qa_enabled"`
+	QaQuestionLimit *int32      `json:"qa_question_limit"`
+	ID              pgtype.UUID `json:"id"`
+	WorkspaceID     pgtype.UUID `json:"workspace_id"`
+}
+
+func (q *Queries) UpdateGroupQA(ctx context.Context, arg UpdateGroupQAParams) (WorkspaceGroup, error) {
+	row := q.db.QueryRow(ctx, updateGroupQA,
+		arg.QaEnabled,
+		arg.QaQuestionLimit,
+		arg.ID,
+		arg.WorkspaceID,
+	)
+	var i WorkspaceGroup
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Name,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsDefault,
+		&i.QaEnabled,
+		&i.QaQuestionLimit,
 	)
 	return i, err
 }

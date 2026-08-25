@@ -117,6 +117,7 @@ func (m *Module) RegisterRoutes(r chi.Router) {
 				r.With(m.mw.RequirePermission(permission.PermGroupView)).Get("/", m.handler.GetGroups)
 				r.With(m.mw.RequirePermission(permission.PermGroupView)).Get("/{groupID}", m.handler.GetGroup)
 				r.With(m.mw.RequirePermission(permission.PermGroupEdit)).Put("/{groupID}", m.handler.UpdateGroup)
+				r.With(m.mw.RequirePermission(permission.PermGroupEdit)).Patch("/{groupID}/qa", m.handler.UpdateGroupQA)
 				r.With(m.mw.RequirePermission(permission.PermGroupDelete)).Delete("/{groupID}", m.handler.DeleteGroup)
 				r.With(m.mw.RequirePermission(permission.PermGroupAssign)).Post("/{groupID}/assign", m.handler.AssignMember)
 				r.With(m.mw.RequirePermission(permission.PermGroupAssign)).Delete("/{groupID}/unassign/{memberID}", m.handler.UnassignMember)

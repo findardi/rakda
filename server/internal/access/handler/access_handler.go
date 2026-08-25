@@ -463,6 +463,48 @@ func (h *AccessHandler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, http.StatusOK, "update group success", res)
 }
 
+func (h *AccessHandler) UpdateGroupQA(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
+
+	wID := chi.URLParam(r, "workspaceID")
+	gID := chi.URLParam(r, "groupID")
+
+	var req dto.UpdateGroupQARequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
+		return
+	}
+
+	if errs := validation.Validate(&req); errs != nil {
+		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+		return
+	}
+
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	req.WorkspaceID = wID
+	req.GroupID = gID
+
+	res, err := h.svc.UpdateGroupQA(r.Context(), req, actor)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrGroupNotFound):
+			response.Error(w, http.StatusNotFound, err.Error(), nil)
+		default:
+			log.Printf("update group qa internal error: %v", err)
+			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
+		}
+
+		return
+	}
+
+	response.Success(w, http.StatusOK, "update group qa success", res)
+}
+
 func (h *AccessHandler) GetGroup(w http.ResponseWriter, r *http.Request) {
 	gID := chi.URLParam(r, "groupID")
 
