@@ -74,6 +74,12 @@
 	// guest never sees the disclosure rather than opening it into a 403.
 	const canSeeVersions = $derived(role === 'owner' || role === 'admin');
 
+	// Entry point 11-d: the Q&A ask dialog, prefilled with this document. The
+	// name in the query is display-only — the server re-resolves the id.
+	const qaEnabled = $derived((page.data as { qaEnabled?: boolean }).qaEnabled ?? true);
+	const askHref = (doc: DocumentData) =>
+		`${resolve('/(app)/workspace/[slug]/qa', { slug: page.params.slug! })}?ask-doc=${encodeURIComponent(doc.id)}&ask-name=${encodeURIComponent(doc.name)}`;
+
 	const notReady = $derived(documents.filter((d) => d.rendition_status !== 'ready').length);
 
 	const retrying = new SvelteSet<string>();
@@ -786,6 +792,33 @@
 									</svg>
 								{/if}
 							</button>
+						{/if}
+						{#if role === 'guest' && qaEnabled}
+							<!-- Entry point 11-d: opens the Q&A ask dialog prefilled with this
+							     document; hidden while the group's Q&A is switched off. -->
+							<!-- eslint-disable svelte/no-navigation-without-resolve -- resolve() cannot carry the ask-doc query string -->
+							<a
+								href={askHref(doc)}
+								draggable="false"
+								title={t('qa.askAbout')}
+								aria-label={t('qa.askAboutOf', { name: doc.name })}
+								class="grid h-8 w-8 place-items-center rounded-field text-muted transition-colors hover:bg-base-content/5 hover:text-base-content pointer-coarse:h-11 pointer-coarse:w-11"
+							>
+								<svg
+									class="h-4 w-4"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.8"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									aria-hidden="true"
+								>
+									<path d="M21 12a8 8 0 0 1-8 8H5a2 2 0 0 1-2-2v-6a8 8 0 1 1 18 0z" />
+									<path d="M12 12.5v-.3c0-.6.3-1 .8-1.3.8-.5 1.2-1 1.2-1.9a2 2 0 1 0-4 0" />
+									<path d="M12 16h.01" />
+								</svg>
+							</a>
 						{/if}
 						{#if canEditDoc && moveOptions.length > 0}
 							<button

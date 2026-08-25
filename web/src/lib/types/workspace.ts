@@ -106,8 +106,15 @@ export interface GroupWorkspaceData {
 	name: string;
 	description: string;
 	is_default: boolean;
+	qa_enabled: boolean;
+	qa_question_limit: number | null;
 	created_at: string;
 	updated_at: string;
+}
+
+export interface GroupQAPayload {
+	qa_enabled: boolean;
+	question_limit: number | null;
 }
 
 // A workspace member assigned to a group — joined view from the Go

@@ -11,5 +11,6 @@ export * from './document';
 export * from './document.trash';
 export * from './content.access';
 export * from './activity';
+export * from './qa';
 export * from './resolve';
 export * from './search';

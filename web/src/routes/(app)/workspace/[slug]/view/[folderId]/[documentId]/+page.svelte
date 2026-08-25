@@ -46,6 +46,13 @@
 		resolve('/(app)/workspace/[slug]/document/[folderId]', { slug, folderId })
 	);
 
+	// Entry point 11-d: lands on the Q&A page with the ask dialog prefilled.
+	// The name in the query is display-only — the server re-resolves the id.
+	const qaEnabled = $derived((page.data as { qaEnabled?: boolean }).qaEnabled ?? true);
+	const askHref = $derived(
+		`${resolve('/(app)/workspace/[slug]/qa', { slug })}?ask-doc=${encodeURIComponent(documentId)}&ask-name=${encodeURIComponent(meta?.name ?? '')}`
+	);
+
 	const pageCount = $derived(meta?.page_count ?? 0);
 	const pages = $derived(Array.from({ length: pageCount }, (_, i) => i + 1));
 
@@ -786,6 +793,33 @@
 					{privacyOn ? t('doc.view.privacy.off') : t('doc.view.privacy.on')}
 				</span>
 			</button>
+
+			<!-- Ask about this document — guests only (managers answer, they don't
+			     ask), hidden while the group's Q&A is switched off. -->
+			{#if !managesRoom && qaEnabled}
+				<!-- eslint-disable svelte/no-navigation-without-resolve -- resolve() cannot carry the ask-doc query string -->
+				<a
+					href={askHref}
+					title={t('qa.askAbout')}
+					class="grid h-8 w-8 flex-none place-items-center rounded-field text-muted transition-colors hover:bg-base-content/5 hover:text-base-content"
+				>
+					<svg
+						class="h-4 w-4"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.8"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						aria-hidden="true"
+					>
+						<path d="M21 12a8 8 0 0 1-8 8H5a2 2 0 0 1-2-2v-6a8 8 0 1 1 18 0z" />
+						<path d="M12 12.5v-.3c0-.6.3-1 .8-1.3.8-.5 1.2-1 1.2-1.9a2 2 0 1 0-4 0" />
+						<path d="M12 16h.01" />
+					</svg>
+					<span class="sr-only">{t('qa.askAbout')}</span>
+				</a>
+			{/if}
 
 			<!-- Who read what is owner/admin knowledge. A guest is recorded, never a
 			     reader of the record, so the control does not exist for them. -->
