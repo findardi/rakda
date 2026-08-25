@@ -836,9 +836,12 @@ export const en: Record<keyof Dict, string> = {
 	'tpl.detail.back': 'Back',
 	'tpl.detail.structure': 'Folder structure',
 	'tpl.detail.existing': 'already exists — will be completed',
-	'tpl.apply': 'Apply',
+	'tpl.detail.hasStructure':
+		'This room already has a structure — the template is added underneath it, not replacing it.',
+	'tpl.applyCount': 'Apply — {n} new folders',
 	'tpl.applying': 'Applying…',
-	'tpl.applied': '{created} folders created, {skipped} reused.',
+	'tpl.applied':
+		'{created} folders created, {skipped} reused. Unwanted folders can be moved to Trash.',
 	'tpl.manualLink': 'or create folders manually',
 	'tpl.err.load': 'Could not load the template list.',
 	'tpl.err.apply': 'Could not apply the template.',
