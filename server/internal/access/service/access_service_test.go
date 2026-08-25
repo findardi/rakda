@@ -45,12 +45,17 @@ func (fakeRecorder) RecordTx(context.Context, pgx.Tx, activityservice.Entry) err
 type fakeRepo struct {
 	AccessRepository
 
-	getRoleFn      func(context.Context, pgtype.UUID) (accessdb.WorkspaceRole, error)
-	getMemberFn    func(context.Context, pgtype.UUID) (accessdb.GetMemberRow, error)
-	addMemberFn    func(context.Context, accessdb.AddMemberParams) (accessdb.WorkspaceMember, error)
-	updateRoleFn   func(context.Context, accessdb.UpdateRoleParams) (accessdb.WorkspaceMember, error)
-	deleteMemberFn func(context.Context, pgtype.UUID) error
-	getInvFn       func(context.Context, string) (accessdb.GetInvitationByCodeHashDetailedRow, error)
+	getRoleFn       func(context.Context, pgtype.UUID) (accessdb.WorkspaceRole, error)
+	getMemberFn     func(context.Context, pgtype.UUID) (accessdb.GetMemberRow, error)
+	addMemberFn     func(context.Context, accessdb.AddMemberParams) (accessdb.WorkspaceMember, error)
+	updateRoleFn    func(context.Context, accessdb.UpdateRoleParams) (accessdb.WorkspaceMember, error)
+	deleteMemberFn  func(context.Context, pgtype.UUID) error
+	getInvFn        func(context.Context, string) (accessdb.GetInvitationByCodeHashDetailedRow, error)
+	updateGroupQAFn func(context.Context, accessdb.UpdateGroupQAParams) (accessdb.WorkspaceGroup, error)
+}
+
+func (f *fakeRepo) UpdateGroupQA(ctx context.Context, arg accessdb.UpdateGroupQAParams) (accessdb.WorkspaceGroup, error) {
+	return f.updateGroupQAFn(ctx, arg)
 }
 
 func (f *fakeRepo) GetRole(ctx context.Context, id pgtype.UUID) (accessdb.WorkspaceRole, error) {

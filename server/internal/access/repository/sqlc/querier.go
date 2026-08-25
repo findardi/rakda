@@ -44,6 +44,7 @@ type Querier interface {
 	ResendInvitation(ctx context.Context, arg ResendInvitationParams) (WorkspaceUserInvitation, error)
 	RevokeWorkspaceInvitation(ctx context.Context, id pgtype.UUID) (WorkspaceUserInvitation, error)
 	UpdateGroup(ctx context.Context, arg UpdateGroupParams) (WorkspaceGroup, error)
+	UpdateGroupQA(ctx context.Context, arg UpdateGroupQAParams) (WorkspaceGroup, error)
 	UpdateRole(ctx context.Context, arg UpdateRoleParams) (WorkspaceMember, error)
 }
 

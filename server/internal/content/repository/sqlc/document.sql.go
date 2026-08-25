@@ -292,7 +292,7 @@ select
     sv.version_no as staged_version_no,
     sv.rendition_key as staged_rendition_key,
     sv.rendition_failed_at as staged_rendition_failed_at,
-    (select count(*) from document_versions dv where dv.document_id = d.id)::int as version_count
+    coalesce((select count(*) from document_versions dv where dv.document_id = d.id), 0)::int as version_count
 from documents d
 join document_versions v on v.id = d.current_version_id
 left join document_versions sv on sv.id = d.staged_version_id

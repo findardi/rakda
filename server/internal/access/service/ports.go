@@ -32,6 +32,7 @@ type AccessRepository interface {
 	GetInvitationByCodeHashDetailed(ctx context.Context, codeHash string) (accessdb.GetInvitationByCodeHashDetailedRow, error)
 
 	UpdateGroup(ctx context.Context, arg accessdb.UpdateGroupParams) (accessdb.WorkspaceGroup, error)
+	UpdateGroupQA(ctx context.Context, arg accessdb.UpdateGroupQAParams) (accessdb.WorkspaceGroup, error)
 
 	InsertRole(ctx context.Context, arg accessdb.InsertRoleParams) (accessdb.WorkspaceRole, error)
 	InsertWorkspaceInvitation(ctx context.Context, arg accessdb.InsertWorkspaceInvitationParams) (accessdb.WorkspaceUserInvitation, error)

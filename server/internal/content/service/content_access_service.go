@@ -55,6 +55,17 @@ func (s *ContentService) resolveFolderAccess(ctx context.Context, workspaceID, f
 	return row, nil
 }
 
+func (s *ContentService) CanUserViewFolder(ctx context.Context, workspaceID, folderID, userID string) (bool, error) {
+	row, err := s.resolveFolderAccess(ctx, workspaceID, folderID, Actor{UserID: userID})
+	if errors.Is(err, ErrContentForbidden) || errors.Is(err, ErrFolderNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return row.CanView, nil
+}
+
 func (s *ContentService) requireFolderView(ctx context.Context, workspaceID, folderID string, actor Actor) error {
 	if actor.bypassesContentAccess() {
 		return nil

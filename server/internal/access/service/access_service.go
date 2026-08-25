@@ -747,15 +747,21 @@ func (s *AccessService) CreateGroup(ctx context.Context, req dto.CreateGroupRequ
 		return dto.GroupResponse{}, err
 	}
 
+	return groupResponse(g), nil
+}
+
+func groupResponse(g accessdb.WorkspaceGroup) dto.GroupResponse {
 	return dto.GroupResponse{
-		ID:          uuidString(g.ID),
-		WorkspaceID: uuidString(g.WorkspaceID),
-		Name:        g.Name,
-		Description: deref(g.Description),
-		IsDefault:   g.IsDefault,
-		CreatedAt:   g.CreatedAt.Time,
-		UpdatedAt:   g.UpdatedAt.Time,
-	}, nil
+		ID:              uuidString(g.ID),
+		WorkspaceID:     uuidString(g.WorkspaceID),
+		Name:            g.Name,
+		Description:     deref(g.Description),
+		IsDefault:       g.IsDefault,
+		QAEnabled:       g.QaEnabled,
+		QAQuestionLimit: g.QaQuestionLimit,
+		CreatedAt:       g.CreatedAt.Time,
+		UpdatedAt:       g.UpdatedAt.Time,
+	}
 }
 
 func (s *AccessService) GetGroups(ctx context.Context, workspaceID string) ([]dto.GroupResponse, error) {
@@ -771,17 +777,7 @@ func (s *AccessService) GetGroups(ctx context.Context, workspaceID string) ([]dt
 	}
 
 	for _, g := range gps {
-		group := dto.GroupResponse{
-			ID:          uuidString(g.ID),
-			WorkspaceID: uuidString(g.WorkspaceID),
-			Name:        g.Name,
-			Description: deref(g.Description),
-			IsDefault:   g.IsDefault,
-			CreatedAt:   g.CreatedAt.Time,
-			UpdatedAt:   g.UpdatedAt.Time,
-		}
-
-		groups = append(groups, group)
+		groups = append(groups, groupResponse(g))
 	}
 
 	return groups, nil
@@ -845,15 +841,40 @@ func (s *AccessService) UpdateGroup(ctx context.Context, req dto.UpdateGroupRequ
 		activityservice.ActionGroupUpdated, activityservice.TargetGroup,
 		req.GroupID, g.Name, nil))
 
-	return dto.GroupResponse{
-		ID:          uuidString(g.ID),
-		WorkspaceID: uuidString(g.WorkspaceID),
-		Name:        g.Name,
-		Description: deref(g.Description),
-		IsDefault:   g.IsDefault,
-		CreatedAt:   g.CreatedAt.Time,
-		UpdatedAt:   g.UpdatedAt.Time,
-	}, nil
+	return groupResponse(g), nil
+}
+
+func (s *AccessService) UpdateGroupQA(ctx context.Context, req dto.UpdateGroupQARequest, actor Actor) (dto.GroupResponse, error) {
+	var gID, wID pgtype.UUID
+	if err := gID.Scan(req.GroupID); err != nil {
+		return dto.GroupResponse{}, fmt.Errorf("parse group id: %w", err)
+	}
+	if err := wID.Scan(req.WorkspaceID); err != nil {
+		return dto.GroupResponse{}, fmt.Errorf("parse workspace id: %w", err)
+	}
+
+	g, err := s.repo.UpdateGroupQA(ctx, accessdb.UpdateGroupQAParams{
+		QaEnabled:       *req.QAEnabled,
+		QaQuestionLimit: req.QuestionLimit,
+		ID:              gID,
+		WorkspaceID:     wID,
+	})
+
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return dto.GroupResponse{}, ErrGroupNotFound
+	case err != nil:
+		return dto.GroupResponse{}, fmt.Errorf("update group qa: %w", err)
+	}
+
+	s.activity.Record(ctx, s.activityEntry(req.WorkspaceID, actor,
+		activityservice.ActionQaSettingsChanged, activityservice.TargetGroup,
+		req.GroupID, g.Name, map[string]any{
+			"qa_enabled":     g.QaEnabled,
+			"question_limit": g.QaQuestionLimit,
+		}))
+
+	return groupResponse(g), nil
 }
 
 func (s *AccessService) GetGroupDetail(ctx context.Context, groupID string) ([]dto.GroupMemberResponse, error) {
