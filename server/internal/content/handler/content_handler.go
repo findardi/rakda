@@ -948,6 +948,52 @@ func (h *ContentHandler) BulkCreateFolders(w http.ResponseWriter, r *http.Reques
 	response.Success(w, http.StatusCreated, "bulk create folders success", res)
 }
 
+func (h *ContentHandler) ListFolderTemplates(w http.ResponseWriter, r *http.Request) {
+	response.Success(w, http.StatusOK, "list folder templates success", h.svc.ListFolderTemplates())
+}
+
+func (h *ContentHandler) ApplyFolderTemplate(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
+
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	var req dto.ApplyTemplateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
+		return
+	}
+
+	if errs := validation.Validate(&req); errs != nil {
+		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+		return
+	}
+
+	req.WorkspaceID = chi.URLParam(r, "workspaceID")
+	req.TemplateKey = chi.URLParam(r, "templateKey")
+
+	res, err := h.svc.ApplyFolderTemplate(r.Context(), req, actor)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrTemplateNotFound):
+			response.Error(w, http.StatusNotFound, err.Error(), nil)
+		case errors.Is(err, service.ErrBulkTooManyFolders),
+			errors.Is(err, service.ErrBulkTooDeep),
+			errors.Is(err, service.ErrFolderNameInvalid):
+			response.Error(w, http.StatusBadRequest, err.Error(), nil)
+		default:
+			log.Printf("apply folder template internal error: %v", err)
+			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
+		}
+		return
+	}
+
+	response.Success(w, http.StatusCreated, "apply folder template success", res)
+}
+
 func (h *ContentHandler) InitMultipart(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 

@@ -623,6 +623,7 @@ export const id = {
 	'activity.action.group_unassigned': 'mengeluarkan {target} dari grupnya',
 	'activity.action.folder_access_changed': 'mengubah akses folder “{target}” menjadi {caps}',
 	'activity.action.folder_access_removed': 'mencabut akses sebuah grup atas folder “{target}”',
+	'activity.action.template_applied': 'menerapkan template “{target}” ({created} folder baru)',
 	'activity.action.question_submitted': 'mengajukan pertanyaan “{target}” (#{number} · {group})',
 	'activity.action.question_replied': 'membalas pertanyaan “{target}”',
 	'activity.action.question_answered': 'menjawab pertanyaan “{target}”',
@@ -662,6 +663,7 @@ export const id = {
 	'activity.label.group_unassigned': 'Anggota keluar grup',
 	'activity.label.folder_access_changed': 'Akses folder diubah',
 	'activity.label.folder_access_removed': 'Akses folder dicabut',
+	'activity.label.template_applied': 'Template diterapkan',
 	'activity.label.question_submitted': 'Pertanyaan diajukan',
 	'activity.label.question_replied': 'Pertanyaan dibalas',
 	'activity.label.question_answered': 'Pertanyaan dijawab',
@@ -830,6 +832,30 @@ export const id = {
 	'qa.err.replyRequired': 'Balasan wajib diisi.',
 	'qa.err.faqRequired': 'Pertanyaan dan jawaban wajib diisi.',
 	'qa.err.limitInvalid': 'Batas harus angka 0 atau lebih.',
+
+	// folder template — picker (nama & deskripsi template datang dari server)
+	'tpl.title': 'Mulai dari template',
+	'tpl.desc':
+		'Struktur folder siap pakai per jenis deal. Folder yang sudah ada dipakai ulang dan dilengkapi.',
+	'tpl.open': 'Terapkan template',
+	'tpl.folderCount': '{n} folder',
+	'tpl.loading': 'Memuat template…',
+	'tpl.detail.back': 'Kembali',
+	'tpl.detail.structure': 'Struktur folder',
+	'tpl.detail.existing': 'sudah ada — akan dilengkapi',
+	'tpl.apply': 'Terapkan',
+	'tpl.applying': 'Menerapkan…',
+	'tpl.applied': '{created} folder dibuat, {skipped} dipakai ulang.',
+	'tpl.manualLink': 'atau buat folder manual',
+	'tpl.err.load': 'Gagal memuat daftar template.',
+	'tpl.err.apply': 'Gagal menerapkan template.',
+	'tpl.hint.ma-dd':
+		'Saran: beri tiap pembeli grup sendiri agar Q&A dan akses folder tersilo per pihak.',
+	'tpl.hint.fundraising': 'Saran: batasi izin unduh per grup investor dari panel akses folder.',
+	'tpl.hint.property':
+		'Saran: cukup satu grup pembeli — atur izin unduh per folder dari panel akses.',
+	'tpl.hint.audit': 'Saran: pertimbangkan mematikan Q&A untuk grup auditor dari panel grup.',
+	'tpl.hint.legal': 'Saran: nyalakan watermark untuk folder bukti dari panel akses folder.',
 
 	'fmt.dur.s': '{s}s',
 	'fmt.dur.m': '{m}m',

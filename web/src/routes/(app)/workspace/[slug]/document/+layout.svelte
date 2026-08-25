@@ -5,7 +5,7 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import type { ActionResult, SubmitFunction } from '@sveltejs/kit';
-	import { UploadQueue } from '$lib/components/app';
+	import { FolderTemplatePicker, UploadQueue } from '$lib/components/app';
 	import { Alert, Button, Field, Toaster, showToast } from '$lib/components/common';
 	import {
 		DOCUMENT_MIME,
@@ -704,6 +704,16 @@
 	};
 
 	// --- move dialog (keyboard + touch path; drag is the shortcut) ---
+	let templateDialog = $state<HTMLDialogElement>();
+	// The picker mounts on first open only, so its lazy template fetch never
+	// fires for readers who never touch the dialog.
+	let templatesOpened = $state(false);
+
+	function openTemplates() {
+		templatesOpened = true;
+		templateDialog?.showModal();
+	}
+
 	let moveDialog = $state<HTMLDialogElement>();
 	let moving = $state<FolderTreeNode | null>(null);
 	let moveTarget = $state(ROOT);
@@ -869,21 +879,39 @@
 			</p>
 		</div>
 		{#if canCreate}
-			<Button onclick={() => startCreate(ROOT)}>
-				<svg
-					class="h-4 w-4"
-					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="1.8"
-					stroke-linecap="round"
-					stroke-linejoin="round"
-					aria-hidden="true"
-				>
-					<path d="M12 5v14M5 12h14" />
-				</svg>
-				{t('doc.newFolder')}
-			</Button>
+			<div class="flex flex-wrap items-center gap-2">
+				<Button variant="ghost" onclick={openTemplates}>
+					<svg
+						class="h-4 w-4"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.8"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						aria-hidden="true"
+					>
+						<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+						<path d="M12 11v5M9.5 13.5h5" />
+					</svg>
+					{t('tpl.open')}
+				</Button>
+				<Button onclick={() => startCreate(ROOT)}>
+					<svg
+						class="h-4 w-4"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.8"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						aria-hidden="true"
+					>
+						<path d="M12 5v14M5 12h14" />
+					</svg>
+					{t('doc.newFolder')}
+				</Button>
+			</div>
 		{/if}
 	</header>
 
@@ -947,36 +975,55 @@
 			</div>
 
 			{#if folders.length === 0 && creatingParent === null}
-				<div class="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-12 text-center">
-					<svg
-						class="h-8 w-8 text-muted/70"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="1.4"
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						aria-hidden="true"
-					>
-						<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-						<path d="M12 11v5M9.5 13.5h5" />
-					</svg>
-					<div>
-						<p class="text-sm font-medium">
-							{noAccess ? t('doc.noAccess.title') : t('doc.empty.title')}
-						</p>
-						<p class="mx-auto mt-1 max-w-xs text-xs text-muted text-pretty">
-							{noAccess ? t('doc.noAccess.body') : t('doc.empty.body')}
-						</p>
+				{#if canCreate && !noAccess}
+					<!-- Empty room: the five template cards inline — zero clicks to see
+					     the options; manual creation stays as a secondary link. -->
+					<div class="flex flex-1 flex-col gap-3 px-4 py-5">
+						<div>
+							<p class="text-sm font-medium">{t('tpl.title')}</p>
+							<p class="mt-1 text-xs text-muted text-pretty">{t('tpl.desc')}</p>
+						</div>
+						<FolderTemplatePicker workspaceId={workspace.id} {folders} {actionBase} />
+						<button
+							type="button"
+							onclick={() => startCreate(ROOT)}
+							class="self-center text-xs text-muted underline decoration-base-content/30 underline-offset-2 transition-colors hover:text-base-content"
+						>
+							{t('tpl.manualLink')}
+						</button>
 					</div>
-					{#if noAccess}
-						<span></span>
-					{:else if canCreate}
-						<Button onclick={() => startCreate(ROOT)}>{t('doc.empty.cta')}</Button>
-					{:else}
-						<p class="text-xs text-muted">{t('doc.empty.readonly')}</p>
-					{/if}
-				</div>
+				{:else}
+					<div
+						class="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-12 text-center"
+					>
+						<svg
+							class="h-8 w-8 text-muted/70"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.4"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							aria-hidden="true"
+						>
+							<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+							<path d="M12 11v5M9.5 13.5h5" />
+						</svg>
+						<div>
+							<p class="text-sm font-medium">
+								{noAccess ? t('doc.noAccess.title') : t('doc.empty.title')}
+							</p>
+							<p class="mx-auto mt-1 max-w-xs text-xs text-muted text-pretty">
+								{noAccess ? t('doc.noAccess.body') : t('doc.empty.body')}
+							</p>
+						</div>
+						{#if noAccess}
+							<span></span>
+						{:else}
+							<p class="text-xs text-muted">{t('doc.empty.readonly')}</p>
+						{/if}
+					</div>
+				{/if}
 			{:else if matched && rows.length === 0}
 				<div class="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-12 text-center">
 					<p class="text-sm text-muted text-pretty">{t('doc.search.none', { q: query.trim() })}</p>
@@ -1402,6 +1449,35 @@
 				</Button>
 			</div>
 		</form>
+	</div>
+	<form method="dialog" class="modal-backdrop">
+		<button aria-label={t('doc.cancel')}></button>
+	</form>
+</dialog>
+
+<dialog bind:this={templateDialog} class="modal" aria-labelledby="folder-template-title">
+	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+		<h2 id="folder-template-title" class="text-lg font-semibold tracking-[-0.01em]">
+			{t('tpl.title')}
+		</h2>
+		<p class="mt-1 text-sm text-muted text-pretty">{t('tpl.desc')}</p>
+
+		<div class="mt-5">
+			{#if templatesOpened}
+				<FolderTemplatePicker
+					workspaceId={workspace.id}
+					{folders}
+					{actionBase}
+					onApplied={() => templateDialog?.close()}
+				/>
+			{/if}
+		</div>
+
+		<div class="mt-6 flex justify-end">
+			<Button type="button" variant="ghost" onclick={() => templateDialog?.close()}>
+				{t('doc.cancel')}
+			</Button>
+		</div>
 	</div>
 	<form method="dialog" class="modal-backdrop">
 		<button aria-label={t('doc.cancel')}></button>

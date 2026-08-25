@@ -137,6 +137,34 @@ export interface BulkCreateFolderData {
 	folders: BulkFolderResult[];
 }
 
+// --- folder templates ---
+// Curated server-side constants; both languages arrive together and the web
+// picks per active locale. Applying rides the bulk engine: additive, existing
+// folders are reused and completed (merge-down).
+
+export interface TemplateNodeData {
+	name_id: string;
+	name_en: string;
+	children?: TemplateNodeData[];
+}
+
+export interface FolderTemplateData {
+	key: string;
+	name_id: string;
+	name_en: string;
+	desc_id: string;
+	desc_en: string;
+	folder_count: number;
+	folders: TemplateNodeData[];
+}
+
+export interface ApplyTemplateData {
+	folders: BulkFolderResult[];
+	created_count: number;
+	skipped_count: number;
+	template: string;
+}
+
 // --- multipart / resumable upload ---
 // `upload_id` + `storage_key` are the whole resume handle: the server keeps no
 // upload-session row, so losing this pair strands the upload in object storage.

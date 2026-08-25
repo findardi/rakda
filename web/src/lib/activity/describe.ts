@@ -18,7 +18,8 @@ export const ACTIVITY_GROUPS: { key: TKey; actions: string[] }[] = [
 			'folder_moved',
 			'folder_deleted',
 			'folder_restored',
-			'folder_purged'
+			'folder_purged',
+			'template_applied'
 		]
 	},
 	{
@@ -82,6 +83,7 @@ const PHRASE_KEY: Record<string, TKey> = {
 	folder_deleted: 'activity.action.folder_deleted',
 	folder_restored: 'activity.action.folder_restored',
 	folder_purged: 'activity.action.folder_purged',
+	template_applied: 'activity.action.template_applied',
 	document_uploaded: 'activity.action.document_uploaded',
 	document_moved: 'activity.action.document_moved',
 	document_deleted: 'activity.action.document_deleted',
@@ -123,6 +125,7 @@ const LABEL_KEY: Record<string, TKey> = {
 	folder_deleted: 'activity.label.folder_deleted',
 	folder_restored: 'activity.label.folder_restored',
 	folder_purged: 'activity.label.folder_purged',
+	template_applied: 'activity.label.template_applied',
 	document_uploaded: 'activity.label.document_uploaded',
 	document_moved: 'activity.label.document_moved',
 	document_deleted: 'activity.label.document_deleted',
@@ -280,6 +283,12 @@ export function describeActivity(item: ActivityItem): ActivityPhrase {
 			return {
 				key: 'activity.action.question_submitted',
 				vars: { ...vars, number: number(meta.number), group: text(meta.group_name) }
+			};
+
+		case 'template_applied':
+			return {
+				key: 'activity.action.template_applied',
+				vars: { ...vars, created: number(meta.created) }
 			};
 
 		default:
