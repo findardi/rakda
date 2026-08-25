@@ -60,7 +60,19 @@ export const ACTIVITY_GROUPS: { key: TKey; actions: string[] }[] = [
 			'group_unassigned'
 		]
 	},
-	{ key: 'activity.group.access', actions: ['folder_access_changed', 'folder_access_removed'] }
+	{ key: 'activity.group.access', actions: ['folder_access_changed', 'folder_access_removed'] },
+	{
+		key: 'activity.group.qa',
+		actions: [
+			'question_submitted',
+			'question_replied',
+			'question_answered',
+			'question_closed',
+			'question_reopened',
+			'faq_published',
+			'qa_settings_changed'
+		]
+	}
 ];
 
 const PHRASE_KEY: Record<string, TKey> = {
@@ -94,7 +106,14 @@ const PHRASE_KEY: Record<string, TKey> = {
 	group_assigned: 'activity.action.group_assigned',
 	group_unassigned: 'activity.action.group_unassigned',
 	folder_access_changed: 'activity.action.folder_access_changed',
-	folder_access_removed: 'activity.action.folder_access_removed'
+	folder_access_removed: 'activity.action.folder_access_removed',
+	question_submitted: 'activity.action.question_submitted',
+	question_replied: 'activity.action.question_replied',
+	question_answered: 'activity.action.question_answered',
+	question_closed: 'activity.action.question_closed',
+	question_reopened: 'activity.action.question_reopened',
+	faq_published: 'activity.action.faq_published',
+	qa_settings_changed: 'activity.action.qa_settings_changed'
 };
 
 const LABEL_KEY: Record<string, TKey> = {
@@ -128,7 +147,14 @@ const LABEL_KEY: Record<string, TKey> = {
 	group_assigned: 'activity.label.group_assigned',
 	group_unassigned: 'activity.label.group_unassigned',
 	folder_access_changed: 'activity.label.folder_access_changed',
-	folder_access_removed: 'activity.label.folder_access_removed'
+	folder_access_removed: 'activity.label.folder_access_removed',
+	question_submitted: 'activity.label.question_submitted',
+	question_replied: 'activity.label.question_replied',
+	question_answered: 'activity.label.question_answered',
+	question_closed: 'activity.label.question_closed',
+	question_reopened: 'activity.label.question_reopened',
+	faq_published: 'activity.label.faq_published',
+	qa_settings_changed: 'activity.label.qa_settings_changed'
 };
 
 const DESTRUCTIVE = new Set([
@@ -249,6 +275,12 @@ export function describeActivity(item: ActivityItem): ActivityPhrase {
 		case 'version_restored':
 		case 'rendition_retried':
 			return { key: PHRASE_KEY[item.action], vars: { ...vars, version: number(meta.version_no) } };
+
+		case 'question_submitted':
+			return {
+				key: 'activity.action.question_submitted',
+				vars: { ...vars, number: number(meta.number), group: text(meta.group_name) }
+			};
 
 		default:
 			return { key: PHRASE_KEY[item.action] ?? null, vars };

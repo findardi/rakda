@@ -586,6 +586,7 @@ export const en: Record<keyof Dict, string> = {
 	'activity.group.member': 'Members & invitations',
 	'activity.group.group': 'Groups',
 	'activity.group.access': 'Folder access',
+	'activity.group.qa': 'Q&A',
 
 	'activity.action.folder_created': 'created the folder “{target}”',
 	'activity.action.folder_created_bulk': 'added {count} folders at once',
@@ -626,6 +627,13 @@ export const en: Record<keyof Dict, string> = {
 	'activity.action.group_unassigned': 'removed {target} from their group',
 	'activity.action.folder_access_changed': 'changed access to the folder “{target}” to {caps}',
 	'activity.action.folder_access_removed': "revoked a group's access to the folder “{target}”",
+	'activity.action.question_submitted': 'asked the question “{target}” (#{number} · {group})',
+	'activity.action.question_replied': 'replied to the question “{target}”',
+	'activity.action.question_answered': 'answered the question “{target}”',
+	'activity.action.question_closed': 'closed the question “{target}”',
+	'activity.action.question_reopened': 'reopened the question “{target}”',
+	'activity.action.faq_published': 'published the FAQ “{target}”',
+	'activity.action.qa_settings_changed': 'changed the Q&A settings of group “{target}”',
 
 	'activity.label.folder_created': 'Folder created',
 	'activity.label.folder_renamed': 'Folder renamed',
@@ -658,6 +666,13 @@ export const en: Record<keyof Dict, string> = {
 	'activity.label.group_unassigned': 'Member removed from group',
 	'activity.label.folder_access_changed': 'Folder access changed',
 	'activity.label.folder_access_removed': 'Folder access revoked',
+	'activity.label.question_submitted': 'Question asked',
+	'activity.label.question_replied': 'Question replied',
+	'activity.label.question_answered': 'Question answered',
+	'activity.label.question_closed': 'Question closed',
+	'activity.label.question_reopened': 'Question reopened',
+	'activity.label.faq_published': 'FAQ published',
+	'activity.label.qa_settings_changed': 'Q&A settings changed',
 
 	'activity.link.open': 'Open “{name}”',
 	'activity.link.readers': 'View reading activity',
@@ -783,6 +798,11 @@ export const en: Record<keyof Dict, string> = {
 	'qa.waitingCount': '{n} questions waiting',
 	'qa.askAbout': 'Ask about this document',
 	'qa.askAboutOf': 'Ask about {name}',
+
+	'qa.export.csv': 'Export CSV',
+	'qa.export.all': 'Download the full question list as CSV',
+	'qa.export.filtered': 'Download the questions matching the active filters as CSV',
+	'qa.export.err': 'Could not prepare the export file.',
 
 	'qa.err.load': 'Could not load Q&A.',
 	'qa.err.loadMore': 'Could not load more questions.',

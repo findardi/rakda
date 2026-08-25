@@ -94,6 +94,7 @@ func (m *Module) RegisterRoutes(r chi.Router) {
 				r.Get("/", m.handler.ListQuestions)
 				r.Post("/", m.handler.SubmitQuestion)
 				r.Get("/count", m.handler.CountWaiting)
+				r.Get("/export", m.handler.ExportQuestions)
 
 				r.Route("/{questionID}", func(r chi.Router) {
 					r.Get("/", m.handler.GetQuestion)

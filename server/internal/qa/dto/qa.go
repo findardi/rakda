@@ -95,6 +95,33 @@ type WaitingCountResponse struct {
 	WaitingCount int64 `json:"waiting_count"`
 }
 
+type ExportQuestionsRequest struct {
+	WorkspaceID string
+	Limit       int
+	Cursor      string
+	Status      string
+	GroupID     string
+}
+
+type QuestionExportRow struct {
+	Number    int32
+	Group     string
+	Subject   string
+	Status    string
+	Type      string
+	Author    string
+	Role      string
+	Body      string
+	Document  string
+	Folder    string
+	CreatedAt time.Time
+}
+
+type ExportQuestionsPage struct {
+	Rows       []QuestionExportRow
+	NextCursor string
+}
+
 type FaqResponse struct {
 	ID           string    `json:"id"`
 	QuestionText string    `json:"question_text"`

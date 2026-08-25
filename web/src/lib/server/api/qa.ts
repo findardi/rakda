@@ -3,13 +3,14 @@ import type {
 	CreateFaqPayload,
 	CreateQuestionPayload,
 	QaFaqItem,
+	QaFilters,
 	QaListData,
 	QaQuery,
 	QaReplyResult,
 	QaThread,
 	QaWaitingCount
 } from '$lib/types/qa';
-import { get, post } from './client';
+import { API_URL, get, post, upstreamHeaders } from './client';
 
 export function listQuestions(
 	token: string,
@@ -76,6 +77,22 @@ export function reopenQuestion(
 	questionId: string
 ): Promise<ApiResult<null>> {
 	return post<null>(`/qa/workspaces/${workspaceId}/questions/${questionId}/reopen`, {}, token);
+}
+
+// Answers with a CSV stream, not the JSON envelope — hands back the raw
+// Response for the proxy to pipe through (pattern of the activity exports).
+export function fetchQaExport(
+	token: string,
+	workspaceId: string,
+	filters: Partial<QaFilters> = {}
+): Promise<Response> {
+	const params = new URLSearchParams({ format: 'csv' });
+	if (filters.status) params.set('status', filters.status);
+	if (filters.group_id) params.set('group_id', filters.group_id);
+
+	return fetch(`${API_URL}/qa/workspaces/${workspaceId}/questions/export?${params}`, {
+		headers: upstreamHeaders(token)
+	});
 }
 
 export function listFaqs(token: string, workspaceId: string): Promise<ApiResult<QaFaqItem[]>> {

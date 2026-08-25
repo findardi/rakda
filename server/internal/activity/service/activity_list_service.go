@@ -107,6 +107,7 @@ func (s *ActivityService) ListActivity(ctx context.Context, req dto.ListActivity
 
 			LinkDocumentID: uuidString(r.LinkDocumentID),
 			LinkFolderID:   uuidString(r.LinkFolderID),
+			LinkQuestionID: uuidString(r.LinkQuestionID),
 		})
 	}
 

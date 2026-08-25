@@ -1,11 +1,13 @@
 package handler
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/findardi/rakda/server/internal/platform/middleware"
 	"github.com/findardi/rakda/server/internal/platform/response"
@@ -15,7 +17,10 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-const MaxBodyBytes = 1 << 20
+const (
+	MaxBodyBytes    = 1 << 20
+	exportBatchSize = 100
+)
 
 type QAHandler struct {
 	svc *service.QAService
@@ -136,6 +141,77 @@ func (h *QAHandler) CountWaiting(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.Success(w, http.StatusOK, "count waiting questions success", res)
+}
+
+func (h *QAHandler) ExportQuestions(w http.ResponseWriter, r *http.Request) {
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	q := r.URL.Query()
+	if f := q.Get("format"); f != "" && f != "csv" {
+		response.Error(w, http.StatusBadRequest, "unsupported format", nil)
+		return
+	}
+
+	req := dto.ExportQuestionsRequest{
+		WorkspaceID: chi.URLParam(r, "workspaceID"),
+		Limit:       exportBatchSize,
+		Status:      q.Get("status"),
+		GroupID:     q.Get("group_id"),
+	}
+
+	page, err := h.svc.ExportQuestions(r.Context(), req, actor)
+	if err != nil {
+		h.qaError(w, err, "export questions")
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="qa-questions.csv"`)
+	if _, err := w.Write([]byte("\xEF\xBB\xBF")); err != nil {
+		return
+	}
+
+	cw := csv.NewWriter(w)
+	cw.Write([]string{"number", "group", "subject", "status", "type", "author", "role", "body", "document", "folder", "created_at"})
+
+	for {
+		for _, row := range page.Rows {
+			cw.Write([]string{
+				strconv.FormatInt(int64(row.Number), 10),
+				row.Group,
+				row.Subject,
+				row.Status,
+				row.Type,
+				row.Author,
+				row.Role,
+				row.Body,
+				row.Document,
+				row.Folder,
+				row.CreatedAt.Format(time.RFC3339Nano),
+			})
+		}
+
+		cw.Flush()
+		if err := cw.Error(); err != nil {
+			log.Printf("export questions write aborted: %v", err)
+			return
+		}
+
+		if page.NextCursor == "" {
+			return
+		}
+
+		req.Cursor = page.NextCursor
+		page, err = h.svc.ExportQuestions(r.Context(), req, actor)
+		if err != nil {
+			log.Printf("export questions aborted mid-stream: %v", err)
+			return
+		}
+	}
 }
 
 func (h *QAHandler) GetQuestion(w http.ResponseWriter, r *http.Request) {

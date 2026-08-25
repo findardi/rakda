@@ -520,6 +520,73 @@ func TestCountWaitingGuards(t *testing.T) {
 	})
 }
 
+func TestExportQuestions(t *testing.T) {
+	t.Run("guest with disabled qa is rejected", func(t *testing.T) {
+		repo := &fakeRepo{
+			getMemberGroupQAFn: func(ctx context.Context, arg qadb.GetMemberGroupQAParams) (qadb.GetMemberGroupQARow, error) {
+				return memberGroup(t, false, nil), nil
+			},
+		}
+		_, err := newService(repo, nil).ExportQuestions(context.Background(),
+			dto.ExportQuestionsRequest{WorkspaceID: uuidWS}, guestActor())
+		assert.ErrorIs(t, err, ErrQADisabled)
+	})
+
+	t.Run("guest silo forced and replies flatten under their question", func(t *testing.T) {
+		var captured qadb.ListQuestionsParams
+		repo := &fakeRepo{
+			getMemberGroupQAFn: func(ctx context.Context, arg qadb.GetMemberGroupQAParams) (qadb.GetMemberGroupQARow, error) {
+				return memberGroup(t, true, nil), nil
+			},
+			listQuestionsFn: func(ctx context.Context, arg qadb.ListQuestionsParams) ([]qadb.ListQuestionsRow, error) {
+				captured = arg
+				return []qadb.ListQuestionsRow{
+					{
+						ID:           mustUUID(t, uuidQuestion),
+						WorkspaceID:  mustUUID(t, uuidWS),
+						GroupID:      mustUUID(t, uuidGroup),
+						GroupName:    "Grup A",
+						Number:       3,
+						AuthorName:   "Guest",
+						Subject:      "subject",
+						Body:         "body",
+						Status:       StatusAnswered,
+						DocumentName: "doc snapshot",
+						CreatedAt:    pgtype.Timestamptz{Time: time.Now(), Valid: true},
+					},
+				}, nil
+			},
+			listRepliesFn: func(ctx context.Context, questionID pgtype.UUID) ([]qadb.QuestionReply, error) {
+				return []qadb.QuestionReply{
+					{
+						ID:         mustUUID(t, uuidGroupB),
+						QuestionID: questionID,
+						AuthorName: "Owner",
+						AuthorRole: permission.RoleOwner,
+						Body:       "answer",
+						CreatedAt:  pgtype.Timestamptz{Time: time.Now(), Valid: true},
+					},
+				}, nil
+			},
+		}
+
+		page, err := newService(repo, nil).ExportQuestions(context.Background(),
+			dto.ExportQuestionsRequest{WorkspaceID: uuidWS, GroupID: uuidGroupB}, guestActor())
+		require.NoError(t, err)
+
+		assert.Equal(t, uuidGroup, uuidString(captured.GroupID))
+		require.Len(t, page.Rows, 2)
+		assert.Equal(t, "question", page.Rows[0].Type)
+		assert.Equal(t, "doc snapshot", page.Rows[0].Document)
+		assert.Equal(t, permission.RoleGuest, page.Rows[0].Role)
+		assert.Equal(t, "reply", page.Rows[1].Type)
+		assert.EqualValues(t, 3, page.Rows[1].Number)
+		assert.Equal(t, "subject", page.Rows[1].Subject)
+		assert.Equal(t, permission.RoleOwner, page.Rows[1].Role)
+		assert.Empty(t, page.Rows[1].Document)
+	})
+}
+
 func TestCreateFaqGuards(t *testing.T) {
 	t.Run("guest forbidden", func(t *testing.T) {
 		_, err := newService(&fakeRepo{}, nil).CreateFaq(context.Background(),

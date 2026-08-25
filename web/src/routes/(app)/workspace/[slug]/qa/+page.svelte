@@ -95,6 +95,13 @@
 		}
 	}
 
+	const exportHref = $derived(
+		`/api/qa/export?${queryString([
+			['workspaceId', data.workspaceId],
+			...(Object.entries(data.filters) as [string, string][])
+		])}`
+	);
+
 	const SKELETON_WIDTHS = ['62%', '48%', '71%', '40%', '58%', '66%'];
 </script>
 
@@ -133,13 +140,36 @@
 		</label>
 	{/if}
 
-	{#if hasFilter}
-		<div class="ml-auto flex items-end gap-1">
+	<div class="ml-auto flex items-end gap-1">
+		{#if hasFilter}
 			<button type="button" class="btn btn-ghost btn-sm" onclick={resetFilters}>
 				{t('qa.filter.reset')}
 			</button>
-		</div>
-	{/if}
+		{/if}
+		{#if !data.filterRejected}
+			<!-- eslint-disable svelte/no-navigation-without-resolve -- endpoint, not a page: resolve() has no entry for /api routes -->
+			<a
+				href={exportHref}
+				title={hasFilter ? t('qa.export.filtered') : t('qa.export.all')}
+				class="btn btn-ghost btn-sm gap-1.5"
+			>
+				<svg
+					class="h-4 w-4"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="1.8"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					aria-hidden="true"
+				>
+					<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5" />
+					<path d="M5 19h14" />
+				</svg>
+				{t('qa.export.csv')}
+			</a>
+		{/if}
+	</div>
 </div>
 
 {#if reloading}
