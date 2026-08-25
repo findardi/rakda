@@ -14,6 +14,7 @@
 	// The viewer's standing in the open room — drives role-based nav.
 	const access = $derived((page.data as { access?: MyAccessWorkspace }).access);
 	const qaWaiting = $derived((page.data as { qaWaiting?: number }).qaWaiting ?? 0);
+	const qaEnabled = $derived((page.data as { qaEnabled?: boolean }).qaEnabled ?? true);
 
 	// Close the mobile drawer after any navigation.
 	afterNavigate(() => (navOpen = false));
@@ -32,7 +33,7 @@
 		<!-- Desktop: static sidebar — global nav, or room nav inside a room. -->
 		<aside class="hidden w-60 shrink-0 border-r border-base-content/10 bg-base-300 md:block">
 			{#if room}
-				<RoomSidebar workspace={room} {access} {qaWaiting} />
+				<RoomSidebar workspace={room} {access} {qaWaiting} {qaEnabled} />
 			{:else}
 				<AppSidebar invitations={data.invitationCount} />
 			{/if}
@@ -54,7 +55,7 @@
 			aria-hidden={!navOpen}
 		>
 			{#if room}
-				<RoomSidebar workspace={room} {access} {qaWaiting} />
+				<RoomSidebar workspace={room} {access} {qaWaiting} {qaEnabled} />
 			{:else}
 				<AppSidebar invitations={data.invitationCount} />
 			{/if}

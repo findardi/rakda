@@ -33,12 +33,16 @@
 	const askDisabled = $derived(
 		!data.qa.qa_enabled || (data.qa.question_limit != null && (data.qa.quota_remaining ?? 0) <= 0)
 	);
+	// limit 0 = submissions blocked by design, never "quota used up" — the two
+	// states get different sentences per product rule.
 	const askDisabledReason = $derived(
 		!data.qa.qa_enabled
 			? t('qa.limit.disabled')
-			: data.qa.question_limit != null && (data.qa.quota_remaining ?? 0) <= 0
-				? t('qa.limit.exhausted')
-				: ''
+			: data.qa.question_limit === 0
+				? t('qa.limit.blocked')
+				: data.qa.question_limit != null && (data.qa.quota_remaining ?? 0) <= 0
+					? t('qa.limit.exhausted')
+					: ''
 	);
 
 	let askDialog = $state<HTMLDialogElement>();

@@ -70,6 +70,9 @@
 	};
 
 	let statusSubmitting = $state(false);
+	// Close is irreversible for the asker (reopen is manager-only), so guests
+	// confirm first; managers close in one click since they can reopen.
+	let confirmingClose = $state(false);
 
 	const submitStatus =
 		(toast: string): SubmitFunction =>
@@ -155,16 +158,31 @@
 			</p>
 		</div>
 		<div class="flex flex-none items-center gap-2">
-			<span class="inline-flex items-center gap-1.5" title={status.label}>
+			<span class="inline-flex items-center gap-1.5" title={status.label} aria-live="polite">
 				<span class="h-1.5 w-1.5 rounded-full {status.dot}" aria-hidden="true"></span>
 				<span class="text-xs font-medium">{status.label}</span>
 			</span>
 			{#if canClose}
-				<form method="POST" action="?/close" use:enhance={submitStatus(t('qa.thread.closedToast'))}>
-					<button type="submit" class="btn btn-ghost btn-sm" disabled={statusSubmitting}>
+				{#if data.isManager}
+					<form
+						method="POST"
+						action="?/close"
+						use:enhance={submitStatus(t('qa.thread.closedToast'))}
+					>
+						<button type="submit" class="btn btn-ghost btn-sm" disabled={statusSubmitting}>
+							{t('qa.thread.close')}
+						</button>
+					</form>
+				{:else}
+					<button
+						type="button"
+						class="btn btn-ghost btn-sm"
+						onclick={() => (confirmingClose = true)}
+						disabled={statusSubmitting || confirmingClose}
+					>
 						{t('qa.thread.close')}
 					</button>
-				</form>
+				{/if}
 			{/if}
 			{#if canReopen}
 				<form method="POST" action="?/reopen" use:enhance={submitStatus(t('qa.thread.reopened'))}>
@@ -180,6 +198,24 @@
 			{/if}
 		</div>
 	</div>
+
+	{#if confirmingClose && canClose}
+		<div
+			class="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-box border border-base-content/10 bg-base-100 px-4 py-3"
+		>
+			<p class="text-sm text-pretty">{t('qa.thread.closeConfirm')}</p>
+			<div class="flex flex-none gap-2">
+				<Button type="button" variant="ghost" onclick={() => (confirmingClose = false)}>
+					{t('qa.ask.cancel')}
+				</Button>
+				<form method="POST" action="?/close" use:enhance={submitStatus(t('qa.thread.closedToast'))}>
+					<Button type="submit" loading={statusSubmitting}>
+						{t('qa.thread.closeConfirmYes')}
+					</Button>
+				</form>
+			</div>
+		</div>
+	{/if}
 
 	{#if thread.document_ref || thread.folder_ref}
 		<div class="mt-3 flex flex-wrap gap-2">
@@ -247,13 +283,25 @@
 	{:else}
 		<ul class="mt-3 flex flex-col gap-3">
 			{#each thread.replies as reply (reply.id)}
-				<li class="rounded-box border border-base-content/10 bg-base-100 px-4 py-3.5">
+				{@const managerReply = reply.author_role === 'owner' || reply.author_role === 'admin'}
+				<li
+					class="rounded-box border bg-base-100 px-4 py-3.5 {managerReply
+						? 'border-primary/25'
+						: 'border-base-content/10'}"
+				>
 					<div class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
 						<span class="text-sm font-medium">{reply.author_name}</span>
-						<span
-							class="rounded-selector bg-base-content/6 px-1.5 py-0.5 align-[0.05em] text-[0.6875rem] text-muted"
-							>{roleDisplayName(reply.author_role)}</span
-						>
+						{#if managerReply}
+							<span
+								class="rounded-selector bg-primary/10 px-1.5 py-0.5 align-[0.05em] text-[0.6875rem] font-medium text-primary"
+								>{t('qa.thread.managerReply')}</span
+							>
+						{:else}
+							<span
+								class="rounded-selector bg-base-content/6 px-1.5 py-0.5 align-[0.05em] text-[0.6875rem] text-muted"
+								>{roleDisplayName(reply.author_role)}</span
+							>
+						{/if}
 						<span class="ml-auto font-mono text-xs text-muted tabular-nums"
 							>{formatDateTime(reply.created_at)}</span
 						>
@@ -288,7 +336,10 @@
 				maxlength={5000}
 				rows={3}
 			/>
-			<div class="flex justify-end">
+			<div class="flex flex-wrap items-center justify-between gap-3">
+				<p class="text-xs text-muted">
+					{t(data.isManager ? 'qa.thread.replyHint.manager' : 'qa.thread.replyHint.guest')}
+				</p>
 				<Button type="submit" loading={replySubmitting} disabled={!replyBody.trim()}>
 					{replySubmitting ? t('qa.thread.sending') : t('qa.thread.send')}
 				</Button>

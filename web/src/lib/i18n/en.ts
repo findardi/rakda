@@ -754,6 +754,7 @@ export const en: Record<keyof Dict, string> = {
 
 	'qa.limit.remaining': 'Remaining quota: {n}',
 	'qa.limit.exhausted': 'Your group has used up its question quota.',
+	'qa.limit.blocked': 'Question submissions are disabled for your group.',
 	'qa.limit.disabled': 'Q&A is disabled for your group.',
 
 	'qa.thread.back': 'Back to Q&A',
@@ -761,10 +762,16 @@ export const en: Record<keyof Dict, string> = {
 	'qa.thread.noReplies': 'No replies yet.',
 	'qa.thread.replyLabel': 'Your reply',
 	'qa.thread.replyPlaceholder': 'Write a reply…',
+	'qa.thread.replyHint.guest':
+		'Your reply sets the status back to Waiting for the managers to review.',
+	'qa.thread.replyHint.manager': 'Your reply sets the status to Answered.',
+	'qa.thread.managerReply': 'Manager answer',
 	'qa.thread.send': 'Send',
 	'qa.thread.sending': 'Sending…',
 	'qa.thread.replied': 'Reply sent.',
 	'qa.thread.close': 'Close question',
+	'qa.thread.closeConfirm': 'Close this question? Only room managers can reopen it.',
+	'qa.thread.closeConfirmYes': 'Yes, close',
 	'qa.thread.closedToast': 'Question closed.',
 	'qa.thread.closedNote': 'This thread is closed.',
 	'qa.thread.askNew': 'Ask a new question',
@@ -788,9 +795,10 @@ export const en: Record<keyof Dict, string> = {
 	'qa.group.title': 'Q&A',
 	'qa.group.enabled': 'Q&A enabled',
 	'qa.group.enabledHint':
-		'This group can ask questions. When off, the Q&A section is hidden; existing data is kept.',
+		'When off, the Q&A section is hidden for this group’s guests; existing data is kept.',
 	'qa.group.limit': 'Question limit',
-	'qa.group.limitHint': 'Empty = no limit. Replies are not counted.',
+	'qa.group.limitHint':
+		'Limit: empty = no limit, 0 = submissions blocked while the section stays visible. Replies are not counted.',
 	'qa.group.save': 'Save',
 	'qa.group.saving': 'Saving…',
 	'qa.group.saved': 'Q&A settings saved.',

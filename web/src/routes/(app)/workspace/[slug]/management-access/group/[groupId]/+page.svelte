@@ -85,6 +85,13 @@
 		qaLimit = data.group.qa_question_limit ?? '';
 	});
 
+	// Idle saves would still PATCH and mint a spurious qa_settings_changed audit
+	// row, so the button stays off until something actually changed.
+	const qaLimitNorm = $derived(typeof qaLimit === 'number' ? qaLimit : null);
+	const qaDirty = $derived(
+		qaEnabled !== data.group.qa_enabled || qaLimitNorm !== (data.group.qa_question_limit ?? null)
+	);
+
 	const submitQa: SubmitFunction = () => {
 		qaSubmitting = true;
 		return async ({ result }) => {
@@ -202,7 +209,7 @@
 		use:enhance={submitQa}
 		class="mt-3 flex flex-wrap items-end gap-x-6 gap-y-3"
 	>
-		<label class="flex cursor-pointer items-center gap-2" title={t('qa.group.enabledHint')}>
+		<label class="flex cursor-pointer items-center gap-2">
 			<input
 				type="checkbox"
 				name="qa_enabled"
@@ -225,11 +232,14 @@
 			/>
 		</label>
 
-		<Button type="submit" loading={qaSubmitting}>
+		<Button type="submit" loading={qaSubmitting} disabled={!qaDirty}>
 			{qaSubmitting ? t('qa.group.saving') : t('qa.group.save')}
 		</Button>
 
-		<p class="w-full text-[0.6875rem] text-muted">{t('qa.group.limitHint')}</p>
+		<div class="w-full text-xs text-muted">
+			<p>{t('qa.group.enabledHint')}</p>
+			<p class="mt-0.5">{t('qa.group.limitHint')}</p>
+		</div>
 	</form>
 </section>
 
