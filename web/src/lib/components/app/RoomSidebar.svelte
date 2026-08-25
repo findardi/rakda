@@ -6,8 +6,13 @@
 	import WorkspaceStatusBadge from './WorkspaceStatusBadge.svelte';
 	import type { MyAccessWorkspace, WorkspaceData } from '$lib/types/workspace';
 
-	type Props = { workspace: WorkspaceData; access?: MyAccessWorkspace; qaWaiting?: number };
-	let { workspace, access, qaWaiting = 0 }: Props = $props();
+	type Props = {
+		workspace: WorkspaceData;
+		access?: MyAccessWorkspace;
+		qaWaiting?: number;
+		qaEnabled?: boolean;
+	};
+	let { workspace, access, qaWaiting = 0, qaEnabled = true }: Props = $props();
 
 	const overviewHref = $derived(`/workspace/${workspace.slug}`);
 	const documentsHref = $derived(`/workspace/${workspace.slug}/document`);
@@ -23,6 +28,8 @@
 		page.url.pathname === href || page.url.pathname.startsWith(`${href}/`);
 	// Members/roles/groups admin surface — managers only (owner/admin).
 	const showAccess = $derived(!!access && canManageAccess(access.role));
+	// Q&A off for the guest's group = section hidden entirely; managers always see it.
+	const showQa = $derived(qaEnabled || showAccess);
 </script>
 
 <nav class="flex h-full flex-col gap-1 p-3" aria-label="Navigasi ruang data">
@@ -113,43 +120,45 @@
 		<span class="flex-1 text-left">{t('ws.section.documents')}</span>
 	</a>
 
-	<!-- Q&A — every role: guests ask, managers answer. Badge = waiting count,
-	     only fed for managers by the layout load. -->
-	<a
-		href={qaHref}
-		class="flex items-center gap-3 rounded-field px-3 py-2 text-[0.9375rem] font-medium transition-colors {isSection(
-			qaHref
-		)
-			? 'bg-primary/10 text-primary'
-			: 'text-base-content hover:bg-base-content/5'}"
-		aria-current={isSection(qaHref) ? 'page' : undefined}
-	>
-		<svg
-			class="h-4.5 w-4.5 flex-none"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			stroke-width="1.6"
-			stroke-linecap="round"
-			stroke-linejoin="round"
-			aria-hidden="true"
+	<!-- Q&A — guests ask, managers answer. Hidden for guests whose group has
+	     Q&A off. Badge = waiting count, only fed for managers by the layout load. -->
+	{#if showQa}
+		<a
+			href={qaHref}
+			class="flex items-center gap-3 rounded-field px-3 py-2 text-[0.9375rem] font-medium transition-colors {isSection(
+				qaHref
+			)
+				? 'bg-primary/10 text-primary'
+				: 'text-base-content hover:bg-base-content/5'}"
+			aria-current={isSection(qaHref) ? 'page' : undefined}
 		>
-			<path d="M21 12a8 8 0 0 1-8 8H5a2 2 0 0 1-2-2v-6a8 8 0 1 1 18 0z" />
-			<path
-				d="M9.5 10.5c0-1.4 1.1-2.5 2.5-2.5s2.5 1.1 2.5 2.5c0 1.2-.9 1.8-1.7 2.3-.5.3-.8.7-.8 1.2"
-			/>
-			<path d="M12 16.5h.01" />
-		</svg>
-		<span class="flex-1 text-left">{t('ws.section.qa')}</span>
-		{#if qaWaiting > 0}
-			<span
-				class="grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[0.6875rem] font-semibold text-primary-content tabular-nums"
-				aria-label={t('qa.waitingCount', { n: qaWaiting })}
+			<svg
+				class="h-4.5 w-4.5 flex-none"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="1.6"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				aria-hidden="true"
 			>
-				{qaWaiting > 99 ? '99+' : qaWaiting}
-			</span>
-		{/if}
-	</a>
+				<path d="M21 12a8 8 0 0 1-8 8H5a2 2 0 0 1-2-2v-6a8 8 0 1 1 18 0z" />
+				<path
+					d="M9.5 10.5c0-1.4 1.1-2.5 2.5-2.5s2.5 1.1 2.5 2.5c0 1.2-.9 1.8-1.7 2.3-.5.3-.8.7-.8 1.2"
+				/>
+				<path d="M12 16.5h.01" />
+			</svg>
+			<span class="flex-1 text-left">{t('ws.section.qa')}</span>
+			{#if qaWaiting > 0}
+				<span
+					class="grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[0.6875rem] font-semibold text-primary-content tabular-nums"
+					aria-label={t('qa.waitingCount', { n: qaWaiting })}
+				>
+					{qaWaiting > 99 ? '99+' : qaWaiting}
+				</span>
+			{/if}
+		</a>
+	{/if}
 
 	<!-- Activity trail, people & permissions — managers only. -->
 	{#if showAccess}

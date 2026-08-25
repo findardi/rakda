@@ -753,6 +753,7 @@ export const id = {
 	// quota (angka selalu dari server)
 	'qa.limit.remaining': 'Sisa jatah: {n}',
 	'qa.limit.exhausted': 'Jatah pertanyaan grup Anda sudah habis.',
+	'qa.limit.blocked': 'Pengiriman pertanyaan dinonaktifkan untuk grup Anda.',
 	'qa.limit.disabled': 'Q&A dinonaktifkan untuk grup Anda.',
 
 	// thread
@@ -761,10 +762,16 @@ export const id = {
 	'qa.thread.noReplies': 'Belum ada balasan.',
 	'qa.thread.replyLabel': 'Balasan Anda',
 	'qa.thread.replyPlaceholder': 'Tulis balasan…',
+	'qa.thread.replyHint.guest':
+		'Balasan Anda mengembalikan status ke Menunggu untuk ditinjau pengelola.',
+	'qa.thread.replyHint.manager': 'Balasan Anda mengubah status menjadi Dijawab.',
+	'qa.thread.managerReply': 'Jawaban pengelola',
 	'qa.thread.send': 'Kirim',
 	'qa.thread.sending': 'Mengirim…',
 	'qa.thread.replied': 'Balasan terkirim.',
 	'qa.thread.close': 'Tutup pertanyaan',
+	'qa.thread.closeConfirm': 'Tutup pertanyaan ini? Hanya pengelola yang dapat membukanya lagi.',
+	'qa.thread.closeConfirmYes': 'Ya, tutup',
 	'qa.thread.closedToast': 'Pertanyaan ditutup.',
 	'qa.thread.closedNote': 'Thread ini sudah ditutup.',
 	'qa.thread.askNew': 'Buat pertanyaan baru',
@@ -792,9 +799,10 @@ export const id = {
 	'qa.group.title': 'Q&A',
 	'qa.group.enabled': 'Q&A aktif',
 	'qa.group.enabledHint':
-		'Grup ini dapat mengajukan pertanyaan. Dimatikan: seksi Q&A tersembunyi, data lama tetap tersimpan.',
+		'Dimatikan: seksi Q&A tersembunyi bagi guest grup ini; data lama tetap tersimpan.',
 	'qa.group.limit': 'Batas pertanyaan',
-	'qa.group.limitHint': 'Kosong = tanpa batas. Balasan tidak dihitung.',
+	'qa.group.limitHint':
+		'Batas: kosong = tanpa batas, 0 = pengiriman diblokir tapi seksi tetap tampil. Balasan tidak dihitung.',
 	'qa.group.save': 'Simpan',
 	'qa.group.saving': 'Menyimpan…',
 	'qa.group.saved': 'Setelan Q&A disimpan.',
