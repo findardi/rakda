@@ -14,7 +14,8 @@ values
 select
     a.*,
     coalesce(d.id, dv.id) as link_document_id,
-    coalesce(d.folder_id, dv.folder_id, f.id) as link_folder_id
+    coalesce(d.folder_id, dv.folder_id, f.id) as link_folder_id,
+    qn.id as link_question_id
 from activity_logs a
 left join documents d
     on a.target_type = 'document' and d.id = a.target_id and d.deleted_at is null
@@ -24,6 +25,8 @@ left join documents dv
     on dv.id = v.document_id and dv.deleted_at is null
 left join folders f
     on a.target_type = 'folder' and f.id = a.target_id and f.deleted_at is null
+left join questions qn
+    on a.target_type = 'question' and qn.id = a.target_id
 where
     a.workspace_id = @workspace_id
     and (sqlc.narg('cursor_created_at')::timestamptz is null

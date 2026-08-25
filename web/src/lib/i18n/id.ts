@@ -582,6 +582,7 @@ export const id = {
 	'activity.group.member': 'Anggota & undangan',
 	'activity.group.group': 'Grup',
 	'activity.group.access': 'Akses folder',
+	'activity.group.qa': 'Q&A',
 
 	'activity.action.folder_created': 'membuat folder “{target}”',
 	'activity.action.folder_created_bulk': 'menambahkan {count} folder sekaligus',
@@ -622,6 +623,13 @@ export const id = {
 	'activity.action.group_unassigned': 'mengeluarkan {target} dari grupnya',
 	'activity.action.folder_access_changed': 'mengubah akses folder “{target}” menjadi {caps}',
 	'activity.action.folder_access_removed': 'mencabut akses sebuah grup atas folder “{target}”',
+	'activity.action.question_submitted': 'mengajukan pertanyaan “{target}” (#{number} · {group})',
+	'activity.action.question_replied': 'membalas pertanyaan “{target}”',
+	'activity.action.question_answered': 'menjawab pertanyaan “{target}”',
+	'activity.action.question_closed': 'menutup pertanyaan “{target}”',
+	'activity.action.question_reopened': 'membuka lagi pertanyaan “{target}”',
+	'activity.action.faq_published': 'menerbitkan FAQ “{target}”',
+	'activity.action.qa_settings_changed': 'mengubah setelan Q&A grup “{target}”',
 
 	'activity.label.folder_created': 'Folder dibuat',
 	'activity.label.folder_renamed': 'Folder diganti nama',
@@ -654,6 +662,13 @@ export const id = {
 	'activity.label.group_unassigned': 'Anggota keluar grup',
 	'activity.label.folder_access_changed': 'Akses folder diubah',
 	'activity.label.folder_access_removed': 'Akses folder dicabut',
+	'activity.label.question_submitted': 'Pertanyaan diajukan',
+	'activity.label.question_replied': 'Pertanyaan dibalas',
+	'activity.label.question_answered': 'Pertanyaan dijawab',
+	'activity.label.question_closed': 'Pertanyaan ditutup',
+	'activity.label.question_reopened': 'Pertanyaan dibuka lagi',
+	'activity.label.faq_published': 'FAQ diterbitkan',
+	'activity.label.qa_settings_changed': 'Setelan Q&A diubah',
 
 	'activity.link.open': 'Buka “{name}”',
 	'activity.link.readers': 'Lihat aktivitas baca',
@@ -788,6 +803,12 @@ export const id = {
 	'qa.waitingCount': '{n} pertanyaan menunggu',
 	'qa.askAbout': 'Tanya tentang dokumen ini',
 	'qa.askAboutOf': 'Tanya tentang {name}',
+
+	// ekspor
+	'qa.export.csv': 'Ekspor CSV',
+	'qa.export.all': 'Unduh seluruh daftar pertanyaan sebagai CSV',
+	'qa.export.filtered': 'Unduh pertanyaan yang lolos filter aktif sebagai CSV',
+	'qa.export.err': 'Gagal menyiapkan berkas ekspor.',
 
 	// errors
 	'qa.err.load': 'Gagal memuat Q&A.',

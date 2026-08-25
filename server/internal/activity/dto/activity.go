@@ -29,6 +29,7 @@ type ActivityLogResponse struct {
 
 	LinkDocumentID string `json:"link_document_id"`
 	LinkFolderID   string `json:"link_folder_id"`
+	LinkQuestionID string `json:"link_question_id"`
 }
 
 type ListActivityResponse struct {
