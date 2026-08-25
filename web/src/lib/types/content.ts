@@ -46,6 +46,12 @@ export interface DocumentData {
 	mime: string;
 	size: number;
 	rendition_status: RenditionStatus;
+	version_count: number;
+	// A staged version was uploaded but is not served yet: the pointer flips
+	// only once its rendition succeeds. Manager-only — absent for guests.
+	staged_version_id?: string;
+	staged_version_no?: number;
+	staged_rendition_status?: RenditionStatus;
 	created_at: string;
 	updated_at: string;
 }
@@ -93,13 +99,18 @@ export interface VersionData {
 	uploaded_by: string;
 	uploaded_by_name: string;
 	is_current: boolean;
+	// Uploaded but not served yet: it becomes current once its rendition
+	// succeeds. At most one version per document.
+	is_staged: boolean;
+	rendition_status: RenditionStatus;
 	created_at: string;
 }
 
-// A new version keeps the document's name; only the bytes change, so the
-// completion payload carries just the storage key it was uploaded under.
+// A new version keeps the document's name; only the bytes change. `file_name`
+// is the picked file's name, sent for the server's type gate only.
 export interface CompleteVersionPayload {
 	storage_key: string;
+	file_name: string;
 }
 
 // --- bulk folder tree ---
@@ -124,6 +135,34 @@ export interface BulkFolderResult {
 
 export interface BulkCreateFolderData {
 	folders: BulkFolderResult[];
+}
+
+// --- folder templates ---
+// Curated server-side constants; both languages arrive together and the web
+// picks per active locale. Applying rides the bulk engine: additive, existing
+// folders are reused and completed (merge-down).
+
+export interface TemplateNodeData {
+	name_id: string;
+	name_en: string;
+	children?: TemplateNodeData[];
+}
+
+export interface FolderTemplateData {
+	key: string;
+	name_id: string;
+	name_en: string;
+	desc_id: string;
+	desc_en: string;
+	folder_count: number;
+	folders: TemplateNodeData[];
+}
+
+export interface ApplyTemplateData {
+	folders: BulkFolderResult[];
+	created_count: number;
+	skipped_count: number;
+	template: string;
 }
 
 // --- multipart / resumable upload ---

@@ -74,11 +74,69 @@
 	// guest never sees the disclosure rather than opening it into a 403.
 	const canSeeVersions = $derived(role === 'owner' || role === 'admin');
 
+	// --- bulk select (documents) ---
+	// Selection is the current view only; every drag gesture is parked while
+	// the mode is on — the two share rows.
+	let selectMode = $state(false);
+	const selectedDocs = new SvelteSet<string>();
+	let bulkDialog = $state<HTMLDialogElement>();
+	let bulkError = $state<string | null>(null);
+	let bulkSubmitting = $state(false);
+
+	function exitSelect() {
+		selectMode = false;
+		selectedDocs.clear();
+	}
+
+	function toggleSelected(id: string) {
+		if (selectedDocs.has(id)) selectedDocs.delete(id);
+		else selectedDocs.add(id);
+	}
+
+	function openBulkDelete() {
+		bulkError = null;
+		bulkDialog?.showModal();
+	}
+
+	// The component survives folder switches (same route, new param), so the
+	// selection must not.
+	$effect(() => {
+		void folderId;
+		exitSelect();
+	});
+
+	const submitBulkDelete: SubmitFunction = ({ cancel }) => {
+		if (selectedDocs.size === 0) return cancel();
+		bulkSubmitting = true;
+		return async ({ result }) => {
+			bulkSubmitting = false;
+			if (result.type === 'success') {
+				const n = selectedDocs.size;
+				bulkDialog?.close();
+				exitSelect();
+				await invalidateAll();
+				showToast(t('doc.select.deletedDocs', { n }), 'success');
+			} else if (result.type === 'failure') {
+				bulkError = (result.data?.message as string) ?? t('err.generic');
+			} else {
+				bulkError = t('err.generic');
+			}
+		};
+	};
+
+	// Entry point 11-d: the Q&A ask dialog, prefilled with this document. The
+	// name in the query is display-only — the server re-resolves the id.
+	const qaEnabled = $derived((page.data as { qaEnabled?: boolean }).qaEnabled ?? true);
+	const askHref = (doc: DocumentData) =>
+		`${resolve('/(app)/workspace/[slug]/qa', { slug: page.params.slug! })}?ask-doc=${encodeURIComponent(doc.id)}&ask-name=${encodeURIComponent(doc.name)}`;
+
 	const notReady = $derived(documents.filter((d) => d.rendition_status !== 'ready').length);
 
 	const retrying = new SvelteSet<string>();
 
-	async function retryRendition(doc: DocumentData) {
+	// Also called for a staged version that failed, with its own version id;
+	// default is the current version, the one the row's failed state describes.
+	async function retryRendition(doc: DocumentData, versionId = doc.current_version_id) {
 		if (retrying.has(doc.id)) return;
 		retrying.add(doc.id);
 		try {
@@ -88,7 +146,7 @@
 				body: JSON.stringify({
 					workspaceId: workspace.id,
 					documentId: doc.id,
-					versionId: doc.current_version_id
+					versionId
 				})
 			});
 			if (!res.ok) {
@@ -104,6 +162,23 @@
 			retrying.delete(doc.id);
 		}
 	}
+
+	// Conversions now run server-side the moment an upload or retry lands, so a
+	// pending state is genuinely in motion — refresh until none is left rather
+	// than showing a spinner over data that never changes.
+	const anyConverting = $derived(
+		documents.some(
+			(d) => d.rendition_status === 'pending' || d.staged_rendition_status === 'pending'
+		)
+	);
+
+	$effect(() => {
+		if (!anyConverting) return;
+		const timer = setInterval(() => {
+			if (document.visibilityState === 'visible') void invalidateAll();
+		}, 10_000);
+		return () => clearInterval(timer);
+	});
 
 	// One row's history open at a time: two panels of near-identical numbers
 	// invite comparing the wrong pair.
@@ -189,6 +264,10 @@
 	let draggingDocId = $state<string | null>(null);
 
 	function docDragStart(e: DragEvent, doc: DocumentData) {
+		if (selectMode) {
+			e.preventDefault();
+			return;
+		}
 		if (!canEditDoc) {
 			e.preventDefault();
 			return;
@@ -230,7 +309,7 @@
 	}
 
 	function docDragOver(e: DragEvent, i: number) {
-		if (!canReorder || !draggingDocId) return;
+		if (selectMode || !canReorder || !draggingDocId) return;
 		if (!e.dataTransfer?.types.includes(DOCUMENT_MIME)) return;
 		// The pane below treats a drag as an upload; a row reorder is not that.
 		e.preventDefault();
@@ -246,7 +325,7 @@
 
 	// The gap was already resolved by the dragover that necessarily preceded this.
 	function docDrop(e: DragEvent) {
-		if (!canReorder || !draggingDocId) return;
+		if (selectMode || !canReorder || !draggingDocId) return;
 		if (!e.dataTransfer?.types.includes(DOCUMENT_MIME)) return;
 		e.preventDefault();
 		e.stopPropagation();
@@ -441,6 +520,9 @@
 		</div>
 
 		<div class="flex flex-none items-center gap-2">
+			{#if canDelete && documents.length > 0 && !switching && !selectMode}
+				<Button variant="ghost" onclick={() => (selectMode = true)}>{t('doc.select.enter')}</Button>
+			{/if}
 			{#if documents.length > 1 && !switching}
 				<select
 					bind:value={sortBy}
@@ -511,6 +593,29 @@
 		</div>
 	</header>
 
+	{#if selectMode}
+		<div
+			class="mt-3 flex items-center justify-between gap-3 rounded-box border border-base-content/10 bg-primary/[0.04] px-4 py-2"
+		>
+			<span class="font-mono text-xs tabular-nums" aria-live="polite">
+				{t('doc.select.count', { n: selectedDocs.size })}
+			</span>
+			<div class="flex items-center gap-2">
+				<button
+					type="button"
+					onclick={openBulkDelete}
+					disabled={selectedDocs.size === 0}
+					class="btn btn-ghost btn-sm text-error hover:bg-error/10 disabled:opacity-40"
+				>
+					{t('doc.select.delete')}
+				</button>
+				<button type="button" onclick={exitSelect} class="btn btn-ghost btn-sm">
+					{t('doc.cancel')}
+				</button>
+			</div>
+		</div>
+	{/if}
+
 	{#if switching}
 		<ul class="divide-y divide-base-content/6" aria-hidden="true">
 			{#each SKELETON_ROWS as width (width)}
@@ -578,7 +683,7 @@
 				     point is measured against, and an expanded history below would
 				     skew that midpoint if it shared the element. -->
 				<li
-					draggable={canEditDoc}
+					draggable={canEditDoc && !selectMode}
 					ondragstart={(e) => docDragStart(e, doc)}
 					ondragend={endDocDrag}
 					ondragover={(e) => docDragOver(e, i)}
@@ -592,6 +697,15 @@
 					{/if}
 					{#if insertAt === documents.length && i === documents.length - 1}
 						<span class="rakda-dropline pointer-events-none absolute inset-x-4 -bottom-px"></span>
+					{/if}
+					{#if selectMode}
+						<input
+							type="checkbox"
+							checked={selectedDocs.has(doc.id)}
+							onchange={() => toggleSelected(doc.id)}
+							aria-label={t('doc.select.itemLabel', { name: doc.name })}
+							class="checkbox checkbox-sm checkbox-primary flex-none"
+						/>
 					{/if}
 					{@render fileIcon(kindOf(doc.mime))}
 
@@ -682,6 +796,39 @@
 						</span>
 					{/if}
 
+					<!-- A staged version is manager knowledge (the server omits it for
+					     guests): readers keep the served version until it proves out. -->
+					{#if doc.staged_version_no}
+						{#if doc.staged_rendition_status === 'failed'}
+							<span
+								class="flex flex-none items-center gap-1.5 font-mono text-[0.6875rem] text-error"
+								title={t('doc.docs.staged.failedTitle')}
+							>
+								{t('doc.docs.staged.failed', { n: doc.staged_version_no })}
+								{#if canSeeVersions && doc.staged_version_id}
+									<button
+										type="button"
+										onclick={() => void retryRendition(doc, doc.staged_version_id)}
+										disabled={retrying.has(doc.id)}
+										aria-busy={retrying.has(doc.id)}
+										aria-label={t('doc.docs.rendition.retryOf', { name: doc.name })}
+										class="underline underline-offset-2 hover:text-base-content disabled:opacity-50"
+									>
+										{t('doc.docs.rendition.retry')}
+									</button>
+								{/if}
+							</span>
+						{:else}
+							<span
+								class="flex flex-none items-center gap-1 font-mono text-[0.6875rem] text-warning-ink"
+								title={t('doc.docs.staged.pendingTitle')}
+							>
+								<span class="loading loading-spinner loading-xs" aria-hidden="true"></span>
+								{t('doc.docs.staged.pending', { n: doc.staged_version_no })}
+							</span>
+						{/if}
+					{/if}
+
 					<span
 						class="hidden w-20 flex-none text-right font-mono text-xs text-muted tabular-nums md:inline"
 					>
@@ -700,13 +847,19 @@
 						class="flex flex-none items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:gap-1 pointer-coarse:opacity-100"
 					>
 						{#if canDownload}
+							<!-- Non-ready renditions cannot be downloaded; the disabled state
+							     explains itself instead of ending in a server error toast. -->
 							<button
 								type="button"
 								onclick={() => void download(doc)}
-								disabled={downloading.has(doc.id)}
+								disabled={downloading.has(doc.id) || doc.rendition_status !== 'ready'}
 								aria-busy={downloading.has(doc.id)}
 								draggable="false"
-								title={t('doc.docs.download')}
+								title={doc.rendition_status === 'failed'
+									? t('doc.docs.rendition.failedTitle')
+									: doc.rendition_status === 'pending'
+										? t('doc.docs.rendition.pendingTitle')
+										: t('doc.docs.download')}
 								aria-label={t('doc.docs.downloadOf', { name: doc.name })}
 								class="grid h-8 w-8 place-items-center rounded-field text-muted transition-colors hover:bg-base-content/5 hover:text-base-content disabled:pointer-events-none disabled:opacity-50 pointer-coarse:h-11 pointer-coarse:w-11"
 							>
@@ -728,6 +881,33 @@
 									</svg>
 								{/if}
 							</button>
+						{/if}
+						{#if role === 'guest' && qaEnabled}
+							<!-- Entry point 11-d: opens the Q&A ask dialog prefilled with this
+							     document; hidden while the group's Q&A is switched off. -->
+							<!-- eslint-disable svelte/no-navigation-without-resolve -- resolve() cannot carry the ask-doc query string -->
+							<a
+								href={askHref(doc)}
+								draggable="false"
+								title={t('qa.askAbout')}
+								aria-label={t('qa.askAboutOf', { name: doc.name })}
+								class="grid h-8 w-8 place-items-center rounded-field text-muted transition-colors hover:bg-base-content/5 hover:text-base-content pointer-coarse:h-11 pointer-coarse:w-11"
+							>
+								<svg
+									class="h-4 w-4"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.8"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									aria-hidden="true"
+								>
+									<path d="M21 12a8 8 0 0 1-8 8H5a2 2 0 0 1-2-2v-6a8 8 0 1 1 18 0z" />
+									<path d="M12 12.5v-.3c0-.6.3-1 .8-1.3.8-.5 1.2-1 1.2-1.9a2 2 0 1 0-4 0" />
+									<path d="M12 16h.01" />
+								</svg>
+							</a>
 						{/if}
 						{#if canEditDoc && moveOptions.length > 0}
 							<button
@@ -861,9 +1041,11 @@
 			<p class="mt-1 text-sm text-muted text-pretty">
 				{t('doc.docs.delete.warning', { name: deleting.name })}
 			</p>
-			{#if deleting.version_no > 1}
+			<!-- version_count, never version_no: the served number follows the
+			     pointer, so after a restore it can undercount what goes to trash. -->
+			{#if deleting.version_count > 1}
 				<p class="mt-2 text-sm font-medium text-error text-pretty">
-					{t('doc.docs.delete.versions', { n: deleting.version_no })}
+					{t('doc.docs.delete.versions', { n: deleting.version_count })}
 				</p>
 			{/if}
 		{/if}
@@ -884,6 +1066,41 @@
 			</Button>
 			<Button type="submit" variant="danger" loading={deleteSubmitting}>
 				{deleteSubmitting ? t('doc.docs.delete.submitting') : t('doc.docs.delete.submit')}
+			</Button>
+		</form>
+	</div>
+	<form method="dialog" class="modal-backdrop">
+		<button aria-label={t('doc.cancel')}></button>
+	</form>
+</dialog>
+
+<dialog bind:this={bulkDialog} class="modal" aria-labelledby="doc-bulk-delete-title">
+	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+		<h2 id="doc-bulk-delete-title" class="text-lg font-semibold tracking-[-0.01em]">
+			{t('doc.select.docsTitle')}
+		</h2>
+		<p class="mt-1 text-sm text-muted text-pretty">
+			{t('doc.select.docs', { n: selectedDocs.size })}
+		</p>
+
+		{#if bulkError}
+			<div class="mt-4"><Alert align="start">{bulkError}</Alert></div>
+		{/if}
+
+		<form
+			method="POST"
+			action="?/bulkDeleteDocuments"
+			use:enhance={submitBulkDelete}
+			class="mt-6 flex justify-end gap-2"
+		>
+			{#each [...selectedDocs] as id (id)}
+				<input type="hidden" name="documentId" value={id} />
+			{/each}
+			<Button type="button" variant="ghost" onclick={() => bulkDialog?.close()}>
+				{t('doc.cancel')}
+			</Button>
+			<Button type="submit" variant="danger" loading={bulkSubmitting}>
+				{bulkSubmitting ? t('doc.docs.delete.submitting') : t('doc.docs.delete.submit')}
 			</Button>
 		</form>
 	</div>

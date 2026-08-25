@@ -100,10 +100,16 @@ func (m *Module) RegisterRoutes(r chi.Router) {
 			r.Post("/search/log", m.handler.LogSearch)
 			r.Get("/download-limits", m.handler.GetDownloadLimits)
 
+			r.Route("/folder-templates", func(r chi.Router) {
+				r.With(m.mw.RequirePermission(permission.PermFolderCreate)).Get("/", m.handler.ListFolderTemplates)
+				r.With(m.mw.RequirePermission(permission.PermFolderCreate)).Post("/{templateKey}/apply", m.handler.ApplyFolderTemplate)
+			})
+
 			r.Route("/folders", func(r chi.Router) {
 				r.With(m.mw.RequirePermission(permission.PermFolderView)).Get("/", m.handler.GetFoldersTree)
 				r.With(m.mw.RequirePermission(permission.PermFolderCreate)).Post("/", m.handler.CreateFolder)
 				r.With(m.mw.RequirePermission(permission.PermFolderCreate)).Post("/bulk", m.handler.BulkCreateFolders)
+				r.With(m.mw.RequirePermission(permission.PermFolderDelete)).Post("/bulk-delete", m.handler.BulkDeleteFolders)
 				r.With(m.mw.RequirePermission(permission.PermFolderEdit)).Put("/{folderID}", m.handler.RenameFolder)
 				r.With(m.mw.RequirePermission(permission.PermFolderEdit)).Patch("/{folderID}/move", m.handler.MoveFolder)
 				r.With(m.mw.RequirePermission(permission.PermFolderDelete)).Delete("/{folderID}", m.handler.DeleteFolder)
@@ -121,6 +127,8 @@ func (m *Module) RegisterRoutes(r chi.Router) {
 				r.With(m.mw.RequirePermission(permission.PermDocumentUpload)).Post("/{folderID}/documents/multipart/complete", m.handler.CompleteMultipart)
 				r.With(m.mw.RequirePermission(permission.PermDocumentUpload)).Delete("/{folderID}/documents/multipart", m.handler.AbortMultipart)
 			})
+
+			r.With(m.mw.RequirePermission(permission.PermDocumentDelete)).Post("/documents/bulk-delete", m.handler.BulkDeleteDocuments)
 
 			r.Route("/documents/{documentID}", func(r chi.Router) {
 				r.With(m.mw.RequirePermission(permission.PermDocumentView)).Get("/versions", m.handler.ListVersions)

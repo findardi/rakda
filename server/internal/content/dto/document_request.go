@@ -19,6 +19,15 @@ type CompleteVersionRequest struct {
 	DocumentID  string `json:"-"`
 	UploadedBy  string `json:"-"`
 	StorageKey  string `json:"storage_key" validate:"required"`
+	// Name of the picked file, for the type gate only — the version itself
+	// inherits the document's name. Optional: when absent the mismatch is still
+	// caught later, as a rendition failure that never gets served.
+	FileName string `json:"file_name"`
+}
+
+type BulkDeleteDocumentsRequest struct {
+	WorkspaceID string   `json:"-"`
+	DocumentIDs []string `json:"document_ids" validate:"required,min=1,max=100,dive,uuid"`
 }
 
 type MoveDocumentRequest struct {

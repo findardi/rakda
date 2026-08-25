@@ -31,6 +31,7 @@ import (
 	"github.com/findardi/rakda/server/internal/platform/sender"
 	"github.com/findardi/rakda/server/internal/platform/storage"
 	"github.com/findardi/rakda/server/internal/platform/token"
+	"github.com/findardi/rakda/server/internal/qa"
 	"github.com/findardi/rakda/server/internal/workspace"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -149,6 +150,7 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 	invitationModule := invitation.NewModule(pool, jwtGen, activitysvc)
 	contentModule := content.NewModule(pool, jwtGen, store, viewer, trashRetention, activitysvc, downloadStampConcurrency)
 	activityModule := activity.NewModule(pool, jwtGen)
+	qaModule := qa.NewModule(pool, jwtGen, contentSvc, activitysvc)
 
 	r := chi.NewRouter()
 	registerGlobalMiddleware(r, trustedProxies)
@@ -163,6 +165,7 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 	invitationModule.RegisterRoutes(r)
 	contentModule.RegisterRoutes(r)
 	activityModule.RegisterRoutes(r)
+	qaModule.RegisterRoutes(r)
 
 	return &App{
 		router: r,

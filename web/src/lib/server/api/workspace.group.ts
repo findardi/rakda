@@ -2,10 +2,11 @@ import type { ApiResult } from '$lib/types';
 import type {
 	AssignMembersPayload,
 	GroupMemberData,
+	GroupQAPayload,
 	GroupWorkspaceData,
 	UpsertGroupWorkspacePayload
 } from '$lib/types/workspace';
-import { del, get, post, put } from './client';
+import { del, get, patch, post, put } from './client';
 
 export async function createGroup(
 	token: string,
@@ -22,6 +23,21 @@ export async function updateGroup(
 	p: UpsertGroupWorkspacePayload
 ): Promise<ApiResult<GroupWorkspaceData>> {
 	return put<GroupWorkspaceData>(`/access/workspaces/${workspaceId}/groups/${groupId}`, p, token);
+}
+
+// Q&A switch + limit travel on their own PATCH — never on the full-replace PUT
+// above, which would silently reset them from stale forms.
+export async function updateGroupQA(
+	token: string,
+	workspaceId: string,
+	groupId: string,
+	p: GroupQAPayload
+): Promise<ApiResult<GroupWorkspaceData>> {
+	return patch<GroupWorkspaceData>(
+		`/access/workspaces/${workspaceId}/groups/${groupId}/qa`,
+		p,
+		token
+	);
 }
 
 export async function getGroups(

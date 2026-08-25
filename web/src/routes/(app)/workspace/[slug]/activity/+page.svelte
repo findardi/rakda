@@ -103,6 +103,12 @@
 		});
 
 	function targetHref(item: ActivityItem): string | null {
+		if (item.link_question_id) {
+			return resolve('/(app)/workspace/[slug]/qa/[questionId]', {
+				slug,
+				questionId: item.link_question_id
+			});
+		}
 		if (!item.link_folder_id) return null;
 		if (item.link_document_id) return viewerHref(item);
 		if (item.target_type === 'folder') {

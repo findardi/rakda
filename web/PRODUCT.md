@@ -109,3 +109,25 @@ Frasa **"proteksi screenshot" dilarang**. Yang melindungi sungguhan tetap
 tiga hal: viewer raster tanpa lapisan teks, watermark yang dibakar dan tidak
 bisa dilucuti, dan jejak audit yang menamai pembacanya.
 
+## Q&A
+
+Q&A adalah seksi tingkat ruangan: guest bertanya, pengelola (owner/admin)
+menjawab dari satu antrean bersama. Aturan produk yang mengikat salinan UI:
+
+- **Silo per grup.** Satu grup tidak pernah melihat pertanyaan grup lain;
+  sesama anggota grup saling melihat — grup adalah satu pihak.
+- **Pengelola tidak bertanya.** Tombol "Ajukan pertanyaan" tidak pernah
+  tampil untuk owner/admin.
+- Status bernama **Menunggu / Dijawab / Ditutup**, digerakkan balasan (bukan
+  tombol); label selalu berpasangan titik warna + teks — warna tidak boleh
+  jadi satu-satunya pembawa makna.
+- **FAQ = satu-satunya jalur lintas grup, dan selalu anonim.** Dialog promote
+  wajib menyebut bahwa FAQ tampil ke semua grup tanpa identitas penanya.
+  FAQ tidak pernah menautkan dokumen.
+- **Angka kuota selalu dari server** (`question_limit`, `quota_remaining`) —
+  web tidak menghitung atau menyimpan angkanya sendiri. Saklar mati = seksi
+  tersembunyi bagi guest grup itu; limit 0 = seksi tampil tapi kirim
+  terblokir — dua keadaan berbeda dengan kalimat berbeda.
+- Pertanyaan dan balasan **tidak bisa diedit**; koreksi = balasan baru.
+  Salinan UI tidak boleh menjanjikan penyuntingan.
+

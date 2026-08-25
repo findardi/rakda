@@ -33,5 +33,13 @@ update workspace_groups set
 where id = $1
 returning *;
 
+-- name: UpdateGroupQA :one
+update workspace_groups set
+    qa_enabled = @qa_enabled,
+    qa_question_limit = @qa_question_limit,
+    updated_at = now()
+where id = @id and workspace_id = @workspace_id
+returning *;
+
 -- name: DeleteGroup :exec
 delete from workspace_groups where id = $1;

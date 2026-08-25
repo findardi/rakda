@@ -145,6 +145,7 @@ export const id = {
 	'ws.detail.updated': 'Diperbarui',
 	'ws.section.overview': 'Ikhtisar',
 	'ws.section.documents': 'Dokumen',
+	'ws.section.qa': 'Q&A',
 	'ws.section.activity': 'Aktivitas',
 	'ws.section.access': 'Manajemen Akses',
 	'ws.section.trash': 'Sampah',
@@ -278,6 +279,19 @@ export const id = {
 	'doc.delete.confirmLabel': 'Ketik {name} untuk konfirmasi',
 	'doc.delete.submit': 'Hapus',
 	'doc.delete.submitting': 'Menghapus…',
+
+	// mode pilih — bulk delete dua permukaan (rail folder + panel dokumen)
+	'doc.select.enter': 'Pilih',
+	'doc.select.count': '{n} dipilih',
+	'doc.select.delete': 'Hapus',
+	'doc.select.itemLabel': 'Pilih {name}',
+	'doc.select.foldersTitle': 'Hapus folder terpilih',
+	'doc.select.folders':
+		'Hapus {n} folder ke Sampah? Semua isi di dalamnya ikut dipindahkan dan dapat dipulihkan dari Sampah.',
+	'doc.select.docsTitle': 'Hapus dokumen terpilih',
+	'doc.select.docs': 'Hapus {n} dokumen ke Sampah? Semuanya dapat dipulihkan dari Sampah.',
+	'doc.select.deletedFolders': '{n} folder dipindahkan ke Sampah.',
+	'doc.select.deletedDocs': '{n} dokumen dipindahkan ke Sampah.',
 	'doc.err.load': 'Gagal memuat folder.',
 	'doc.err.nameRequired': 'Masukkan nama folder.',
 	'doc.err.nameTaken': 'Folder dengan nama itu sudah ada di sini.',
@@ -364,8 +378,14 @@ export const id = {
 		'Isi berkas tidak bisa dikonversi. Dokumen belum bisa dibuka atau diunduh.',
 	'doc.docs.rendition.retry': 'Coba lagi',
 	'doc.docs.rendition.retryOf': 'Coba siapkan ulang {name}',
-	'doc.docs.rendition.retried': 'Penyiapan “{name}” dijadwalkan ulang.',
+	'doc.docs.rendition.retried': 'Penyiapan “{name}” dimulai ulang.',
 	'doc.docs.rendition.notReady': '{n} belum siap',
+	'doc.docs.staged.pending': 'menyiapkan v{n}…',
+	'doc.docs.staged.pendingTitle':
+		'Versi baru disajikan otomatis setelah siap. Sampai saat itu, pembaca tetap melihat versi sebelumnya.',
+	'doc.docs.staged.failed': 'v{n} gagal disiapkan',
+	'doc.docs.staged.failedTitle':
+		'Versi baru tidak bisa dikonversi dan tidak akan disajikan. Pembaca tetap melihat versi sebelumnya.',
 	'doc.docs.download': 'Unduh',
 	'doc.docs.downloadOf': 'Unduh {name}',
 	'doc.docs.move': 'Pindahkan',
@@ -387,7 +407,7 @@ export const id = {
 	'doc.docs.delete.title': 'Hapus dokumen',
 	'doc.docs.delete.warning':
 		'Hapus “{name}”? Dokumen dipindahkan ke Sampah dan dapat dipulihkan dari sana.',
-	'doc.docs.delete.versions': '{n} versi tersimpan ikut dipindahkan.',
+	'doc.docs.delete.versions': 'Semua {n} versi tersimpan ikut dipindahkan.',
 	'doc.docs.delete.submit': 'Hapus',
 	'doc.docs.delete.submitting': 'Menghapus…',
 	'doc.docs.err.load': 'Gagal memuat dokumen.',
@@ -408,7 +428,14 @@ export const id = {
 	'doc.ver.title': 'Riwayat versi',
 	'doc.ver.loading': 'Memuat riwayat versi…',
 	'doc.ver.empty': 'Baru satu versi. Unggah berkas pengganti untuk mulai membangun riwayatnya.',
+	'doc.ver.emptyReadonly': 'Baru satu versi.',
 	'doc.ver.current': 'Saat ini',
+	'doc.ver.stagedBadge': 'Disiapkan…',
+	'doc.ver.stagedTitle':
+		'Disajikan otomatis setelah siap. Sampai saat itu, versi sebelumnya tetap tampil.',
+	'doc.ver.failedBadge': 'Gagal disiapkan',
+	'doc.ver.notReadyTitle': 'Belum punya PDF — dikonversi saat pertama kali dibuka.',
+	'doc.ver.retryPrepOf': 'Coba siapkan ulang v{n}',
 	'doc.ver.by': 'oleh {name}',
 	'doc.ver.viewOf': 'Lihat versi {n}',
 	'doc.ver.downloadOf': 'Unduh versi {n}',
@@ -425,14 +452,17 @@ export const id = {
 	'doc.ver.uploadHint':
 		'Berkas pengganti mewarisi nama dokumen ini. Unggahan versi tidak bisa dilanjutkan bila koneksi terputus.',
 	'doc.ver.uploaded': 'Versi baru tersimpan sebagai v{n}.',
+	'doc.ver.uploadedStaged': 'v{n} diunggah. Disajikan otomatis setelah siap.',
 	'doc.ver.cancelUpload': 'Batalkan unggahan',
 	'doc.ver.forbidden': 'Hanya owner dan admin yang bisa melihat riwayat versi.',
 	'doc.ver.retry': 'Coba lagi',
 	'doc.ver.err.load': 'Gagal memuat riwayat versi.',
 	'doc.ver.err.restore': 'Gagal memulihkan versi itu.',
-	'doc.ver.err.alreadyCurrent': 'Versi itu sudah jadi versi terbaru.',
+	'doc.ver.err.alreadyCurrent': 'Versi itu sudah yang disajikan.',
 	'doc.ver.err.notFound': 'Versi itu sudah tidak ada.',
 	'doc.ver.err.upload': 'Gagal mengunggah versi baru.',
+	'doc.ver.err.type': 'Versi baru harus bertipe sama dengan dokumennya (.{docExt}), bukan .{ext}.',
+	'doc.ver.err.typeMismatch': 'Tipe berkas versi baru tidak sama dengan dokumennya.',
 
 	'doc.view.tab': 'Penampil dokumen',
 	'doc.view.back': 'Kembali',
@@ -453,6 +483,7 @@ export const id = {
 	'doc.view.ver.label': 'Versi yang ditampilkan',
 	'doc.view.ver.option': 'v{n} · {when}',
 	'doc.view.ver.optionCurrent': 'v{n} · disajikan',
+	'doc.view.ver.optionStaged': 'v{n} · menunggu siap',
 	'doc.view.ver.stale': 'Melihat v{n} — yang disajikan ke pihak lain v{cur}',
 	'doc.view.ver.toCurrent': 'Ke versi yang disajikan',
 	'doc.view.pageError': 'Gagal memuat halaman ini.',
@@ -474,7 +505,8 @@ export const id = {
 	'doc.view.failed.body':
 		'Isi berkasnya tidak bisa diubah menjadi PDF — biasanya karena berkas rusak, terkunci kata sandi, atau isinya tidak cocok dengan ekstensinya.',
 	'doc.view.failed.retry': 'Coba siapkan ulang',
-	'doc.view.failed.noPerm': 'Hanya pengelola ruangan yang bisa menyiapkan ulang dokumen ini.',
+	'doc.view.failed.retryErr': 'Gagal memulai penyiapan ulang. Coba lagi.',
+	'doc.view.failed.noPerm': 'Minta pengelola ruangan menyiapkannya ulang.',
 	'doc.view.emptyPages': 'Dokumen ini tidak punya halaman untuk ditampilkan.',
 	'doc.view.curtain.title': 'Isi dokumen disembunyikan',
 	'doc.view.curtain.hint': 'Kembali ke jendela ini untuk melanjutkan membaca.',
@@ -563,6 +595,7 @@ export const id = {
 	'activity.group.member': 'Anggota & undangan',
 	'activity.group.group': 'Grup',
 	'activity.group.access': 'Akses folder',
+	'activity.group.qa': 'Q&A',
 
 	'activity.action.folder_created': 'membuat folder “{target}”',
 	'activity.action.folder_created_bulk': 'menambahkan {count} folder sekaligus',
@@ -603,6 +636,14 @@ export const id = {
 	'activity.action.group_unassigned': 'mengeluarkan {target} dari grupnya',
 	'activity.action.folder_access_changed': 'mengubah akses folder “{target}” menjadi {caps}',
 	'activity.action.folder_access_removed': 'mencabut akses sebuah grup atas folder “{target}”',
+	'activity.action.template_applied': 'menerapkan template “{target}” ({created} folder baru)',
+	'activity.action.question_submitted': 'mengajukan pertanyaan “{target}” (#{number} · {group})',
+	'activity.action.question_replied': 'membalas pertanyaan “{target}”',
+	'activity.action.question_answered': 'menjawab pertanyaan “{target}”',
+	'activity.action.question_closed': 'menutup pertanyaan “{target}”',
+	'activity.action.question_reopened': 'membuka lagi pertanyaan “{target}”',
+	'activity.action.faq_published': 'menerbitkan FAQ “{target}”',
+	'activity.action.qa_settings_changed': 'mengubah setelan Q&A grup “{target}”',
 
 	'activity.label.folder_created': 'Folder dibuat',
 	'activity.label.folder_renamed': 'Folder diganti nama',
@@ -635,6 +676,14 @@ export const id = {
 	'activity.label.group_unassigned': 'Anggota keluar grup',
 	'activity.label.folder_access_changed': 'Akses folder diubah',
 	'activity.label.folder_access_removed': 'Akses folder dicabut',
+	'activity.label.template_applied': 'Template diterapkan',
+	'activity.label.question_submitted': 'Pertanyaan diajukan',
+	'activity.label.question_replied': 'Pertanyaan dibalas',
+	'activity.label.question_answered': 'Pertanyaan dijawab',
+	'activity.label.question_closed': 'Pertanyaan ditutup',
+	'activity.label.question_reopened': 'Pertanyaan dibuka lagi',
+	'activity.label.faq_published': 'FAQ diterbitkan',
+	'activity.label.qa_settings_changed': 'Setelan Q&A diubah',
 
 	'activity.link.open': 'Buka “{name}”',
 	'activity.link.readers': 'Lihat aktivitas baca',
@@ -673,6 +722,156 @@ export const id = {
 	'activity.export.all': 'Unduh seluruh linimasa sebagai CSV',
 	'activity.export.filtered': 'Unduh entri yang lolos filter aktif sebagai CSV',
 	'activity.export.err': 'Gagal menyiapkan berkas ekspor.',
+
+	// q&a — pertanyaan & jawaban per ruangan, silo per grup
+	'qa.title': 'Q&A',
+	'qa.desc':
+		'Pertanyaan dan jawaban di ruang data ini. Grup hanya melihat pertanyaan grupnya sendiri.',
+	'qa.tab.questions': 'Pertanyaan',
+	'qa.tab.faq': 'FAQ',
+
+	'qa.status.waiting': 'Menunggu',
+	'qa.status.answered': 'Dijawab',
+	'qa.status.closed': 'Ditutup',
+
+	// list + filter
+	'qa.filter.status': 'Status',
+	'qa.filter.allStatus': 'Semua status',
+	'qa.filter.group': 'Grup',
+	'qa.filter.allGroups': 'Semua grup',
+	'qa.filter.reset': 'Reset',
+	'qa.replyCount': '{n} balasan',
+	'qa.count': '{n} pertanyaan',
+	'qa.countOne': '{n} pertanyaan',
+	'qa.countMore': '{n}+ pertanyaan',
+	'qa.loadMore': 'Muat lebih banyak',
+	'qa.loadingMore': 'Memuat…',
+	'qa.empty.title': 'Belum ada pertanyaan',
+	'qa.empty.body': 'Pertanyaan untuk pengelola ruangan akan tampil di sini.',
+	'qa.noMatch.title': 'Tidak ada pertanyaan yang cocok',
+	'qa.noMatch.body': 'Ubah atau reset filter untuk melihat pertanyaan lain.',
+
+	// ask dialog
+	'qa.ask.button': 'Ajukan pertanyaan',
+	'qa.ask.title': 'Ajukan pertanyaan',
+	'qa.ask.desc': 'Pertanyaan terlihat oleh anggota grup Anda dan pengelola ruangan.',
+	'qa.ask.subject': 'Subjek',
+	'qa.ask.subjectPlaceholder': 'Ringkasan singkat pertanyaan',
+	'qa.ask.body': 'Pertanyaan',
+	'qa.ask.bodyPlaceholder': 'Tulis pertanyaan Anda…',
+	'qa.ask.reference': 'Referensi',
+	'qa.ask.submit': 'Kirim',
+	'qa.ask.submitting': 'Mengirim…',
+	'qa.ask.cancel': 'Batal',
+	'qa.ask.success': 'Pertanyaan terkirim.',
+
+	// quota (angka selalu dari server)
+	'qa.limit.remaining': 'Sisa jatah: {n}',
+	'qa.limit.exhausted': 'Jatah pertanyaan grup Anda sudah habis.',
+	'qa.limit.blocked': 'Pengiriman pertanyaan dinonaktifkan untuk grup Anda.',
+	'qa.limit.disabled': 'Q&A dinonaktifkan untuk grup Anda.',
+
+	// thread
+	'qa.thread.back': 'Kembali ke Q&A',
+	'qa.thread.replies': 'Balasan',
+	'qa.thread.noReplies': 'Belum ada balasan.',
+	'qa.thread.replyLabel': 'Balasan Anda',
+	'qa.thread.replyPlaceholder': 'Tulis balasan…',
+	'qa.thread.replyHint.guest':
+		'Balasan Anda mengembalikan status ke Menunggu untuk ditinjau pengelola.',
+	'qa.thread.replyHint.manager': 'Balasan Anda mengubah status menjadi Dijawab.',
+	'qa.thread.managerReply': 'Jawaban pengelola',
+	'qa.thread.send': 'Kirim',
+	'qa.thread.sending': 'Mengirim…',
+	'qa.thread.replied': 'Balasan terkirim.',
+	'qa.thread.close': 'Tutup pertanyaan',
+	'qa.thread.closeConfirm': 'Tutup pertanyaan ini? Hanya pengelola yang dapat membukanya lagi.',
+	'qa.thread.closeConfirmYes': 'Ya, tutup',
+	'qa.thread.closedToast': 'Pertanyaan ditutup.',
+	'qa.thread.closedNote': 'Thread ini sudah ditutup.',
+	'qa.thread.askNew': 'Buat pertanyaan baru',
+	'qa.thread.reopen': 'Buka lagi',
+	'qa.thread.reopened': 'Pertanyaan dibuka lagi.',
+	'qa.thread.notFound': 'Pertanyaan tidak ditemukan.',
+
+	// promote ke FAQ
+	'qa.promote.button': 'Jadikan FAQ',
+	'qa.promote.title': 'Terbitkan sebagai FAQ',
+	'qa.promote.note': 'FAQ tampil ke semua grup tanpa identitas penanya.',
+	'qa.promote.question': 'Pertanyaan',
+	'qa.promote.answer': 'Jawaban',
+	'qa.promote.submit': 'Terbitkan',
+	'qa.promote.submitting': 'Menerbitkan…',
+
+	// tab FAQ
+	'qa.faq.write': 'Tulis FAQ',
+	'qa.faq.published': 'FAQ diterbitkan.',
+	'qa.faq.empty.title': 'Belum ada FAQ',
+	'qa.faq.empty.body':
+		'Jawaban yang berguna untuk semua grup diterbitkan pengelola ruangan di sini.',
+
+	// setelan grup
+	'qa.group.title': 'Q&A',
+	'qa.group.enabled': 'Q&A aktif',
+	'qa.group.enabledHint':
+		'Dimatikan: seksi Q&A tersembunyi bagi guest grup ini; data lama tetap tersimpan.',
+	'qa.group.limit': 'Batas pertanyaan',
+	'qa.group.limitHint':
+		'Batas: kosong = tanpa batas, 0 = pengiriman diblokir tapi seksi tetap tampil. Balasan tidak dihitung.',
+	'qa.group.save': 'Simpan',
+	'qa.group.saving': 'Menyimpan…',
+	'qa.group.saved': 'Setelan Q&A disimpan.',
+
+	// badge + entry point
+	'qa.waitingCount': '{n} pertanyaan menunggu',
+	'qa.askAbout': 'Tanya tentang dokumen ini',
+	'qa.askAboutOf': 'Tanya tentang {name}',
+
+	// ekspor
+	'qa.export.csv': 'Ekspor CSV',
+	'qa.export.all': 'Unduh seluruh daftar pertanyaan sebagai CSV',
+	'qa.export.filtered': 'Unduh pertanyaan yang lolos filter aktif sebagai CSV',
+	'qa.export.err': 'Gagal menyiapkan berkas ekspor.',
+
+	// errors
+	'qa.err.load': 'Gagal memuat Q&A.',
+	'qa.err.loadMore': 'Gagal memuat pertanyaan berikutnya.',
+	'qa.err.filter': 'Filter tidak valid.',
+	'qa.err.limit': 'Jatah pertanyaan grup Anda sudah habis.',
+	'qa.err.disabled': 'Q&A dinonaktifkan untuk grup Anda.',
+	'qa.err.closed': 'Thread sudah ditutup — balasan tidak dapat dikirim.',
+	'qa.err.subjectRequired': 'Subjek wajib diisi.',
+	'qa.err.bodyRequired': 'Pertanyaan wajib diisi.',
+	'qa.err.replyRequired': 'Balasan wajib diisi.',
+	'qa.err.faqRequired': 'Pertanyaan dan jawaban wajib diisi.',
+	'qa.err.limitInvalid': 'Batas harus angka 0 atau lebih.',
+
+	// folder template — picker (nama & deskripsi template datang dari server)
+	'tpl.title': 'Mulai dari template',
+	'tpl.desc':
+		'Struktur folder siap pakai per jenis deal. Folder yang sudah ada dipakai ulang dan dilengkapi.',
+	'tpl.open': 'Terapkan template',
+	'tpl.folderCount': '{n} folder',
+	'tpl.loading': 'Memuat template…',
+	'tpl.detail.back': 'Kembali',
+	'tpl.detail.structure': 'Struktur folder',
+	'tpl.detail.existing': 'sudah ada — akan dilengkapi',
+	'tpl.detail.hasStructure':
+		'Ruangan ini sudah punya struktur — template ditambahkan di bawahnya, tidak menggantikan.',
+	'tpl.applyCount': 'Terapkan — {n} folder baru',
+	'tpl.applying': 'Menerapkan…',
+	'tpl.applied':
+		'{created} folder dibuat, {skipped} dipakai ulang. Folder yang tidak diinginkan dapat dihapus ke Sampah.',
+	'tpl.manualLink': 'atau buat folder manual',
+	'tpl.err.load': 'Gagal memuat daftar template.',
+	'tpl.err.apply': 'Gagal menerapkan template.',
+	'tpl.hint.ma-dd':
+		'Saran: beri tiap pembeli grup sendiri agar Q&A dan akses folder tersilo per pihak.',
+	'tpl.hint.fundraising': 'Saran: batasi izin unduh per grup investor dari panel akses folder.',
+	'tpl.hint.property':
+		'Saran: cukup satu grup pembeli — atur izin unduh per folder dari panel akses.',
+	'tpl.hint.audit': 'Saran: pertimbangkan mematikan Q&A untuk grup auditor dari panel grup.',
+	'tpl.hint.legal': 'Saran: nyalakan watermark untuk folder bukti dari panel akses folder.',
 
 	'fmt.dur.s': '{s}s',
 	'fmt.dur.m': '{m}m',

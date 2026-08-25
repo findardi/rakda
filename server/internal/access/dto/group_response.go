@@ -3,13 +3,15 @@ package dto
 import "time"
 
 type GroupResponse struct {
-	ID          string    `json:"id"`
-	WorkspaceID string    `json:"workspace_id"`
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	IsDefault   bool      `json:"is_default"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID              string    `json:"id"`
+	WorkspaceID     string    `json:"workspace_id"`
+	Name            string    `json:"name"`
+	Description     string    `json:"description"`
+	IsDefault       bool      `json:"is_default"`
+	QAEnabled       bool      `json:"qa_enabled"`
+	QAQuestionLimit *int32    `json:"qa_question_limit"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 type GroupMemberResponse struct {

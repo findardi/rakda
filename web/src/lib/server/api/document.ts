@@ -146,9 +146,9 @@ export function completeVersion(
 	return post<DocumentData>(versionsBase(workspaceId, documentId), p, token);
 }
 
-// Restore copies the chosen version forward as a new current one, so nothing is
-// overwritten and the act is itself undoable. Restoring the version that is
-// already current is a 409.
+// Restore repoints `current_version_id` at the chosen version — no row is
+// copied, nothing is overwritten, so the act is itself undoable. Restoring the
+// version that is already current is a 409.
 export function restoreVersion(
 	token: string,
 	workspaceId: string,
@@ -162,7 +162,7 @@ export function restoreVersion(
 	);
 }
 
-// Clears a recorded rendition failure so the next open retries the conversion.
+// Clears a recorded rendition failure and restarts the conversion server-side.
 // Owner/admin only upstream; the UI never offers it to guests.
 export function retryRendition(
 	token: string,
@@ -246,4 +246,18 @@ export function deleteDocument(
 	documentId: string
 ): Promise<ApiResult<null>> {
 	return del<null>(`${documentsBase(workspaceId)}/${documentId}`, token);
+}
+
+// Atomic: one unknown/foreign id fails the whole batch with a 404 — nothing
+// is half-deleted. Soft-delete to trash, same as the single delete.
+export function bulkDeleteDocuments(
+	token: string,
+	workspaceId: string,
+	documentIds: string[]
+): Promise<ApiResult<null>> {
+	return post<null>(
+		`${documentsBase(workspaceId)}/bulk-delete`,
+		{ document_ids: documentIds },
+		token
+	);
 }

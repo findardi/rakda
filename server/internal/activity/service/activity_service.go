@@ -43,6 +43,14 @@ const (
 	ActionFolderAccessChanged = "folder_access_changed"
 	ActionFolderAccessRemoved = "folder_access_removed"
 	ActionSearchPerformed     = "search_performed"
+	ActionQuestionSubmitted   = "question_submitted"
+	ActionQuestionReplied     = "question_replied"
+	ActionQuestionAnswered    = "question_answered"
+	ActionQuestionClosed      = "question_closed"
+	ActionQuestionReopened    = "question_reopened"
+	ActionFaqPublished        = "faq_published"
+	ActionQaSettingsChanged   = "qa_settings_changed"
+	ActionTemplateApplied     = "template_applied"
 )
 
 const (
@@ -54,6 +62,8 @@ const (
 	TargetInvitation   = "invitation"
 	TargetFolderAccess = "folder_access"
 	TargetSearch       = "search"
+	TargetQuestion     = "question"
+	TargetFaq          = "faq"
 )
 
 const (

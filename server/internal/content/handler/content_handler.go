@@ -311,6 +311,80 @@ func (h *ContentHandler) DeleteFolder(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, http.StatusOK, "delete folder success", nil)
 }
 
+func (h *ContentHandler) BulkDeleteFolders(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
+
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	var req dto.BulkDeleteFoldersRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
+		return
+	}
+
+	if errs := validation.Validate(&req); errs != nil {
+		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+		return
+	}
+
+	req.WorkspaceID = chi.URLParam(r, "workspaceID")
+
+	if err := h.svc.BulkDeleteFolders(r.Context(), req, actor); err != nil {
+		switch {
+		case errors.Is(err, service.ErrFolderNotFound):
+			response.Error(w, http.StatusNotFound, err.Error(), nil)
+		case errors.Is(err, service.ErrDeleteDefault):
+			response.Error(w, http.StatusForbidden, err.Error(), nil)
+		default:
+			log.Printf("bulk delete folders internal error: %v", err)
+			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
+		}
+		return
+	}
+
+	response.Success(w, http.StatusOK, "bulk delete folders success", nil)
+}
+
+func (h *ContentHandler) BulkDeleteDocuments(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
+
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	var req dto.BulkDeleteDocumentsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
+		return
+	}
+
+	if errs := validation.Validate(&req); errs != nil {
+		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+		return
+	}
+
+	req.WorkspaceID = chi.URLParam(r, "workspaceID")
+
+	if err := h.svc.BulkDeleteDocuments(r.Context(), req, actor); err != nil {
+		switch {
+		case errors.Is(err, service.ErrDocumentNotFound):
+			response.Error(w, http.StatusNotFound, err.Error(), nil)
+		default:
+			log.Printf("bulk delete documents internal error: %v", err)
+			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
+		}
+		return
+	}
+
+	response.Success(w, http.StatusOK, "bulk delete documents success", nil)
+}
+
 func (h *ContentHandler) RequestUploadURL(w http.ResponseWriter, r *http.Request) {
 	wID := chi.URLParam(r, "workspaceID")
 	fID := chi.URLParam(r, "folderID")
@@ -485,6 +559,8 @@ func (h *ContentHandler) CompletedVersionUpload(w http.ResponseWriter, r *http.R
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
 		case errors.Is(err, service.ErrUploadNotFound):
 			response.Error(w, http.StatusBadRequest, err.Error(), nil)
+		case errors.Is(err, service.ErrVersionTypeMismatch):
+			response.Error(w, http.StatusUnsupportedMediaType, err.Error(), nil)
 		case errors.Is(err, service.ErrUploadTooLarge):
 			response.Error(w, http.StatusRequestEntityTooLarge, err.Error(), nil)
 		default:
@@ -944,6 +1020,52 @@ func (h *ContentHandler) BulkCreateFolders(w http.ResponseWriter, r *http.Reques
 	}
 
 	response.Success(w, http.StatusCreated, "bulk create folders success", res)
+}
+
+func (h *ContentHandler) ListFolderTemplates(w http.ResponseWriter, r *http.Request) {
+	response.Success(w, http.StatusOK, "list folder templates success", h.svc.ListFolderTemplates())
+}
+
+func (h *ContentHandler) ApplyFolderTemplate(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
+
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	var req dto.ApplyTemplateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
+		return
+	}
+
+	if errs := validation.Validate(&req); errs != nil {
+		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+		return
+	}
+
+	req.WorkspaceID = chi.URLParam(r, "workspaceID")
+	req.TemplateKey = chi.URLParam(r, "templateKey")
+
+	res, err := h.svc.ApplyFolderTemplate(r.Context(), req, actor)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrTemplateNotFound):
+			response.Error(w, http.StatusNotFound, err.Error(), nil)
+		case errors.Is(err, service.ErrBulkTooManyFolders),
+			errors.Is(err, service.ErrBulkTooDeep),
+			errors.Is(err, service.ErrFolderNameInvalid):
+			response.Error(w, http.StatusBadRequest, err.Error(), nil)
+		default:
+			log.Printf("apply folder template internal error: %v", err)
+			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
+		}
+		return
+	}
+
+	response.Success(w, http.StatusCreated, "apply folder template success", res)
 }
 
 func (h *ContentHandler) InitMultipart(w http.ResponseWriter, r *http.Request) {

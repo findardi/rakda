@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -40,6 +41,11 @@ const (
 	maxWatermarkDownloadPages = 150
 	stampPagesPerRun          = 25
 	stampWorkers              = 2
+
+	// asyncConvertTimeout bounds the detached conversion kicked off by a version
+	// upload or a rendition retry. Generous: gotenberg on a large deck is slow,
+	// and an expiry only means the next open converts it lazily instead.
+	asyncConvertTimeout = 15 * time.Minute
 )
 
 var (
@@ -77,6 +83,7 @@ var (
 	ErrOCRFailed                 = errors.New("ocr failed")
 	ErrDownloadBusy              = errors.New("too many watermarked downloads in progress, retry later")
 	ErrWatermarkDownloadTooLarge = errors.New("document is too large to download as a watermarked copy, use the viewer")
+	ErrVersionTypeMismatch       = errors.New("version file type does not match the document")
 )
 
 type ContentService struct {
@@ -92,6 +99,11 @@ type ContentService struct {
 	// di kotak 4 GB. Non-blocking: penuh → ErrDownloadBusy (429), tidak
 	// menunggu.
 	stampSem chan struct{}
+
+	// convertSF menyatukan konversi rendition per version id: kick latar
+	// belakang (unggah versi / retry) dan pembuka viewer yang datang bersamaan
+	// berbagi satu kerja gotenberg, bukan dua.
+	convertSF singleflight.Group
 }
 
 func NewContentService(repo ContentRepository, store storage.Storage, viewer Viewer, trashRetention time.Duration, activity ActivityRecorder, stampConcurrency int) *ContentService {
@@ -223,6 +235,30 @@ func assertUploadable(name string) error {
 	}
 
 	return fmt.Errorf("%w: %s", ErrNotUploadable, ext)
+}
+
+// assertVersionType gates a version upload on the picked file's extension
+// matching the document's. The rendition pipeline converts by the document's
+// name (a version inherits it), so bytes of another type are guaranteed to fail
+// conversion — reject them before they cost an upload. Name-based like
+// assertUploadable, and equally optional-trust: a lie still dies in conversion,
+// now without ever being served.
+func assertVersionType(docName, fileName string) error {
+	if fileName == "" {
+		return nil
+	}
+
+	docExt := strings.ToLower(filepath.Ext(docName))
+	if strings.EqualFold(filepath.Ext(fileName), docExt) {
+		return nil
+	}
+
+	newExt := strings.ToLower(filepath.Ext(fileName))
+	if newExt == "" {
+		newExt = "(no extension)"
+	}
+
+	return fmt.Errorf("%w: got %s, document is %s", ErrVersionTypeMismatch, newExt, docExt)
 }
 
 func assertUploadSize(size int64) error {
@@ -689,6 +725,50 @@ func (s *ContentService) ensureFolderTree(ctx context.Context, q *contentdb.Quer
 	return nil
 }
 
+func (s *ContentService) runFolderTreeTx(ctx context.Context, wID, pID, cID pgtype.UUID, nodes []dto.BulkFolderNode, record func(tx pgx.Tx, out []dto.BulkFolderResult, created int) error) ([]dto.BulkFolderResult, error) {
+	out := make([]dto.BulkFolderResult, 0)
+
+	err := s.repo.ExecTxTx(ctx, func(q *contentdb.Queries, tx pgx.Tx) error {
+		if err := q.LockWorkspaceStructure(ctx, wID); err != nil {
+			return fmt.Errorf("lock workspace structure: %w", err)
+		}
+
+		if pID.Valid {
+			parent, err := q.GetFolderByID(ctx, pID)
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrParentNotFound
+			}
+
+			if err != nil {
+				return fmt.Errorf("check parent: %w", err)
+			}
+
+			if parent.WorkspaceID != wID {
+				return ErrParentCrossWorkspace
+			}
+		}
+
+		if err := s.ensureFolderTree(ctx, q, wID, pID, cID, nodes, "", &out); err != nil {
+			return err
+		}
+
+		created := 0
+		for _, f := range out {
+			if f.Created {
+				created++
+			}
+		}
+
+		return record(tx, out, created)
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return out, nil
+}
+
 func (s *ContentService) BulkCreateFolders(ctx context.Context, req dto.BulkCreateFolderRequest, actor Actor) (dto.BulkCreateFolderResponse, error) {
 	var wID, pID, cID pgtype.UUID
 
@@ -715,39 +795,7 @@ func (s *ContentService) BulkCreateFolders(ctx context.Context, req dto.BulkCrea
 		return dto.BulkCreateFolderResponse{}, ErrBulkTooManyFolders
 	}
 
-	out := make([]dto.BulkFolderResult, 0, total)
-
-	err = s.repo.ExecTxTx(ctx, func(q *contentdb.Queries, tx pgx.Tx) error {
-		if err := q.LockWorkspaceStructure(ctx, wID); err != nil {
-			return fmt.Errorf("lock workspace structure: %w", err)
-		}
-
-		if pID.Valid {
-			parent, err := q.GetFolderByID(ctx, pID)
-			if errors.Is(err, pgx.ErrNoRows) {
-				return ErrParentNotFound
-			}
-
-			if err != nil {
-				return fmt.Errorf("check parent: %w", err)
-			}
-
-			if parent.WorkspaceID != wID {
-				return ErrParentCrossWorkspace
-			}
-		}
-
-		if err := s.ensureFolderTree(ctx, q, wID, pID, cID, req.Folders, "", &out); err != nil {
-			return err
-		}
-
-		created := 0
-		for _, f := range out {
-			if f.Created {
-				created++
-			}
-		}
-
+	out, err := s.runFolderTreeTx(ctx, wID, pID, cID, req.Folders, func(tx pgx.Tx, out []dto.BulkFolderResult, created int) error {
 		if created == 0 {
 			return nil
 		}

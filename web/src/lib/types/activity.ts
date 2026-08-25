@@ -11,6 +11,7 @@ export interface ActivityItem {
 	created_at: string;
 	link_document_id: string;
 	link_folder_id: string;
+	link_question_id: string;
 }
 
 export interface ActivityListData {

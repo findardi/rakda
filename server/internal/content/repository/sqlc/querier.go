@@ -44,11 +44,17 @@ type Querier interface {
 	ListVersionsSweptByFolder(ctx context.Context, folderID pgtype.UUID) ([]ListVersionsSweptByFolderRow, error)
 	// `is_current` is the served version, which restore repoints freely, so it is
 	// not necessarily the highest version_no. current_version_id is nullable.
+	// `is_staged` marks an upload waiting for its rendition to prove out before it
+	// is served; at most one version per document carries it.
 	ListVersionsWithUploader(ctx context.Context, documentID pgtype.UUID) ([]ListVersionsWithUploaderRow, error)
 	ListVisibleFolders(ctx context.Context, arg ListVisibleFoldersParams) ([]ListVisibleFoldersRow, error)
 	LockWorkspaceStructure(ctx context.Context, workspaceID pgtype.UUID) error
 	MoveDocument(ctx context.Context, arg MoveDocumentParams) error
 	MoveFolder(ctx context.Context, arg MoveFolderParams) error
+	// The where-guard makes promotion atomic and idempotent: it only fires while
+	// the document still stages this exact version, so a restore or a newer upload
+	// that raced the conversion wins and this becomes a no-op.
+	PromoteStagedVersion(ctx context.Context, arg PromoteStagedVersionParams) (int64, error)
 	PurgeDocument(ctx context.Context, id pgtype.UUID) error
 	PurgeFolder(ctx context.Context, id pgtype.UUID) error
 	ReindexDocumentSiblings(ctx context.Context, arg ReindexDocumentSiblingsParams) error
@@ -72,11 +78,15 @@ type Querier interface {
 	SearchVisibleFolderBreadcrumbs(ctx context.Context, arg SearchVisibleFolderBreadcrumbsParams) ([]SearchVisibleFolderBreadcrumbsRow, error)
 	SearchVisibleFolders(ctx context.Context, arg SearchVisibleFoldersParams) ([]SearchVisibleFoldersRow, error)
 	SearchWordBoxes(ctx context.Context, arg SearchWordBoxesParams) ([]SearchWordBoxesRow, error)
+	// An explicit pointer set (first upload, restore) supersedes any staging in
+	// flight: a version left staged after the owner chose another would promote
+	// itself behind their back the moment its conversion finished.
 	SetCurrentVersion(ctx context.Context, arg SetCurrentVersionParams) error
 	SetFolderAccess(ctx context.Context, arg SetFolderAccessParams) (FolderAccess, error)
 	SetPageOCRFailure(ctx context.Context, arg SetPageOCRFailureParams) error
 	SetPageOCRResult(ctx context.Context, arg SetPageOCRResultParams) error
 	SetPageWordBoxes(ctx context.Context, arg SetPageWordBoxesParams) error
+	SetStagedVersion(ctx context.Context, arg SetStagedVersionParams) error
 	SetVersionRendition(ctx context.Context, arg SetVersionRenditionParams) error
 	SetVersionRenditionFailure(ctx context.Context, arg SetVersionRenditionFailureParams) error
 	SetVersionTextExtracted(ctx context.Context, id pgtype.UUID) error

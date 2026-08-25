@@ -101,7 +101,8 @@ const listActivityLogs = `-- name: ListActivityLogs :many
 select
     a.id, a.workspace_id, a.actor_id, a.actor_name, a.actor_role, a.action, a.target_type, a.target_id, a.target_name, a.metadata, a.created_at,
     coalesce(d.id, dv.id) as link_document_id,
-    coalesce(d.folder_id, dv.folder_id, f.id) as link_folder_id
+    coalesce(d.folder_id, dv.folder_id, f.id) as link_folder_id,
+    qn.id as link_question_id
 from activity_logs a
 left join documents d
     on a.target_type = 'document' and d.id = a.target_id and d.deleted_at is null
@@ -111,6 +112,8 @@ left join documents dv
     on dv.id = v.document_id and dv.deleted_at is null
 left join folders f
     on a.target_type = 'folder' and f.id = a.target_id and f.deleted_at is null
+left join questions qn
+    on a.target_type = 'question' and qn.id = a.target_id
 where
     a.workspace_id = $1
     and ($2::timestamptz is null
@@ -148,6 +151,7 @@ type ListActivityLogsRow struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	LinkDocumentID pgtype.UUID        `json:"link_document_id"`
 	LinkFolderID   pgtype.UUID        `json:"link_folder_id"`
+	LinkQuestionID pgtype.UUID        `json:"link_question_id"`
 }
 
 func (q *Queries) ListActivityLogs(ctx context.Context, arg ListActivityLogsParams) ([]ListActivityLogsRow, error) {
@@ -182,6 +186,7 @@ func (q *Queries) ListActivityLogs(ctx context.Context, arg ListActivityLogsPara
 			&i.CreatedAt,
 			&i.LinkDocumentID,
 			&i.LinkFolderID,
+			&i.LinkQuestionID,
 		); err != nil {
 			return nil, err
 		}

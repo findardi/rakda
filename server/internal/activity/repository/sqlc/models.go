@@ -49,6 +49,7 @@ type Document struct {
 	DeletedAt           pgtype.Timestamptz `json:"deleted_at"`
 	DeletedBy           pgtype.UUID        `json:"deleted_by"`
 	DeletedRootFolderID pgtype.UUID        `json:"deleted_root_folder_id"`
+	StagedVersionID     pgtype.UUID        `json:"staged_version_id"`
 }
 
 type DocumentPageText struct {
@@ -81,6 +82,17 @@ type DocumentVersion struct {
 	TextFailedAt      pgtype.Timestamptz `json:"text_failed_at"`
 }
 
+type Faq struct {
+	ID               pgtype.UUID        `json:"id"`
+	WorkspaceID      pgtype.UUID        `json:"workspace_id"`
+	QuestionText     string             `json:"question_text"`
+	AnswerText       string             `json:"answer_text"`
+	SourceQuestionID pgtype.UUID        `json:"source_question_id"`
+	CreatedBy        pgtype.UUID        `json:"created_by"`
+	CreatorName      string             `json:"creator_name"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+}
+
 type Folder struct {
 	ID                  pgtype.UUID        `json:"id"`
 	WorkspaceID         pgtype.UUID        `json:"workspace_id"`
@@ -106,6 +118,34 @@ type FolderAccess struct {
 	CanWatermark        bool               `json:"can_watermark"`
 	CanDownloadOriginal bool               `json:"can_download_original"`
 	CanShare            bool               `json:"can_share"`
+}
+
+type Question struct {
+	ID           pgtype.UUID        `json:"id"`
+	WorkspaceID  pgtype.UUID        `json:"workspace_id"`
+	GroupID      pgtype.UUID        `json:"group_id"`
+	GroupName    string             `json:"group_name"`
+	Number       int32              `json:"number"`
+	AuthorID     pgtype.UUID        `json:"author_id"`
+	AuthorName   string             `json:"author_name"`
+	Subject      string             `json:"subject"`
+	Body         string             `json:"body"`
+	Status       string             `json:"status"`
+	DocumentID   pgtype.UUID        `json:"document_id"`
+	DocumentName string             `json:"document_name"`
+	FolderID     pgtype.UUID        `json:"folder_id"`
+	FolderName   string             `json:"folder_name"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+}
+
+type QuestionReply struct {
+	ID         pgtype.UUID        `json:"id"`
+	QuestionID pgtype.UUID        `json:"question_id"`
+	AuthorID   pgtype.UUID        `json:"author_id"`
+	AuthorName string             `json:"author_name"`
+	AuthorRole string             `json:"author_role"`
+	Body       string             `json:"body"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 }
 
 type User struct {
@@ -150,13 +190,15 @@ type Workspace struct {
 }
 
 type WorkspaceGroup struct {
-	ID          pgtype.UUID        `json:"id"`
-	WorkspaceID pgtype.UUID        `json:"workspace_id"`
-	Name        string             `json:"name"`
-	Description *string            `json:"description"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
-	IsDefault   bool               `json:"is_default"`
+	ID              pgtype.UUID        `json:"id"`
+	WorkspaceID     pgtype.UUID        `json:"workspace_id"`
+	Name            string             `json:"name"`
+	Description     *string            `json:"description"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	IsDefault       bool               `json:"is_default"`
+	QaEnabled       bool               `json:"qa_enabled"`
+	QaQuestionLimit *int32             `json:"qa_question_limit"`
 }
 
 type WorkspaceGroupMember struct {

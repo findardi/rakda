@@ -5,7 +5,8 @@ import {
 	getGroups,
 	getMembers,
 	resolveWorkspaceId,
-	unassignMember
+	unassignMember,
+	updateGroupQA
 } from '$lib/server/api';
 import { t } from '$lib/i18n';
 import type { Actions, PageServerLoad } from './$types';
@@ -84,5 +85,37 @@ export const actions: Actions = {
 		}
 
 		return { unassigned: true };
+	},
+
+	// Q&A switch + limit live on their own PATCH — deliberately not part of the
+	// name/description PUT, which full-replaces and would reset them.
+	qa: async ({ locals, params, request }) => {
+		if (!locals.session) redirect(303, '/login');
+
+		const form = await request.formData();
+		const qaEnabled = form.get('qa_enabled') === 'on';
+		const rawLimit = (form.get('question_limit') ?? '').toString().trim();
+		let questionLimit: number | null = null;
+		if (rawLimit !== '') {
+			const n = Number(rawLimit);
+			if (!Number.isInteger(n) || n < 0) {
+				return fail(400, { message: t('qa.err.limitInvalid') });
+			}
+			questionLimit = n;
+		}
+
+		const wsId = await resolveWorkspaceId(locals.session, params.slug);
+		if (!wsId) return fail(404, { message: t('ws.detail.notFound') });
+
+		const res = await updateGroupQA(locals.session, wsId, params.groupId, {
+			qa_enabled: qaEnabled,
+			question_limit: questionLimit
+		});
+		if (!res.ok) {
+			if (res.status === 401) redirect(303, '/login');
+			return fail(res.status || 400, { message: res.message || t('err.generic') });
+		}
+
+		return { qaSaved: true };
 	}
 };
