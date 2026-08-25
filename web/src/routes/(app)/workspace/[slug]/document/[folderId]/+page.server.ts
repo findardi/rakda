@@ -1,5 +1,11 @@
 import { error, fail, redirect } from '@sveltejs/kit';
-import { deleteDocument, listDocuments, moveDocument, resolveWorkspaceId } from '$lib/server/api';
+import {
+	bulkDeleteDocuments,
+	deleteDocument,
+	listDocuments,
+	moveDocument,
+	resolveWorkspaceId
+} from '$lib/server/api';
 import { isUuid, parsePosition } from '$lib/dnd';
 import { t } from '$lib/i18n';
 import type { Actions, PageServerLoad } from './$types';
@@ -49,6 +55,29 @@ export const actions: Actions = {
 		}
 
 		return { moved: true };
+	},
+
+	bulkDeleteDocuments: async ({ locals, params, request }) => {
+		if (!locals.session) redirect(303, '/login');
+
+		const form = await request.formData();
+		const documentIds = form
+			.getAll('documentId')
+			.map((v) => v.toString())
+			.filter(Boolean);
+		if (documentIds.length === 0) return fail(400, { message: t('err.generic') });
+
+		const wsId = await resolveWorkspaceId(locals.session, params.slug);
+		if (!wsId) return fail(404, { message: t('ws.detail.notFound') });
+
+		const res = await bulkDeleteDocuments(locals.session, wsId, documentIds);
+		if (!res.ok) {
+			if (res.status === 401) redirect(303, '/login');
+			if (res.status === 404) return fail(404, { message: t('doc.docs.err.notFound') });
+			return fail(res.status || 400, { message: res.message || t('err.generic') });
+		}
+
+		return { bulkDeleted: documentIds.length };
 	},
 
 	deleteDocument: async ({ locals, params, request }) => {

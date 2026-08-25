@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { tick } from 'svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 	import { applyAction, deserialize, enhance } from '$app/forms';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -454,6 +455,7 @@
 	}
 
 	function rowDragOver(e: DragEvent, row: Row) {
+		if (selectMode) return;
 		const node = row.node;
 		if (hasFiles(e)) {
 			if (!canUpload) return;
@@ -492,6 +494,7 @@
 	}
 
 	function rowDrop(e: DragEvent, row: Row) {
+		if (selectMode) return;
 		const node = row.node;
 		if (hasFiles(e)) {
 			if (!canUpload) return;
@@ -518,6 +521,7 @@
 	}
 
 	function railDragOver(e: DragEvent) {
+		if (selectMode) return;
 		dropEdge = 'into';
 		if (hasFiles(e)) {
 			// `types` cannot tell a folder from a file during dragover, so the rail
@@ -547,6 +551,7 @@
 	}
 
 	function railDrop(e: DragEvent) {
+		if (selectMode) return;
 		if (hasFiles(e)) {
 			// No `defaultFolder` check: a dropped folder belongs at the root and
 			// needs no default. Only loose files do, and dropAt reports that.
@@ -619,12 +624,13 @@
 	}
 
 	function winDragOver(e: DragEvent) {
-		if (!hasFiles(e) || !canUpload) return;
+		if (selectMode || !hasFiles(e) || !canUpload) return;
 		e.preventDefault();
 		if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
 	}
 
 	function winDrop(e: DragEvent) {
+		if (selectMode) return;
 		const handled = e.defaultPrevented;
 		e.preventDefault();
 
@@ -754,6 +760,58 @@
 				moveError = (result.data?.message as string) ?? t('err.generic');
 			} else {
 				moveError = t('err.generic');
+			}
+		};
+	};
+
+	// --- bulk select (folders) ---
+	// Selection is the current view only; General never gets a checkbox, and
+	// every drag gesture is parked while the mode is on — the two share rows.
+	let selectMode = $state(false);
+	const selectedFolders = new SvelteSet<string>();
+	let bulkDialog = $state<HTMLDialogElement>();
+	let bulkError = $state<string | null>(null);
+	let bulkSubmitting = $state(false);
+
+	function exitSelect() {
+		selectMode = false;
+		selectedFolders.clear();
+	}
+
+	function toggleSelected(id: string) {
+		if (selectedFolders.has(id)) selectedFolders.delete(id);
+		else selectedFolders.add(id);
+	}
+
+	function openBulkDelete() {
+		bulkError = null;
+		bulkDialog?.showModal();
+	}
+
+	const submitBulkDelete: SubmitFunction = ({ cancel }) => {
+		if (selectedFolders.size === 0) return cancel();
+		bulkSubmitting = true;
+
+		const stranded =
+			!!activeId &&
+			[...selectedFolders].some((id) => {
+				const node = findNode(folders, id);
+				return !!node && subtreeIds(node).includes(activeId);
+			});
+
+		return async ({ result }) => {
+			bulkSubmitting = false;
+			if (result.type === 'success') {
+				const n = selectedFolders.size;
+				bulkDialog?.close();
+				exitSelect();
+				if (stranded) await goto(actionBase, { invalidateAll: true });
+				else await invalidateAll();
+				showToast(t('doc.select.deletedFolders', { n }), 'success');
+			} else if (result.type === 'failure') {
+				bulkError = (result.data?.message as string) ?? t('err.generic');
+			} else {
+				bulkError = t('err.generic');
 			}
 		};
 	};
@@ -928,16 +986,54 @@
 			<div class="flex-none border-b border-base-content/8">
 				<div class="flex items-center justify-between gap-2 px-3 py-2">
 					<h2 class="text-xs font-medium text-muted">{t('doc.index')}</h2>
-					{#if branchIds.length > 0}
-						<button
-							type="button"
-							onclick={() => setAll(anyCollapsed)}
-							class="rounded-field px-1.5 py-0.5 text-xs text-muted transition-colors hover:bg-base-content/5 hover:text-base-content"
-						>
-							{anyCollapsed ? t('doc.expandAll') : t('doc.collapseAll')}
-						</button>
-					{/if}
+					<div class="flex items-center gap-1">
+						{#if canDelete && folders.length > 0 && !selectMode}
+							<button
+								type="button"
+								onclick={() => (selectMode = true)}
+								class="rounded-field px-1.5 py-0.5 text-xs text-muted transition-colors hover:bg-base-content/5 hover:text-base-content"
+							>
+								{t('doc.select.enter')}
+							</button>
+						{/if}
+						{#if branchIds.length > 0}
+							<button
+								type="button"
+								onclick={() => setAll(anyCollapsed)}
+								class="rounded-field px-1.5 py-0.5 text-xs text-muted transition-colors hover:bg-base-content/5 hover:text-base-content"
+							>
+								{anyCollapsed ? t('doc.expandAll') : t('doc.collapseAll')}
+							</button>
+						{/if}
+					</div>
 				</div>
+
+				{#if selectMode}
+					<div
+						class="flex items-center justify-between gap-2 border-t border-base-content/8 bg-primary/[0.04] px-3 py-1.5"
+					>
+						<span class="font-mono text-xs tabular-nums" aria-live="polite">
+							{t('doc.select.count', { n: selectedFolders.size })}
+						</span>
+						<div class="flex items-center gap-1">
+							<button
+								type="button"
+								onclick={openBulkDelete}
+								disabled={selectedFolders.size === 0}
+								class="rounded-field px-1.5 py-0.5 text-xs font-medium text-error transition-colors hover:bg-error/10 disabled:pointer-events-none disabled:opacity-40"
+							>
+								{t('doc.select.delete')}
+							</button>
+							<button
+								type="button"
+								onclick={exitSelect}
+								class="rounded-field px-1.5 py-0.5 text-xs text-muted transition-colors hover:bg-base-content/5 hover:text-base-content"
+							>
+								{t('doc.cancel')}
+							</button>
+						</div>
+					</div>
+				{/if}
 
 				{#if folders.length > 0}
 					<div class="relative px-2 pb-2">
@@ -1046,7 +1142,7 @@
 						{@const into = targeted && dropEdge === 'into'}
 						<li
 							data-folder-id={node.id}
-							draggable={canEdit && !node.is_default && !renaming}
+							draggable={canEdit && !node.is_default && !renaming && !selectMode}
 							ondragstart={(e) => rowDragStart(e, node)}
 							ondragover={(e) => rowDragOver(e, row)}
 							ondragleave={(e) => rowDragLeave(e, node)}
@@ -1069,6 +1165,19 @@
 									style="left: {indentRem(row.depth)}"
 									aria-hidden="true"
 								></span>
+							{/if}
+							{#if selectMode}
+								{#if node.is_default}
+									<span class="w-5 flex-none"></span>
+								{:else}
+									<input
+										type="checkbox"
+										checked={selectedFolders.has(node.id)}
+										onchange={() => toggleSelected(node.id)}
+										aria-label={t('doc.select.itemLabel', { name: node.name })}
+										class="checkbox checkbox-sm checkbox-primary mt-0.5 flex-none"
+									/>
+								{/if}
 							{/if}
 							{#if row.hasChildren}
 								<button
@@ -1448,6 +1557,41 @@
 					{deleteSubmitting ? t('doc.delete.submitting') : t('doc.delete.submit')}
 				</Button>
 			</div>
+		</form>
+	</div>
+	<form method="dialog" class="modal-backdrop">
+		<button aria-label={t('doc.cancel')}></button>
+	</form>
+</dialog>
+
+<dialog bind:this={bulkDialog} class="modal" aria-labelledby="folder-bulk-delete-title">
+	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+		<h2 id="folder-bulk-delete-title" class="text-lg font-semibold tracking-[-0.01em]">
+			{t('doc.select.foldersTitle')}
+		</h2>
+		<p class="mt-1 text-sm text-muted text-pretty">
+			{t('doc.select.folders', { n: selectedFolders.size })}
+		</p>
+
+		{#if bulkError}
+			<div class="mt-4"><Alert align="start">{bulkError}</Alert></div>
+		{/if}
+
+		<form
+			method="POST"
+			action="{actionBase}?/bulkDelete"
+			use:enhance={submitBulkDelete}
+			class="mt-6 flex justify-end gap-2"
+		>
+			{#each [...selectedFolders] as id (id)}
+				<input type="hidden" name="folderId" value={id} />
+			{/each}
+			<Button type="button" variant="ghost" onclick={() => bulkDialog?.close()}>
+				{t('doc.cancel')}
+			</Button>
+			<Button type="submit" variant="danger" loading={bulkSubmitting}>
+				{bulkSubmitting ? t('doc.delete.submitting') : t('doc.delete.submit')}
+			</Button>
 		</form>
 	</div>
 	<form method="dialog" class="modal-backdrop">

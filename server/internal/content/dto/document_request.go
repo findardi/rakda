@@ -25,6 +25,11 @@ type CompleteVersionRequest struct {
 	FileName string `json:"file_name"`
 }
 
+type BulkDeleteDocumentsRequest struct {
+	WorkspaceID string   `json:"-"`
+	DocumentIDs []string `json:"document_ids" validate:"required,min=1,max=100,dive,uuid"`
+}
+
 type MoveDocumentRequest struct {
 	WorkspaceID string `json:"-"`
 	DocumentID  string `json:"-"`

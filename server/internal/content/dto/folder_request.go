@@ -30,6 +30,11 @@ type SetFolderAccessRequest struct {
 	CanDownloadOriginal bool   `json:"can_download_original"`
 }
 
+type BulkDeleteFoldersRequest struct {
+	WorkspaceID string   `json:"-"`
+	FolderIDs   []string `json:"folder_ids" validate:"required,min=1,max=100,dive,uuid"`
+}
+
 type BulkFolderNode struct {
 	Name     string           `json:"name"`
 	Children []BulkFolderNode `json:"children"`

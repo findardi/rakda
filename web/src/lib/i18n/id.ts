@@ -279,6 +279,19 @@ export const id = {
 	'doc.delete.confirmLabel': 'Ketik {name} untuk konfirmasi',
 	'doc.delete.submit': 'Hapus',
 	'doc.delete.submitting': 'Menghapus…',
+
+	// mode pilih — bulk delete dua permukaan (rail folder + panel dokumen)
+	'doc.select.enter': 'Pilih',
+	'doc.select.count': '{n} dipilih',
+	'doc.select.delete': 'Hapus',
+	'doc.select.itemLabel': 'Pilih {name}',
+	'doc.select.foldersTitle': 'Hapus folder terpilih',
+	'doc.select.folders':
+		'Hapus {n} folder ke Sampah? Semua isi di dalamnya ikut dipindahkan dan dapat dipulihkan dari Sampah.',
+	'doc.select.docsTitle': 'Hapus dokumen terpilih',
+	'doc.select.docs': 'Hapus {n} dokumen ke Sampah? Semuanya dapat dipulihkan dari Sampah.',
+	'doc.select.deletedFolders': '{n} folder dipindahkan ke Sampah.',
+	'doc.select.deletedDocs': '{n} dokumen dipindahkan ke Sampah.',
 	'doc.err.load': 'Gagal memuat folder.',
 	'doc.err.nameRequired': 'Masukkan nama folder.',
 	'doc.err.nameTaken': 'Folder dengan nama itu sudah ada di sini.',

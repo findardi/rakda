@@ -74,6 +74,56 @@
 	// guest never sees the disclosure rather than opening it into a 403.
 	const canSeeVersions = $derived(role === 'owner' || role === 'admin');
 
+	// --- bulk select (documents) ---
+	// Selection is the current view only; every drag gesture is parked while
+	// the mode is on — the two share rows.
+	let selectMode = $state(false);
+	const selectedDocs = new SvelteSet<string>();
+	let bulkDialog = $state<HTMLDialogElement>();
+	let bulkError = $state<string | null>(null);
+	let bulkSubmitting = $state(false);
+
+	function exitSelect() {
+		selectMode = false;
+		selectedDocs.clear();
+	}
+
+	function toggleSelected(id: string) {
+		if (selectedDocs.has(id)) selectedDocs.delete(id);
+		else selectedDocs.add(id);
+	}
+
+	function openBulkDelete() {
+		bulkError = null;
+		bulkDialog?.showModal();
+	}
+
+	// The component survives folder switches (same route, new param), so the
+	// selection must not.
+	$effect(() => {
+		void folderId;
+		exitSelect();
+	});
+
+	const submitBulkDelete: SubmitFunction = ({ cancel }) => {
+		if (selectedDocs.size === 0) return cancel();
+		bulkSubmitting = true;
+		return async ({ result }) => {
+			bulkSubmitting = false;
+			if (result.type === 'success') {
+				const n = selectedDocs.size;
+				bulkDialog?.close();
+				exitSelect();
+				await invalidateAll();
+				showToast(t('doc.select.deletedDocs', { n }), 'success');
+			} else if (result.type === 'failure') {
+				bulkError = (result.data?.message as string) ?? t('err.generic');
+			} else {
+				bulkError = t('err.generic');
+			}
+		};
+	};
+
 	// Entry point 11-d: the Q&A ask dialog, prefilled with this document. The
 	// name in the query is display-only — the server re-resolves the id.
 	const qaEnabled = $derived((page.data as { qaEnabled?: boolean }).qaEnabled ?? true);
@@ -214,6 +264,10 @@
 	let draggingDocId = $state<string | null>(null);
 
 	function docDragStart(e: DragEvent, doc: DocumentData) {
+		if (selectMode) {
+			e.preventDefault();
+			return;
+		}
 		if (!canEditDoc) {
 			e.preventDefault();
 			return;
@@ -255,7 +309,7 @@
 	}
 
 	function docDragOver(e: DragEvent, i: number) {
-		if (!canReorder || !draggingDocId) return;
+		if (selectMode || !canReorder || !draggingDocId) return;
 		if (!e.dataTransfer?.types.includes(DOCUMENT_MIME)) return;
 		// The pane below treats a drag as an upload; a row reorder is not that.
 		e.preventDefault();
@@ -271,7 +325,7 @@
 
 	// The gap was already resolved by the dragover that necessarily preceded this.
 	function docDrop(e: DragEvent) {
-		if (!canReorder || !draggingDocId) return;
+		if (selectMode || !canReorder || !draggingDocId) return;
 		if (!e.dataTransfer?.types.includes(DOCUMENT_MIME)) return;
 		e.preventDefault();
 		e.stopPropagation();
@@ -466,6 +520,9 @@
 		</div>
 
 		<div class="flex flex-none items-center gap-2">
+			{#if canDelete && documents.length > 0 && !switching && !selectMode}
+				<Button variant="ghost" onclick={() => (selectMode = true)}>{t('doc.select.enter')}</Button>
+			{/if}
 			{#if documents.length > 1 && !switching}
 				<select
 					bind:value={sortBy}
@@ -536,6 +593,29 @@
 		</div>
 	</header>
 
+	{#if selectMode}
+		<div
+			class="mt-3 flex items-center justify-between gap-3 rounded-box border border-base-content/10 bg-primary/[0.04] px-4 py-2"
+		>
+			<span class="font-mono text-xs tabular-nums" aria-live="polite">
+				{t('doc.select.count', { n: selectedDocs.size })}
+			</span>
+			<div class="flex items-center gap-2">
+				<button
+					type="button"
+					onclick={openBulkDelete}
+					disabled={selectedDocs.size === 0}
+					class="btn btn-ghost btn-sm text-error hover:bg-error/10 disabled:opacity-40"
+				>
+					{t('doc.select.delete')}
+				</button>
+				<button type="button" onclick={exitSelect} class="btn btn-ghost btn-sm">
+					{t('doc.cancel')}
+				</button>
+			</div>
+		</div>
+	{/if}
+
 	{#if switching}
 		<ul class="divide-y divide-base-content/6" aria-hidden="true">
 			{#each SKELETON_ROWS as width (width)}
@@ -603,7 +683,7 @@
 				     point is measured against, and an expanded history below would
 				     skew that midpoint if it shared the element. -->
 				<li
-					draggable={canEditDoc}
+					draggable={canEditDoc && !selectMode}
 					ondragstart={(e) => docDragStart(e, doc)}
 					ondragend={endDocDrag}
 					ondragover={(e) => docDragOver(e, i)}
@@ -617,6 +697,15 @@
 					{/if}
 					{#if insertAt === documents.length && i === documents.length - 1}
 						<span class="rakda-dropline pointer-events-none absolute inset-x-4 -bottom-px"></span>
+					{/if}
+					{#if selectMode}
+						<input
+							type="checkbox"
+							checked={selectedDocs.has(doc.id)}
+							onchange={() => toggleSelected(doc.id)}
+							aria-label={t('doc.select.itemLabel', { name: doc.name })}
+							class="checkbox checkbox-sm checkbox-primary flex-none"
+						/>
 					{/if}
 					{@render fileIcon(kindOf(doc.mime))}
 
@@ -977,6 +1066,41 @@
 			</Button>
 			<Button type="submit" variant="danger" loading={deleteSubmitting}>
 				{deleteSubmitting ? t('doc.docs.delete.submitting') : t('doc.docs.delete.submit')}
+			</Button>
+		</form>
+	</div>
+	<form method="dialog" class="modal-backdrop">
+		<button aria-label={t('doc.cancel')}></button>
+	</form>
+</dialog>
+
+<dialog bind:this={bulkDialog} class="modal" aria-labelledby="doc-bulk-delete-title">
+	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+		<h2 id="doc-bulk-delete-title" class="text-lg font-semibold tracking-[-0.01em]">
+			{t('doc.select.docsTitle')}
+		</h2>
+		<p class="mt-1 text-sm text-muted text-pretty">
+			{t('doc.select.docs', { n: selectedDocs.size })}
+		</p>
+
+		{#if bulkError}
+			<div class="mt-4"><Alert align="start">{bulkError}</Alert></div>
+		{/if}
+
+		<form
+			method="POST"
+			action="?/bulkDeleteDocuments"
+			use:enhance={submitBulkDelete}
+			class="mt-6 flex justify-end gap-2"
+		>
+			{#each [...selectedDocs] as id (id)}
+				<input type="hidden" name="documentId" value={id} />
+			{/each}
+			<Button type="button" variant="ghost" onclick={() => bulkDialog?.close()}>
+				{t('doc.cancel')}
+			</Button>
+			<Button type="submit" variant="danger" loading={bulkSubmitting}>
+				{bulkSubmitting ? t('doc.docs.delete.submitting') : t('doc.docs.delete.submit')}
 			</Button>
 		</form>
 	</div>

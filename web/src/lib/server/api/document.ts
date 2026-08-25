@@ -247,3 +247,17 @@ export function deleteDocument(
 ): Promise<ApiResult<null>> {
 	return del<null>(`${documentsBase(workspaceId)}/${documentId}`, token);
 }
+
+// Atomic: one unknown/foreign id fails the whole batch with a 404 — nothing
+// is half-deleted. Soft-delete to trash, same as the single delete.
+export function bulkDeleteDocuments(
+	token: string,
+	workspaceId: string,
+	documentIds: string[]
+): Promise<ApiResult<null>> {
+	return post<null>(
+		`${documentsBase(workspaceId)}/bulk-delete`,
+		{ document_ids: documentIds },
+		token
+	);
+}
