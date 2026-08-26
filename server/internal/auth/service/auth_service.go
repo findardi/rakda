@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math/rand/v2"
 	"strings"
 	"time"
 
@@ -28,6 +29,7 @@ var (
 	ErrRefreshReuseDetected   = errors.New("refresh token reuse detected")
 	ErrInvitationInvalid      = errors.New("invitation link is invalid or has expired")
 	ErrInviteEmailRegistered  = errors.New("email already registered, please login to accept")
+	ErrUsernameUnavailable    = errors.New("could not allocate a unique username")
 )
 
 // tokenTTL maps a user_tokens.type to its lifetime.
@@ -622,9 +624,14 @@ func (s *AuthService) SSOLogin(ctx context.Context, provider string, identity SS
 
 	var user authdb.User
 	if err := s.repo.ExecTx(ctx, func(q *authdb.Queries) error {
+		username, err := uniqueUsername(ctx, q, baseUsername(identity.Username, email))
+		if err != nil {
+			return err
+		}
+
 		u, err := q.CreateUser(ctx, authdb.CreateUserParams{
 			Email:        email,
-			Username:     nil,
+			Username:     &username,
 			PasswordHash: nil,
 			Status:       "active",
 		})
@@ -650,6 +657,50 @@ func (s *AuthService) SSOLogin(ctx context.Context, provider string, identity SS
 
 	return s.issueToken(ctx, user)
 
+}
+
+func baseUsername(raw, email string) string {
+	clean := func(s string) string {
+		return strings.Map(func(r rune) rune {
+			if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '.' || r == '_' {
+				return r
+			}
+			return -1
+		}, strings.ToLower(strings.TrimSpace(s)))
+	}
+
+	base := clean(raw)
+	if base == "" {
+		local, _, _ := strings.Cut(email, "@")
+		base = clean(local)
+	}
+	if base == "" {
+		base = "user"
+	}
+	if len(base) > 24 {
+		base = base[:24]
+	}
+	for len(base) < 6 {
+		base += "0"
+	}
+
+	return base
+}
+
+func uniqueUsername(ctx context.Context, q *authdb.Queries, base string) (string, error) {
+	candidate := base
+	for attempt := 0; attempt < 10; attempt++ {
+		_, err := q.GetUserByUsername(ctx, &candidate)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return candidate, nil
+		}
+		if err != nil {
+			return "", fmt.Errorf("check username: %w", err)
+		}
+		candidate = fmt.Sprintf("%s%03d", base, rand.IntN(1000))
+	}
+
+	return "", ErrUsernameUnavailable
 }
 
 func (s *AuthService) PreviewInvitationSignup(ctx context.Context, token string) (InvitePreview, error) {
