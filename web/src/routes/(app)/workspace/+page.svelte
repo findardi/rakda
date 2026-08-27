@@ -24,13 +24,9 @@
 	let highlightId = $state<string | null>(null);
 	let toastTimer: ReturnType<typeof setTimeout>;
 
-	// The 3-room limit applies only to rooms the user OWNS; as a guest they can be in more.
-	const ownedCount = $derived.by(() => {
-		const uid = data.user?.id;
-		if (!uid) return data.workspaces.length;
-		return data.workspaces.filter((w) => w.owner_id === uid).length;
-	});
-	const atLimit = $derived(ownedCount >= 3);
+	// The owned-room limit applies only to rooms the user OWNS; as a guest they
+	// can be in more. Both numbers are server-computed — never derived here.
+	const atLimit = $derived(data.ownedLimit > 0 && data.ownedCount >= data.ownedLimit);
 
 	async function openCreate() {
 		name = '';
@@ -87,6 +83,14 @@
 		year: 'numeric'
 	});
 	const fmtDate = (iso: string) => dateFmt.format(new Date(iso));
+
+	const ROLE_KEY = {
+		owner: 'role.sys.owner',
+		admin: 'role.sys.admin',
+		guest: 'role.sys.guest'
+	} as const;
+	const roleLabel = (role?: string) =>
+		role && role in ROLE_KEY ? t(ROLE_KEY[role as keyof typeof ROLE_KEY]) : '';
 </script>
 
 <svelte:head><title>{t('ws.title')} · {t('brand.name')}</title></svelte:head>
@@ -103,7 +107,7 @@
 	</header>
 
 	{#if atLimit}
-		<p class="mt-3 text-sm text-muted">{t('ws.limitReached')}</p>
+		<p class="mt-3 text-sm text-muted">{t('ws.limitReached', { limit: data.ownedLimit })}</p>
 	{/if}
 
 	{#if data.loadError}
@@ -167,9 +171,16 @@
 								{ws.description}
 							</p>
 						{/if}
+						{#if roleLabel(ws.role)}
+							<span class="hidden flex-none text-xs text-muted sm:inline">{roleLabel(ws.role)}</span
+							>
+						{/if}
 						<WorkspaceStatusBadge status={ws.status} class="flex-none" />
-						<span class="hidden flex-none font-mono text-xs text-muted sm:inline">
-							{fmtDate(ws.created_at)}
+						<span
+							class="hidden flex-none font-mono text-xs text-muted sm:inline"
+							title={ws.last_activity_at ? t('ws.lastActivity') : t('ws.detail.created')}
+						>
+							{fmtDate(ws.last_activity_at ?? ws.created_at)}
 						</span>
 						<svg
 							class="h-4 w-4 flex-none text-muted"

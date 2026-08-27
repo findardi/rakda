@@ -46,8 +46,17 @@ returning *;
 delete from workspaces where id = $1;
 
 -- name: GetWorkspaces :many
-select w.* from workspaces w
-left join
-    workspace_members wm on wm.workspace_id = w.id
-where 
-    wm.user_id = $1;
+select
+    w.*,
+    r.name as role_name,
+    (
+        select max(a.created_at)
+        from activity_logs a
+        where a.workspace_id = w.id
+    )::timestamptz as last_activity_at
+from workspaces w
+join workspace_members wm on wm.workspace_id = w.id
+join workspace_roles r on r.id = wm.role_id
+where wm.user_id = sqlc.arg(user_id)
+  and wm.status = 'active'
+order by last_activity_at desc nulls last, w.created_at desc, w.id;

@@ -17,7 +17,7 @@ type Querier interface {
 	GetWorkspaceByNameAndOwner(ctx context.Context, arg GetWorkspaceByNameAndOwnerParams) (Workspace, error)
 	GetWorkspaceBySlugAndOwner(ctx context.Context, arg GetWorkspaceBySlugAndOwnerParams) (Workspace, error)
 	GetWorkspaceForMember(ctx context.Context, arg GetWorkspaceForMemberParams) (Workspace, error)
-	GetWorkspaces(ctx context.Context, userID pgtype.UUID) ([]Workspace, error)
+	GetWorkspaces(ctx context.Context, userID pgtype.UUID) ([]GetWorkspacesRow, error)
 	GetWorkspacesByOwner(ctx context.Context, ownerID pgtype.UUID) ([]Workspace, error)
 	UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (Workspace, error)
 	UpdateWorkspaceStatus(ctx context.Context, arg UpdateWorkspaceStatusParams) (Workspace, error)

@@ -55,7 +55,7 @@ export const actions: Actions = {
 		// Match by name (from the preview), falling back to the sole membership.
 		const list = await getWorkspaces(res.data.token);
 		const ws = list.ok
-			? (list.data.find((w) => w.name === workspaceName) ?? list.data[0])
+			? (list.data.workspaces.find((w) => w.name === workspaceName) ?? list.data.workspaces[0])
 			: undefined;
 		redirect(303, ws ? `/workspace/${ws.slug}` : '/');
 	}

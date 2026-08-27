@@ -24,6 +24,8 @@ const (
 	StatusArchive = permission.RoomArchive
 )
 
+const OwnedWorkspaceLimit = 3
+
 var statusTransitions = map[string][]string{
 	StatusPrepare: {StatusActive, StatusArchive},
 	StatusActive:  {StatusArchive},
@@ -145,7 +147,7 @@ func (s *WorkspaceService) CreateWorkspace(ctx context.Context, req dto.Workspac
 	if err != nil {
 		return dto.WorkspaceResponse{}, fmt.Errorf("check current workspace: %w", err)
 	}
-	if len(cuurentWorkspace) >= 3 {
+	if len(cuurentWorkspace) >= OwnedWorkspaceLimit {
 		return dto.WorkspaceResponse{}, ErrWorkspaceExceedLimits
 	}
 
@@ -201,20 +203,23 @@ func (s *WorkspaceService) CreateWorkspace(ctx context.Context, req dto.Workspac
 	}, nil
 }
 
-func (s *WorkspaceService) GetWorkspaces(ctx context.Context, userID string) ([]dto.WorkspaceResponse, error) {
-	workspaces := []dto.WorkspaceResponse{}
+func (s *WorkspaceService) GetWorkspaces(ctx context.Context, userID string) (dto.WorkspaceListResponse, error) {
+	res := dto.WorkspaceListResponse{
+		Workspaces: []dto.WorkspaceResponse{},
+		OwnedLimit: OwnedWorkspaceLimit,
+	}
 
 	var uid pgtype.UUID
 	if err := uid.Scan(userID); err != nil {
-		return workspaces, fmt.Errorf("parse user id: %w", err)
+		return res, fmt.Errorf("parse user id: %w", err)
 	}
 
-	workspace, err := s.repo.GetWorkspaces(ctx, uid)
+	rows, err := s.repo.GetWorkspaces(ctx, uid)
 	if err != nil {
-		return workspaces, fmt.Errorf("get workspaces: %w", err)
+		return res, fmt.Errorf("get workspaces: %w", err)
 	}
 
-	for _, w := range workspace {
+	for _, w := range rows {
 		work := dto.WorkspaceResponse{
 			ID:          uuidString(w.ID),
 			OwnerID:     uuidString(w.OwnerID),
@@ -224,12 +229,20 @@ func (s *WorkspaceService) GetWorkspaces(ctx context.Context, userID string) ([]
 			Status:      w.Status,
 			CreatedAt:   w.CreatedAt.Time,
 			UpdatedAt:   w.UpdatedAt.Time,
+			Role:        w.RoleName,
+		}
+		if w.LastActivityAt.Valid {
+			t := w.LastActivityAt.Time
+			work.LastActivityAt = &t
+		}
+		if w.RoleName == permission.RoleOwner {
+			res.OwnedCount++
 		}
 
-		workspaces = append(workspaces, work)
+		res.Workspaces = append(res.Workspaces, work)
 	}
 
-	return workspaces, nil
+	return res, nil
 }
 
 func (s *WorkspaceService) GetWorkspacesByOwner(ctx context.Context, userID string) ([]dto.WorkspaceResponse, error) {

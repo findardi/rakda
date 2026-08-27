@@ -118,7 +118,10 @@ export const en: Record<keyof Dict, string> = {
 	'ws.title': 'Data rooms',
 	'ws.create': 'Create data room',
 	'ws.count': '{n} data rooms',
-	'ws.limitReached': 'You have reached the limit of 3 data rooms as an owner.',
+	'ws.limitReached':
+		'You have reached the limit of {limit} data rooms as an owner. Archived rooms count too.',
+	'ws.lastActivity': 'Last activity',
+	'ws.switcher.open': 'Switch data room',
 	'ws.created': 'Data room "{name}" created.',
 	'ws.loadError': 'Could not load data rooms. Try reloading the page.',
 	'ws.empty.title': 'No data rooms yet',
@@ -138,7 +141,7 @@ export const en: Record<keyof Dict, string> = {
 	'ws.dialog.submitting': 'Creating…',
 	'ws.err.nameTaken': 'That data room name is already taken.',
 	'ws.err.nameInvalid': 'Name must contain a letter or number.',
-	'ws.err.limit': 'Maximum of 3 data rooms per account.',
+	'ws.err.limit': 'You have reached the owned data room limit.',
 	'ws.err.invalidStatus': 'Invalid status.',
 
 	// Workspace detail (/workspace/[slug])
