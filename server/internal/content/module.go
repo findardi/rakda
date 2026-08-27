@@ -111,11 +111,9 @@ func (m *Module) RegisterRoutes(r chi.Router) {
 				r.Get("/search/content/pages", m.handler.SearchContentPages)
 				r.Get("/download-limits", m.handler.GetDownloadLimits)
 
-				r.Route("/archives", func(r chi.Router) {
-					r.Get("/", m.handler.ListArchives)
-					r.Get("/{archiveID}/download", m.handler.DownloadArchive)
-					r.Delete("/{archiveID}", m.handler.DeleteArchive)
-				})
+				r.Get("/archives", m.handler.ListArchives)
+				r.Get("/archives/{archiveID}/download", m.handler.DownloadArchive)
+				r.Delete("/archives/{archiveID}", m.handler.DeleteArchive)
 
 				r.Route("/folder-templates", func(r chi.Router) {
 					r.With(m.mw.RequirePermission(permission.PermFolderCreate)).Get("/", m.handler.ListFolderTemplates)
