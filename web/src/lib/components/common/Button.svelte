@@ -3,7 +3,7 @@
 
 	type Props = {
 		type?: 'button' | 'submit';
-		variant?: 'primary' | 'ghost' | 'danger';
+		variant?: 'primary' | 'ghost' | 'danger' | 'danger-outline';
 		size?: 'sm' | 'md';
 		loading?: boolean;
 		disabled?: boolean;
@@ -24,7 +24,13 @@
 	}: Props = $props();
 
 	const variantClass = $derived(
-		variant === 'primary' ? 'btn-primary' : variant === 'danger' ? 'btn-error' : 'btn-ghost'
+		variant === 'primary'
+			? 'btn-primary'
+			: variant === 'danger'
+				? 'btn-error'
+				: variant === 'danger-outline'
+					? 'btn-outline btn-error'
+					: 'btn-ghost'
 	);
 </script>
 

@@ -58,6 +58,26 @@ func (q *Queries) DeleteWorkspace(ctx context.Context, id pgtype.UUID) error {
 	return err
 }
 
+const getMemberRoleName = `-- name: GetMemberRoleName :one
+select r.name from workspace_members m
+join workspace_roles r on r.id = m.role_id
+where m.workspace_id = $1
+  and m.user_id = $2
+  and m.status = 'active'
+`
+
+type GetMemberRoleNameParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	UserID      pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) GetMemberRoleName(ctx context.Context, arg GetMemberRoleNameParams) (string, error) {
+	row := q.db.QueryRow(ctx, getMemberRoleName, arg.WorkspaceID, arg.UserID)
+	var name string
+	err := row.Scan(&name)
+	return name, err
+}
+
 const getWorkspaceByID = `-- name: GetWorkspaceByID :one
 select id, owner_id, name, slug, description, status, created_at, updated_at from workspaces where id = $1
 `
@@ -156,6 +176,32 @@ func (q *Queries) GetWorkspaceForMember(ctx context.Context, arg GetWorkspaceFor
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
+	return i, err
+}
+
+const getWorkspaceSummary = `-- name: GetWorkspaceSummary :one
+select
+    (select count(*) from documents d
+        where d.workspace_id = $1 and d.deleted_at is null) as document_count,
+    (select count(*) from folders f
+        where f.workspace_id = $1 and f.deleted_at is null) as folder_count,
+    (select count(*) from workspace_members m
+        join workspace_roles r on r.id = m.role_id
+        where m.workspace_id = $1
+          and m.status = 'active'
+          and r.name = 'guest') as guest_count
+`
+
+type GetWorkspaceSummaryRow struct {
+	DocumentCount int64 `json:"document_count"`
+	FolderCount   int64 `json:"folder_count"`
+	GuestCount    int64 `json:"guest_count"`
+}
+
+func (q *Queries) GetWorkspaceSummary(ctx context.Context, workspaceID pgtype.UUID) (GetWorkspaceSummaryRow, error) {
+	row := q.db.QueryRow(ctx, getWorkspaceSummary, workspaceID)
+	var i GetWorkspaceSummaryRow
+	err := row.Scan(&i.DocumentCount, &i.FolderCount, &i.GuestCount)
 	return i, err
 }
 

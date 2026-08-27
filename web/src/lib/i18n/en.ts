@@ -177,6 +177,10 @@ export const en: Record<keyof Dict, string> = {
 	'room.activate.body':
 		'Guests cannot open this room yet. Open it once the folder structure and group permissions are ready.',
 	'room.activate.submit': 'Open room',
+	'room.activate.submitCount': 'Open room ({n} guests gain access)',
+	'room.activate.confirmBody':
+		'Guests who have already joined get access immediately, following their group permissions.',
+	'room.activate.warning': 'An opened room cannot return to Preparing.',
 	'room.archive.open': 'Archive',
 	'room.archive.title': 'Archive data room',
 	'room.archive.body':
@@ -188,27 +192,49 @@ export const en: Record<keyof Dict, string> = {
 	'room.unarchive.submit': 'Reopen room',
 	'room.delete.blocked': 'An archived room cannot be deleted. Reopen the room first.',
 	'room.archive.exportHint':
-		'You can build a ZIP archive at any time, before or after the room is archived.',
+		'You can build an archive package at any time, before or after the room is archived.',
 
-	// Archive & export
-	'archive.title': 'Archive & export',
+	// Archive packages
+	'archive.title': 'Archive packages',
 	'archive.body':
-		'One ZIP holding a PDF of every document, an index, and the audit trail. Assembled in the background and kept for 30 days.',
-	'archive.create': 'Build archive',
-	'archive.queued': 'The archive is being assembled.',
-	'archive.empty': 'No archives yet.',
+		'One ZIP holding a PDF of every document, an index, and the audit trail. Assembled in the background and kept for 30 days; a ZIP you have downloaded stays valid.',
+	'archive.create': 'Build archive package',
+	'archive.queued': 'The archive package is being assembled.',
+	'archive.empty': 'No archive packages yet.',
 	'archive.download': 'Download',
 	'archive.delete': 'Delete',
+	'archive.delete.title': 'Delete archive package',
+	'archive.delete.warning':
+		'The archive package from {date} is removed from the server and can no longer be downloaded. You can build a new package at any time.',
+	'archive.delete.submit': 'Delete package',
 	'archive.documents': '{n} documents',
 	'archive.missing': '{n} not included',
 	'archive.expires': 'expires {date}',
 	'archive.status.pending': 'Assembling',
 	'archive.status.ready': 'Ready',
 	'archive.status.failed': 'Failed',
-	'archive.err.pending': 'An archive is already being assembled for this room.',
-	'archive.err.busy': 'The server is assembling another archive. Try again shortly.',
-	'archive.err.notFound': 'Archive not found.',
-	'archive.err.notReady': 'The archive is not ready to download yet.',
+	'archive.err.pending': 'An archive package is already being assembled for this room.',
+	'archive.err.busy': 'The server is assembling another archive package. Try again shortly.',
+	'archive.err.notFound': 'Archive package not found.',
+	'archive.err.notReady': 'The archive package is not ready to download yet.',
+
+	// Overview
+	'ws.overview.summary': 'Overview',
+	'ws.overview.quick.documents': 'Documents',
+	'ws.overview.quick.members': 'Guests',
+	'ws.overview.quick.invite': 'Invite guests',
+	'ws.overview.quick.activity': 'Activity',
+	'ws.overview.count.documents': '{n} documents',
+	'ws.overview.count.folders': '{n} folders',
+	'ws.overview.count.guests': '{n} guests',
+	'ws.overview.recentActivity': 'Recent activity',
+	'ws.overview.recentActivity.empty': 'No activity in this room yet.',
+	'ws.overview.seeAll': 'See all activity',
+	'ws.overview.recents': 'Recently visited',
+	'ws.overview.recents.folders': 'Folders',
+	'ws.overview.recents.documents': 'Documents',
+	'ws.overview.recents.empty': 'Folders and documents you open will appear here.',
+	'ws.overview.recents.device': 'Stored in this browser.',
 
 	// Edit room
 	'ws.edit.open': 'Edit',
@@ -650,6 +676,7 @@ export const en: Record<keyof Dict, string> = {
 	'activity.group.group': 'Groups',
 	'activity.group.access': 'Folder access',
 	'activity.group.qa': 'Q&A',
+	'activity.group.room': 'Room',
 
 	'activity.action.folder_created': 'created the folder “{target}”',
 	'activity.action.folder_created_bulk': 'added {count} folders at once',
@@ -698,6 +725,8 @@ export const en: Record<keyof Dict, string> = {
 	'activity.action.question_reopened': 'reopened the question “{target}”',
 	'activity.action.faq_published': 'published the FAQ “{target}”',
 	'activity.action.qa_settings_changed': 'changed the Q&A settings of group “{target}”',
+	'activity.action.workspace_status_changed': 'changed the room status from {from} to {to}',
+	'activity.action.archive_exported': 'built the archive package “{target}”',
 
 	'activity.label.folder_created': 'Folder created',
 	'activity.label.folder_renamed': 'Folder renamed',
@@ -738,6 +767,8 @@ export const en: Record<keyof Dict, string> = {
 	'activity.label.question_reopened': 'Question reopened',
 	'activity.label.faq_published': 'FAQ published',
 	'activity.label.qa_settings_changed': 'Q&A settings changed',
+	'activity.label.workspace_status_changed': 'Room status changed',
+	'activity.label.archive_exported': 'Archive package built',
 
 	'activity.link.open': 'Open “{name}”',
 	'activity.link.readers': 'View reading activity',

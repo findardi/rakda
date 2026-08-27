@@ -81,6 +81,7 @@ func (m *Module) RegisterRoutes(r chi.Router) {
 
 		r.Group(func(r chi.Router) {
 			r.Get("/{workspaceID}", m.handler.GetWorkspace)
+			r.Get("/{workspaceID}/summary", m.handler.GetWorkspaceSummary)
 
 			r.Group(func(r chi.Router) {
 				r.Use(m.mw.RequireOwner("workspaceID", m.workspaceOwner))

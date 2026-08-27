@@ -173,6 +173,10 @@ export const id = {
 	'room.activate.body':
 		'Tamu belum dapat membuka ruang ini. Buka setelah struktur folder dan izin grup siap.',
 	'room.activate.submit': 'Buka ruang',
+	'room.activate.submitCount': 'Buka ruang ({n} tamu mendapat akses)',
+	'room.activate.confirmBody':
+		'Tamu yang sudah bergabung langsung mendapat akses sesuai izin grupnya.',
+	'room.activate.warning': 'Ruang yang sudah dibuka tidak dapat kembali ke status Persiapan.',
 	'room.archive.open': 'Arsipkan',
 	'room.archive.title': 'Arsipkan ruang data',
 	'room.archive.body':
@@ -184,27 +188,49 @@ export const id = {
 	'room.unarchive.submit': 'Buka kembali ruang',
 	'room.delete.blocked': 'Ruang arsip tidak dapat dihapus. Buka kembali ruang lebih dulu.',
 	'room.archive.exportHint':
-		'Anda dapat membuat arsip ZIP kapan saja, sebelum maupun sesudah ruang diarsipkan.',
+		'Anda dapat membuat paket arsip kapan saja, sebelum maupun sesudah ruang diarsipkan.',
 
-	// Archive & export
-	'archive.title': 'Arsip & ekspor',
+	// Archive packages
+	'archive.title': 'Paket arsip',
 	'archive.body':
-		'Satu berkas ZIP berisi PDF setiap dokumen, indeks, dan jejak audit. Dirakit di latar belakang dan disimpan 30 hari.',
-	'archive.create': 'Buat arsip',
-	'archive.queued': 'Arsip sedang dirakit.',
-	'archive.empty': 'Belum ada arsip.',
+		'Satu berkas ZIP berisi PDF setiap dokumen, indeks, dan jejak audit. Dirakit di latar belakang dan disimpan 30 hari; ZIP yang sudah Anda unduh tetap berlaku.',
+	'archive.create': 'Buat paket arsip',
+	'archive.queued': 'Paket arsip sedang dirakit.',
+	'archive.empty': 'Belum ada paket arsip.',
 	'archive.download': 'Unduh',
 	'archive.delete': 'Hapus',
+	'archive.delete.title': 'Hapus paket arsip',
+	'archive.delete.warning':
+		'Paket arsip {date} dihapus dari server dan tidak dapat diunduh lagi. Anda dapat membuat paket baru kapan saja.',
+	'archive.delete.submit': 'Hapus paket',
 	'archive.documents': '{n} dokumen',
 	'archive.missing': '{n} tidak disertakan',
 	'archive.expires': 'kedaluwarsa {date}',
 	'archive.status.pending': 'Sedang dirakit',
 	'archive.status.ready': 'Siap',
 	'archive.status.failed': 'Gagal',
-	'archive.err.pending': 'Masih ada arsip yang sedang dirakit untuk ruang ini.',
-	'archive.err.busy': 'Server sedang merakit arsip lain. Coba lagi sebentar.',
-	'archive.err.notFound': 'Arsip tidak ditemukan.',
-	'archive.err.notReady': 'Arsip belum siap diunduh.',
+	'archive.err.pending': 'Masih ada paket arsip yang sedang dirakit untuk ruang ini.',
+	'archive.err.busy': 'Server sedang merakit paket arsip lain. Coba lagi sebentar.',
+	'archive.err.notFound': 'Paket arsip tidak ditemukan.',
+	'archive.err.notReady': 'Paket arsip belum siap diunduh.',
+
+	// Overview
+	'ws.overview.summary': 'Ringkasan',
+	'ws.overview.quick.documents': 'Dokumen',
+	'ws.overview.quick.members': 'Tamu',
+	'ws.overview.quick.invite': 'Undang tamu',
+	'ws.overview.quick.activity': 'Aktivitas',
+	'ws.overview.count.documents': '{n} dokumen',
+	'ws.overview.count.folders': '{n} folder',
+	'ws.overview.count.guests': '{n} tamu',
+	'ws.overview.recentActivity': 'Aktivitas terakhir',
+	'ws.overview.recentActivity.empty': 'Belum ada aktivitas di ruang ini.',
+	'ws.overview.seeAll': 'Lihat semua aktivitas',
+	'ws.overview.recents': 'Terakhir dikunjungi',
+	'ws.overview.recents.folders': 'Folder',
+	'ws.overview.recents.documents': 'Dokumen',
+	'ws.overview.recents.empty': 'Folder dan dokumen yang Anda buka akan muncul di sini.',
+	'ws.overview.recents.device': 'Tersimpan di peramban ini.',
 
 	// Edit room
 	'ws.edit.open': 'Edit',
@@ -646,6 +672,7 @@ export const id = {
 	'activity.group.group': 'Grup',
 	'activity.group.access': 'Akses folder',
 	'activity.group.qa': 'Q&A',
+	'activity.group.room': 'Ruang',
 
 	'activity.action.folder_created': 'membuat folder “{target}”',
 	'activity.action.folder_created_bulk': 'menambahkan {count} folder sekaligus',
@@ -694,6 +721,8 @@ export const id = {
 	'activity.action.question_reopened': 'membuka lagi pertanyaan “{target}”',
 	'activity.action.faq_published': 'menerbitkan FAQ “{target}”',
 	'activity.action.qa_settings_changed': 'mengubah setelan Q&A grup “{target}”',
+	'activity.action.workspace_status_changed': 'mengubah status ruang dari {from} menjadi {to}',
+	'activity.action.archive_exported': 'membuat paket arsip “{target}”',
 
 	'activity.label.folder_created': 'Folder dibuat',
 	'activity.label.folder_renamed': 'Folder diganti nama',
@@ -734,6 +763,8 @@ export const id = {
 	'activity.label.question_reopened': 'Pertanyaan dibuka lagi',
 	'activity.label.faq_published': 'FAQ diterbitkan',
 	'activity.label.qa_settings_changed': 'Setelan Q&A diubah',
+	'activity.label.workspace_status_changed': 'Status ruang diubah',
+	'activity.label.archive_exported': 'Paket arsip dibuat',
 
 	'activity.link.open': 'Buka “{name}”',
 	'activity.link.readers': 'Lihat aktivitas baca',

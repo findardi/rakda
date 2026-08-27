@@ -11,6 +11,7 @@
 	import { downloadRendition } from '$lib/download';
 	import { formatBytes, formatDate, formatDateTime } from '$lib/format';
 	import { t } from '$lib/i18n';
+	import { recordFolderVisit } from '$lib/recents';
 	import { findNode } from '$lib/tree';
 	import type { DocumentData, FolderTreeNode } from '$lib/types/content';
 	import type { MyAccessWorkspace } from '$lib/types/workspace';
@@ -195,6 +196,10 @@
 	const roleLabel = $derived(t(ROLE_KEY[role]));
 
 	const folder = $derived(findNode(folders, folderId));
+
+	$effect(() => {
+		if (folder) recordFolderVisit(workspace.id, { id: folder.id, name: folder.name });
+	});
 
 	// The load blocks on the server, so the outgoing folder's list would sit
 	// frozen on screen until the new one lands. Show the shape instead, and name
