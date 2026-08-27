@@ -18,7 +18,8 @@ export const load: LayoutServerLoad = async ({ locals, params, url }) => {
 	const list = await getWorkspaces(locals.session);
 	if (!list.ok) error(502, t('ws.loadError'));
 
-	const match = list.data.find((w) => w.slug === params.slug);
+	const rooms = list.data.workspaces;
+	const match = rooms.find((w) => w.slug === params.slug);
 	if (!match) error(404, t('ws.detail.notFound'));
 
 	const myAccessRes = await getMyAccessWorkspace(locals.session, match.id);
@@ -54,5 +55,5 @@ export const load: LayoutServerLoad = async ({ locals, params, url }) => {
 		}
 	}
 
-	return { workspace: match, access, roomStatus, roomOpen, qaWaiting, qaEnabled };
+	return { workspace: match, rooms, access, roomStatus, roomOpen, qaWaiting, qaEnabled };
 };

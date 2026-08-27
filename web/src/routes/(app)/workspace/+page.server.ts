@@ -8,8 +8,15 @@ export const load: PageServerLoad = async ({ locals }) => {
 	if (locals.user.status === 'pending') redirect(303, '/verify-email');
 
 	const res = await getWorkspaces(locals.session);
-	if (!res.ok) return { workspaces: [], loadError: res.message };
-	return { workspaces: res.data, loadError: null as string | null };
+	if (!res.ok) {
+		return { workspaces: [], ownedCount: 0, ownedLimit: 0, loadError: res.message };
+	}
+	return {
+		workspaces: res.data.workspaces,
+		ownedCount: res.data.owned_count,
+		ownedLimit: res.data.owned_limit,
+		loadError: null as string | null
+	};
 };
 
 export const actions: Actions = {

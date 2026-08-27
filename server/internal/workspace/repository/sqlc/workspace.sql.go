@@ -160,22 +160,44 @@ func (q *Queries) GetWorkspaceForMember(ctx context.Context, arg GetWorkspaceFor
 }
 
 const getWorkspaces = `-- name: GetWorkspaces :many
-select w.id, w.owner_id, w.name, w.slug, w.description, w.status, w.created_at, w.updated_at from workspaces w
-left join
-    workspace_members wm on wm.workspace_id = w.id
-where 
-    wm.user_id = $1
+select
+    w.id, w.owner_id, w.name, w.slug, w.description, w.status, w.created_at, w.updated_at,
+    r.name as role_name,
+    (
+        select max(a.created_at)
+        from activity_logs a
+        where a.workspace_id = w.id
+    )::timestamptz as last_activity_at
+from workspaces w
+join workspace_members wm on wm.workspace_id = w.id
+join workspace_roles r on r.id = wm.role_id
+where wm.user_id = $1
+  and wm.status = 'active'
+order by last_activity_at desc nulls last, w.created_at desc, w.id
 `
 
-func (q *Queries) GetWorkspaces(ctx context.Context, userID pgtype.UUID) ([]Workspace, error) {
+type GetWorkspacesRow struct {
+	ID             pgtype.UUID        `json:"id"`
+	OwnerID        pgtype.UUID        `json:"owner_id"`
+	Name           string             `json:"name"`
+	Slug           string             `json:"slug"`
+	Description    *string            `json:"description"`
+	Status         string             `json:"status"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	RoleName       string             `json:"role_name"`
+	LastActivityAt pgtype.Timestamptz `json:"last_activity_at"`
+}
+
+func (q *Queries) GetWorkspaces(ctx context.Context, userID pgtype.UUID) ([]GetWorkspacesRow, error) {
 	rows, err := q.db.Query(ctx, getWorkspaces, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Workspace
+	var items []GetWorkspacesRow
 	for rows.Next() {
-		var i Workspace
+		var i GetWorkspacesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OwnerID,
@@ -185,6 +207,8 @@ func (q *Queries) GetWorkspaces(ctx context.Context, userID pgtype.UUID) ([]Work
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.RoleName,
+			&i.LastActivityAt,
 		); err != nil {
 			return nil, err
 		}

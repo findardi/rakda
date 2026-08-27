@@ -114,7 +114,10 @@ export const id = {
 	'ws.title': 'Ruang data',
 	'ws.create': 'Buat ruang data',
 	'ws.count': '{n} ruang data',
-	'ws.limitReached': 'Anda sudah mencapai batas 3 ruang data sebagai pemilik.',
+	'ws.limitReached':
+		'Anda sudah mencapai batas {limit} ruang data sebagai pemilik. Ruang arsip ikut dihitung.',
+	'ws.lastActivity': 'Aktivitas terakhir',
+	'ws.switcher.open': 'Ganti ruang data',
 	'ws.created': 'Ruang data "{name}" dibuat.',
 	'ws.loadError': 'Gagal memuat ruang data. Coba muat ulang halaman.',
 	'ws.empty.title': 'Belum ada ruang data',
@@ -134,7 +137,7 @@ export const id = {
 	'ws.dialog.submitting': 'Membuat…',
 	'ws.err.nameTaken': 'Nama ruang data sudah dipakai.',
 	'ws.err.nameInvalid': 'Nama harus mengandung huruf atau angka.',
-	'ws.err.limit': 'Maksimal 3 ruang data per akun.',
+	'ws.err.limit': 'Batas ruang data sebagai pemilik sudah tercapai.',
 	'ws.err.invalidStatus': 'Status tidak valid.',
 
 	// Workspace detail (/workspace/[slug])

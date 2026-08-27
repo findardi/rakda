@@ -4,6 +4,7 @@ import type {
 	MyAccessWorkspace,
 	UpdateWorkspacePayload,
 	WorkspaceData,
+	WorkspaceListData,
 	WorkspaceStatus
 } from '$lib/types/workspace';
 import { del, get, patch, post, put } from './client';
@@ -11,8 +12,8 @@ import { del, get, patch, post, put } from './client';
 // All endpoints are JWT-protected (RequireAuth + RequireActive) — pass the token.
 // By-id operations are additionally owner-only (RequireOwner) on the backend.
 
-export async function getWorkspaces(token: string): Promise<ApiResult<WorkspaceData[]>> {
-	return get<WorkspaceData[]>('/workspaces/', token);
+export async function getWorkspaces(token: string): Promise<ApiResult<WorkspaceListData>> {
+	return get<WorkspaceListData>('/workspaces/', token);
 }
 
 export async function createWorkspace(

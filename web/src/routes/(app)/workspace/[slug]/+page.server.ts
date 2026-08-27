@@ -41,7 +41,7 @@ const STATUSES: WorkspaceStatus[] = ['prepare', 'active', 'archive'];
 async function resolveId(session: string, slug: string): Promise<string | null> {
 	const list = await getWorkspaces(session);
 	if (!list.ok) return null;
-	return list.data.find((w) => w.slug === slug)?.id ?? null;
+	return list.data.workspaces.find((w) => w.slug === slug)?.id ?? null;
 }
 
 export const actions: Actions = {

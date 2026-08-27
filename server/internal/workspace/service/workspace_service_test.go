@@ -42,7 +42,7 @@ func (f *fakeWorkspaceRepo) GetWorkspacesByOwner(ctx context.Context, ownerID pg
 	return nil, nil
 }
 
-func (f *fakeWorkspaceRepo) GetWorkspaces(ctx context.Context, userID pgtype.UUID) ([]workspacedb.Workspace, error) {
+func (f *fakeWorkspaceRepo) GetWorkspaces(ctx context.Context, userID pgtype.UUID) ([]workspacedb.GetWorkspacesRow, error) {
 	return nil, nil
 }
 

@@ -25,6 +25,17 @@ export interface WorkspaceData {
 	// ISO-8601 strings over the wire (Go time.Time marshals to RFC3339).
 	created_at: string;
 	updated_at: string;
+	// List-only fields: the caller's role in that room, and its latest
+	// activity stamp (drives the default ordering). Absent on by-id reads.
+	role?: string;
+	last_activity_at?: string;
+}
+
+// GET /workspaces — quota rides along so the client never guesses the limit.
+export interface WorkspaceListData {
+	workspaces: WorkspaceData[];
+	owned_count: number;
+	owned_limit: number;
 }
 
 // Workspace Role — fixed system roles (owner/admin/guest), read-only.
