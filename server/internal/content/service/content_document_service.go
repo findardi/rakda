@@ -94,6 +94,13 @@ func (s *ContentService) CompletedUpload(ctx context.Context, req dto.CompleteUp
 		return dto.DocumentResponse{}, err
 	}
 
+	name, ok := validateNodeName(req.Name)
+	if !ok {
+		_ = s.store.Delete(ctx, req.StorageKey)
+		return dto.DocumentResponse{}, ErrDocumentNameInvalid
+	}
+	req.Name = name
+
 	if err := assertUploadable(req.Name); err != nil {
 		_ = s.store.Delete(ctx, req.StorageKey)
 		return dto.DocumentResponse{}, err
@@ -932,6 +939,12 @@ func (s *ContentService) InitMultipart(ctx context.Context, req dto.InitMultipar
 	if err := s.assertFolderInWorkspace(ctx, req.WorkspaceID, req.FolderID); err != nil {
 		return dto.InitMultipartResponse{}, err
 	}
+
+	name, ok := validateNodeName(req.Name)
+	if !ok {
+		return dto.InitMultipartResponse{}, ErrDocumentNameInvalid
+	}
+	req.Name = name
 
 	if err := assertUploadable(req.Name); err != nil {
 		return dto.InitMultipartResponse{}, err

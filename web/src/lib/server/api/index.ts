@@ -10,6 +10,7 @@ export * from './document.folder';
 export * from './document';
 export * from './document.trash';
 export * from './content.access';
+export * from './content.archive';
 export * from './activity';
 export * from './qa';
 export * from './resolve';

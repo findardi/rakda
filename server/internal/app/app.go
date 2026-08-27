@@ -32,6 +32,8 @@ import (
 	"github.com/findardi/rakda/server/internal/platform/storage"
 	"github.com/findardi/rakda/server/internal/platform/token"
 	"github.com/findardi/rakda/server/internal/qa"
+	qarepo "github.com/findardi/rakda/server/internal/qa/repository"
+	qaservice "github.com/findardi/rakda/server/internal/qa/service"
 	"github.com/findardi/rakda/server/internal/workspace"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -47,6 +49,7 @@ type App struct {
 	ocrSweep       func(ctx context.Context)
 	bboxSweep      func(ctx context.Context)
 	pageCacheSweep func(ctx context.Context)
+	archiveSweep   func(ctx context.Context)
 }
 
 func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.Storage, viewer contentservice.Viewer) *App {
@@ -131,6 +134,26 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 		downloadStampConcurrency = 1
 	}
 
+	// Pengali bandwidth dan koneksi storage, bukan RAM — bentuknya mirip
+	// DOWNLOAD_STAMP_CONCURRENCY tapi membatasi hal yang berbeda.
+	archiveConcurrency, err := config.GetEnvInt("ARCHIVE_CONCURRENCY", 1)
+	if err != nil {
+		log.Printf("invalid ARCHIVE_CONCURRENCY, fallback to 1: %v", err)
+		archiveConcurrency = 1
+	}
+
+	archiveTTL, err := config.GetEnvDuration("ARCHIVE_TTL", 30*24*time.Hour)
+	if err != nil {
+		log.Printf("invalid ARCHIVE_TTL, fallback to 720h: %v", err)
+		archiveTTL = 30 * 24 * time.Hour
+	}
+
+	archiveSweepInterval, err := config.GetEnvDuration("ARCHIVE_SWEEP_INTERVAL", time.Hour)
+	if err != nil {
+		log.Printf("invalid ARCHIVE_SWEEP_INTERVAL, fallback to 1h: %v", err)
+		archiveSweepInterval = time.Hour
+	}
+
 	// Kosong = XFF tidak pernah dipercaya (perilaku aman: IP proxy, bukan IP
 	// yang bisa dipalsukan). Diisi CIDR subnet docker saat stack Traefik ditulis.
 	trustedProxies, err := config.GetEnvCIDRList("TRUSTED_PROXY_CIDRS", nil)
@@ -142,13 +165,26 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 	activitysvc := activityservice.NewActivityService(activityrepo.New(pool))
 	authsvc := authservice.NewAuthService(authrepo.New(pool), otpGen, jwtGen, mailer, nil)
 	accessSvc := accessservice.NewAccessService(accessrepo.New(pool), mailer, authsvc, otpGen, webURL, activitysvc)
-	contentSvc := contentservice.NewContentService(contentrepo.New(pool), store, viewer, trashRetention, activitysvc, downloadStampConcurrency)
+	contentSvc := contentservice.NewContentService(contentrepo.New(pool), store, viewer, trashRetention, activitysvc, downloadStampConcurrency, contentservice.ArchiveDeps{
+		Concurrency: archiveConcurrency,
+		TTL:         archiveTTL,
+	})
+
+	// Dibangun di sini, bukan di dalam qa.NewModule, karena arsip 13-b butuh
+	// eksportir Q&A sementara QAService butuh ContentService. Urutannya:
+	// content (tanpa eksportir) -> qa -> instance content milik modul rute.
+	qaSvc := qaservice.NewQAService(qarepo.New(pool), contentSvc, activitysvc)
 
 	authModule := auth.NewModule(pool, otpGen, jwtGen, mailer, limiter, providers, accessSvc)
 	workspaceModule := workspace.NewModule(pool, jwtGen, accessSvc, contentSvc, activitysvc)
 	accessModule := access.NewModule(pool, jwtGen, mailer, authsvc, otpGen, webURL, activitysvc)
 	invitationModule := invitation.NewModule(pool, jwtGen, activitysvc)
-	contentModule := content.NewModule(pool, jwtGen, store, viewer, trashRetention, activitysvc, downloadStampConcurrency)
+	contentModule := content.NewModule(pool, jwtGen, store, viewer, trashRetention, activitysvc, downloadStampConcurrency, contentservice.ArchiveDeps{
+		Concurrency:    archiveConcurrency,
+		TTL:            archiveTTL,
+		ActivityExport: activitysvc,
+		QAExport:       qaSvc,
+	})
 	activityModule := activity.NewModule(pool, jwtGen)
 	qaModule := qa.NewModule(pool, jwtGen, contentSvc, activitysvc)
 
@@ -185,6 +221,9 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 		pageCacheSweep: func(ctx context.Context) {
 			contentSvc.RunPageCacheSweeper(ctx, pageCacheSweepInterval, pageCacheTTL)
 		},
+		archiveSweep: func(ctx context.Context) {
+			contentSvc.RunArchiveSweeper(ctx, archiveSweepInterval, archiveTTL)
+		},
 	}
 }
 
@@ -197,6 +236,7 @@ func (a *App) Run() error {
 	go a.ocrSweep(reaperCtx)
 	go a.bboxSweep(reaperCtx)
 	go a.pageCacheSweep(reaperCtx)
+	go a.archiveSweep(reaperCtx)
 
 	srv := &http.Server{
 		Addr:    a.addr,

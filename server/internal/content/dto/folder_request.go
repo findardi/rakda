@@ -4,7 +4,7 @@ type CreateFolderRequest struct {
 	WorkspaceID string `json:"-"`
 	CreatedBy   string `json:"-"`
 	ParentID    string `json:"parent_id"`
-	Name        string `json:"name" validate:"required"`
+	Name        string `json:"name" validate:"required,max=200"`
 }
 
 type MoveFolderRequest struct {
@@ -17,7 +17,7 @@ type MoveFolderRequest struct {
 type RenameFolderRequest struct {
 	WorkspaceID string `json:"-"`
 	FolderID    string `json:"-"`
-	Name        string `json:"name" validate:"required"`
+	Name        string `json:"name" validate:"required,max=200"`
 }
 
 type SetFolderAccessRequest struct {

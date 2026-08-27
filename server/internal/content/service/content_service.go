@@ -71,6 +71,7 @@ var (
 	ErrBulkTooManyFolders        = errors.New("too many folders in one request")
 	ErrBulkTooDeep               = errors.New("folder tree in request is too deep")
 	ErrFolderNameInvalid         = errors.New("folder name is invalid")
+	ErrDocumentNameInvalid       = errors.New("document name is invalid")
 	ErrInvalidStorageKey         = errors.New("storage key does not belong to this folder")
 	ErrUploadTooLarge            = errors.New("file is too large")
 	ErrInvalidPartNumber         = errors.New("invalid part number")
@@ -104,11 +105,32 @@ type ContentService struct {
 	// belakang (unggah versi / retry) dan pembuka viewer yang datang bersamaan
 	// berbagi satu kerja gotenberg, bukan dua.
 	convertSF singleflight.Group
+
+	// archiveSem membatasi perakitan arsip yang berjalan bersamaan. Berbeda
+	// dari stampSem: yang dibatasi di sini bandwidth dan koneksi storage, bukan
+	// RAM piksel. Non-blocking: penuh -> ErrArchiveBusy (429).
+	archiveSem     chan struct{}
+	archiveTTL     time.Duration
+	activityExport ActivityExporter
+	qaExport       QAExporter
 }
 
-func NewContentService(repo ContentRepository, store storage.Storage, viewer Viewer, trashRetention time.Duration, activity ActivityRecorder, stampConcurrency int) *ContentService {
+type ArchiveDeps struct {
+	Concurrency    int
+	TTL            time.Duration
+	ActivityExport ActivityExporter
+	QAExport       QAExporter
+}
+
+func NewContentService(repo ContentRepository, store storage.Storage, viewer Viewer, trashRetention time.Duration, activity ActivityRecorder, stampConcurrency int, archive ArchiveDeps) *ContentService {
 	if stampConcurrency < 1 {
 		stampConcurrency = 1
+	}
+	if archive.Concurrency < 1 {
+		archive.Concurrency = 1
+	}
+	if archive.TTL <= 0 {
+		archive.TTL = 30 * 24 * time.Hour
 	}
 
 	return &ContentService{
@@ -118,6 +140,10 @@ func NewContentService(repo ContentRepository, store storage.Storage, viewer Vie
 		trashRetention: trashRetention,
 		activity:       activity,
 		stampSem:       make(chan struct{}, stampConcurrency),
+		archiveSem:     make(chan struct{}, archive.Concurrency),
+		archiveTTL:     archive.TTL,
+		activityExport: archive.ActivityExport,
+		qaExport:       archive.QAExport,
 	}
 }
 
@@ -187,6 +213,31 @@ func clampPosition(pos, max int32) int32 {
 	return pos
 }
 
+const maxNodeNameLength = 200
+
+// validateNodeName adalah aturan yang selama ini hanya dijaga jalur bulk. Nama
+// ber-`/` atau `..` bisa masuk lewat CreateFolder tunggal, rename, dan unggah,
+// lalu jadi masalah orang lain saat diekspor ke ZIP (13-b).
+func validateNodeName(name string) (string, bool) {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" || len(trimmed) > maxNodeNameLength {
+		return "", false
+	}
+	if strings.ContainsAny(trimmed, `/\`) {
+		return "", false
+	}
+	if trimmed == "." || trimmed == ".." {
+		return "", false
+	}
+	for _, r := range trimmed {
+		if r < 0x20 || r == 0x7f {
+			return "", false
+		}
+	}
+
+	return trimmed, true
+}
+
 func validateBulkNodes(nodes []dto.BulkFolderNode, depth int) (int, error) {
 	if depth > maxFolderDepth {
 		return 0, ErrBulkTooDeep
@@ -194,8 +245,7 @@ func validateBulkNodes(nodes []dto.BulkFolderNode, depth int) (int, error) {
 
 	total := 0
 	for _, n := range nodes {
-		name := strings.TrimSpace(n.Name)
-		if name == "" || strings.ContainsAny(name, `/\`) {
+		if _, ok := validateNodeName(n.Name); !ok {
 			return 0, ErrFolderNameInvalid
 		}
 
@@ -274,6 +324,11 @@ func downloadName(name string) string {
 }
 
 func (s *ContentService) CreateFolder(ctx context.Context, req dto.CreateFolderRequest, actor Actor) (dto.FolderResponse, error) {
+	name, ok := validateNodeName(req.Name)
+	if !ok {
+		return dto.FolderResponse{}, ErrFolderNameInvalid
+	}
+	req.Name = name
 
 	var wID, pID, cID pgtype.UUID
 
@@ -568,6 +623,12 @@ func buildFolderTree(childrenOf map[string][]contentdb.Folder, parentKey, prefix
 }
 
 func (s *ContentService) RenameFolder(ctx context.Context, req dto.RenameFolderRequest, actor Actor) (dto.FolderResponse, error) {
+	name, ok := validateNodeName(req.Name)
+	if !ok {
+		return dto.FolderResponse{}, ErrFolderNameInvalid
+	}
+	req.Name = name
+
 	var fID pgtype.UUID
 	if err := fID.Scan(req.FolderID); err != nil {
 		return dto.FolderResponse{}, fmt.Errorf("folder id parse: %w", err)

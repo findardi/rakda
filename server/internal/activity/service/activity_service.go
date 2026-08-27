@@ -52,6 +52,7 @@ const (
 	ActionQaSettingsChanged      = "qa_settings_changed"
 	ActionTemplateApplied        = "template_applied"
 	ActionWorkspaceStatusChanged = "workspace_status_changed"
+	ActionArchiveExported        = "archive_exported"
 )
 
 const (
@@ -66,6 +67,7 @@ const (
 	TargetQuestion     = "question"
 	TargetFaq          = "faq"
 	TargetWorkspace    = "workspace"
+	TargetArchive      = "archive"
 )
 
 const (

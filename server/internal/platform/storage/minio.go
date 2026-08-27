@@ -102,6 +102,20 @@ func (m *MinioStorage) Get(ctx context.Context, key string) (io.ReadCloser, erro
 	return obj, nil
 }
 
+func (m *MinioStorage) GetRange(ctx context.Context, key string, offset, length int64) (io.ReadCloser, error) {
+	opts := minio.GetObjectOptions{}
+	if err := opts.SetRange(offset, offset+length-1); err != nil {
+		return nil, fmt.Errorf("set range: %w", err)
+	}
+
+	obj, err := m.client.GetObject(ctx, m.bucket, key, opts)
+	if err != nil {
+		return nil, fmt.Errorf("get object range: %w", err)
+	}
+
+	return obj, nil
+}
+
 func (m *MinioStorage) Delete(ctx context.Context, key string) error {
 	if err := m.client.RemoveObject(ctx, m.bucket, key, minio.RemoveObjectOptions{}); err != nil {
 		return fmt.Errorf("delete object: %w", err)
