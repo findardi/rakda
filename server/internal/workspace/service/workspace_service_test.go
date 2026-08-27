@@ -54,6 +54,14 @@ func (f *fakeWorkspaceRepo) GetWorkspaceForMember(ctx context.Context, arg works
 	return workspacedb.Workspace{}, pgx.ErrNoRows
 }
 
+func (f *fakeWorkspaceRepo) GetMemberRoleName(ctx context.Context, arg workspacedb.GetMemberRoleNameParams) (string, error) {
+	return "", pgx.ErrNoRows
+}
+
+func (f *fakeWorkspaceRepo) GetWorkspaceSummary(ctx context.Context, workspaceID pgtype.UUID) (workspacedb.GetWorkspaceSummaryRow, error) {
+	return workspacedb.GetWorkspaceSummaryRow{}, nil
+}
+
 func (f *fakeWorkspaceRepo) UpdateWorkspace(ctx context.Context, arg workspacedb.UpdateWorkspaceParams) (workspacedb.Workspace, error) {
 	return workspacedb.Workspace{}, nil
 }

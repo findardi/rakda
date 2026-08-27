@@ -107,6 +107,32 @@ func (h *WorkspaceHandler) GetWorkspace(w http.ResponseWriter, r *http.Request) 
 	response.Success(w, http.StatusOK, "get workspace success", res)
 }
 
+func (h *WorkspaceHandler) GetWorkspaceSummary(w http.ResponseWriter, r *http.Request) {
+	claims, ok := middleware.ClaimsFromContext(r.Context())
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	id := chi.URLParam(r, "workspaceID")
+
+	res, err := h.svc.GetWorkspaceSummary(r.Context(), id, claims.ID)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrWorkspaceNotFound):
+			response.Error(w, http.StatusNotFound, err.Error(), nil)
+		case errors.Is(err, service.ErrWorkspaceForbidden):
+			response.Error(w, http.StatusForbidden, err.Error(), nil)
+		default:
+			log.Printf("get workspace summary internal error: %v", err)
+			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
+		}
+		return
+	}
+
+	response.Success(w, http.StatusOK, "get workspace summary success", res)
+}
+
 func (h *WorkspaceHandler) UpdateStatusWorkspace(w http.ResponseWriter, r *http.Request) {
 	var req dto.WorkspaceUpdateStatusRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

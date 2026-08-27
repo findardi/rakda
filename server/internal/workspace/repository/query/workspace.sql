@@ -45,6 +45,25 @@ returning *;
 -- name: DeleteWorkspace :exec
 delete from workspaces where id = $1;
 
+-- name: GetMemberRoleName :one
+select r.name from workspace_members m
+join workspace_roles r on r.id = m.role_id
+where m.workspace_id = sqlc.arg(workspace_id)
+  and m.user_id = sqlc.arg(user_id)
+  and m.status = 'active';
+
+-- name: GetWorkspaceSummary :one
+select
+    (select count(*) from documents d
+        where d.workspace_id = sqlc.arg(workspace_id) and d.deleted_at is null) as document_count,
+    (select count(*) from folders f
+        where f.workspace_id = sqlc.arg(workspace_id) and f.deleted_at is null) as folder_count,
+    (select count(*) from workspace_members m
+        join workspace_roles r on r.id = m.role_id
+        where m.workspace_id = sqlc.arg(workspace_id)
+          and m.status = 'active'
+          and r.name = 'guest') as guest_count;
+
 -- name: GetWorkspaces :many
 select
     w.*,

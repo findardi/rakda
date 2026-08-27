@@ -1,11 +1,12 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { canEditWorkspace, canManageAccess } from '$lib/access/roles';
+import { canManageAccess } from '$lib/access/roles';
 import {
 	createArchive,
 	deleteArchive,
 	deleteWorkspace,
-	getMembers,
 	getWorkspaces,
+	getWorkspaceSummary,
+	listActivity,
 	listArchives,
 	updateWorkspace,
 	updateWorkspaceStatus
@@ -14,24 +15,27 @@ import { t } from '$lib/i18n';
 import type { WorkspaceStatus } from '$lib/types/workspace';
 import type { Actions, PageServerLoad } from './$types';
 
-// The archive confirmation carries the number of guests that lose downloads, so
-// the member list is only worth a request when archiving is reachable from here.
-// Archive exports are manager-only on the backend, so admins see them too.
+// Summary (counts, manager-only 403 for guests), the recent-activity strip, and
+// the archive list all belong to owner/admin; guests get none of them and their
+// "recently visited" lives in localStorage, never on the server. The archive
+// confirmation reuses summary.guest_count for its counted button.
 export const load: PageServerLoad = async ({ locals, parent }) => {
-	const { access, workspace, roomStatus } = await parent();
-	if (!locals.session) return { guestCount: 0, archives: [] };
+	const { access, workspace } = await parent();
+	if (!locals.session) return { guestCount: 0, archives: [], summary: null, recentActivity: [] };
 
-	const wantsGuestCount = canEditWorkspace(access.role) && roomStatus !== 'archive';
-	const wantsArchives = canManageAccess(access.role);
+	const isManager = canManageAccess(access.role);
 
-	const [members, archives] = await Promise.all([
-		wantsGuestCount ? getMembers(locals.session, workspace.id) : null,
-		wantsArchives ? listArchives(locals.session, workspace.id) : null
+	const [summary, archives, activity] = await Promise.all([
+		isManager ? getWorkspaceSummary(locals.session, workspace.id) : null,
+		isManager ? listArchives(locals.session, workspace.id) : null,
+		isManager ? listActivity(locals.session, workspace.id, { limit: 5 }) : null
 	]);
 
 	return {
-		guestCount: members?.ok ? members.data.filter((m) => m.role_name === 'guest').length : 0,
-		archives: archives?.ok ? archives.data : []
+		summary: summary?.ok ? summary.data : null,
+		guestCount: summary?.ok ? summary.data.guest_count : 0,
+		archives: archives?.ok ? archives.data : [],
+		recentActivity: activity?.ok ? activity.data.items : []
 	};
 };
 

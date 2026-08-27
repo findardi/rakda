@@ -5,7 +5,8 @@ import type {
 	UpdateWorkspacePayload,
 	WorkspaceData,
 	WorkspaceListData,
-	WorkspaceStatus
+	WorkspaceStatus,
+	WorkspaceSummaryData
 } from '$lib/types/workspace';
 import { del, get, patch, post, put } from './client';
 
@@ -25,6 +26,13 @@ export async function createWorkspace(
 
 export async function getWorkspace(token: string, id: string): Promise<ApiResult<WorkspaceData>> {
 	return get<WorkspaceData>(`/workspaces/${id}`, token);
+}
+
+export async function getWorkspaceSummary(
+	token: string,
+	id: string
+): Promise<ApiResult<WorkspaceSummaryData>> {
+	return get<WorkspaceSummaryData>(`/workspaces/${id}/summary`, token);
 }
 
 export async function updateWorkspace(

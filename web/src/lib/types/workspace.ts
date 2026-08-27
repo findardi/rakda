@@ -38,6 +38,13 @@ export interface WorkspaceListData {
 	owned_limit: number;
 }
 
+// GET /workspaces/:id/summary — owner/admin only (403 for guests).
+export interface WorkspaceSummaryData {
+	document_count: number;
+	folder_count: number;
+	guest_count: number;
+}
+
 // Workspace Role — fixed system roles (owner/admin/guest), read-only.
 export interface WorkspaceRoleData {
 	id: string;

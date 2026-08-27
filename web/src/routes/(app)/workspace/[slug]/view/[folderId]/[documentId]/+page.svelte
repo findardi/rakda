@@ -12,6 +12,7 @@
 	import { downloadRendition } from '$lib/download';
 	import { formatDate } from '$lib/format';
 	import { t } from '$lib/i18n';
+	import { recordDocumentVisit } from '$lib/recents';
 	import type { WorkspaceData, MyAccessWorkspace } from '$lib/types/workspace';
 	import type { SearchBox, SearchBoxesData } from '$lib/types/content';
 	import type { PageProps } from './$types';
@@ -39,6 +40,10 @@
 	const slug = $derived(page.params.slug!);
 	const folderId = $derived(page.params.folderId!);
 	const documentId = $derived(page.params.documentId!);
+
+	$effect(() => {
+		if (meta) recordDocumentVisit(workspace.id, { id: documentId, name: meta.name, folderId });
+	});
 
 	// The folder lives in the path, so back returns to exactly the list the
 	// document was opened from.

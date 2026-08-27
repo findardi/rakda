@@ -73,8 +73,23 @@ export const ACTIVITY_GROUPS: { key: TKey; actions: string[] }[] = [
 			'faq_published',
 			'qa_settings_changed'
 		]
+	},
+	{
+		key: 'activity.group.room',
+		actions: ['workspace_status_changed', 'archive_exported']
 	}
 ];
+
+const STATUS_KEY: Record<string, TKey> = {
+	prepare: 'ws.status.prepare',
+	active: 'ws.status.active',
+	archive: 'ws.status.archive'
+};
+
+function statusDisplayName(status: string): string {
+	const key = STATUS_KEY[status];
+	return key ? t(key) : status;
+}
 
 const PHRASE_KEY: Record<string, TKey> = {
 	folder_created: 'activity.action.folder_created',
@@ -115,7 +130,8 @@ const PHRASE_KEY: Record<string, TKey> = {
 	question_closed: 'activity.action.question_closed',
 	question_reopened: 'activity.action.question_reopened',
 	faq_published: 'activity.action.faq_published',
-	qa_settings_changed: 'activity.action.qa_settings_changed'
+	qa_settings_changed: 'activity.action.qa_settings_changed',
+	archive_exported: 'activity.action.archive_exported'
 };
 
 const LABEL_KEY: Record<string, TKey> = {
@@ -157,7 +173,9 @@ const LABEL_KEY: Record<string, TKey> = {
 	question_closed: 'activity.label.question_closed',
 	question_reopened: 'activity.label.question_reopened',
 	faq_published: 'activity.label.faq_published',
-	qa_settings_changed: 'activity.label.qa_settings_changed'
+	qa_settings_changed: 'activity.label.qa_settings_changed',
+	workspace_status_changed: 'activity.label.workspace_status_changed',
+	archive_exported: 'activity.label.archive_exported'
 };
 
 const DESTRUCTIVE = new Set([
@@ -289,6 +307,15 @@ export function describeActivity(item: ActivityItem): ActivityPhrase {
 			return {
 				key: 'activity.action.template_applied',
 				vars: { ...vars, created: number(meta.created) }
+			};
+
+		case 'workspace_status_changed':
+			return {
+				key: 'activity.action.workspace_status_changed',
+				vars: {
+					from: statusDisplayName(text(meta.from)),
+					to: statusDisplayName(text(meta.to))
+				}
 			};
 
 		default:

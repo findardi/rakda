@@ -55,6 +55,7 @@ var (
 	ErrInvalidStatus         = errors.New("invalid workspace status")
 	ErrStatusTransition      = errors.New("workspace status transition not allowed")
 	ErrWorkspaceArchived     = errors.New("workspace is archived")
+	ErrWorkspaceForbidden    = errors.New("workspace access denied")
 )
 
 var slugInvalidChars = regexp.MustCompile(`[^a-z0-9]+`)
@@ -305,6 +306,41 @@ func (s *WorkspaceService) GetWorkspace(ctx context.Context, workspaceID, actorI
 		Status:      workspace.Status,
 		CreatedAt:   workspace.CreatedAt.Time,
 		UpdatedAt:   workspace.UpdatedAt.Time,
+	}, nil
+}
+
+func (s *WorkspaceService) GetWorkspaceSummary(ctx context.Context, workspaceID, actorID string) (dto.WorkspaceSummaryResponse, error) {
+	var wid, aid pgtype.UUID
+	if err := wid.Scan(workspaceID); err != nil {
+		return dto.WorkspaceSummaryResponse{}, fmt.Errorf("parse workspace id: %w", err)
+	}
+	if err := aid.Scan(actorID); err != nil {
+		return dto.WorkspaceSummaryResponse{}, fmt.Errorf("parse actor id: %w", err)
+	}
+
+	role, err := s.repo.GetMemberRoleName(ctx, workspacedb.GetMemberRoleNameParams{
+		WorkspaceID: wid,
+		UserID:      aid,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return dto.WorkspaceSummaryResponse{}, ErrWorkspaceNotFound
+	} else if err != nil {
+		return dto.WorkspaceSummaryResponse{}, fmt.Errorf("get member role: %w", err)
+	}
+
+	if role != permission.RoleOwner && role != permission.RoleAdmin {
+		return dto.WorkspaceSummaryResponse{}, ErrWorkspaceForbidden
+	}
+
+	row, err := s.repo.GetWorkspaceSummary(ctx, wid)
+	if err != nil {
+		return dto.WorkspaceSummaryResponse{}, fmt.Errorf("get workspace summary: %w", err)
+	}
+
+	return dto.WorkspaceSummaryResponse{
+		DocumentCount: row.DocumentCount,
+		FolderCount:   row.FolderCount,
+		GuestCount:    row.GuestCount,
 	}, nil
 }
 

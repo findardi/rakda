@@ -26,3 +26,9 @@ type WorkspaceListResponse struct {
 	OwnedCount int                 `json:"owned_count"`
 	OwnedLimit int                 `json:"owned_limit"`
 }
+
+type WorkspaceSummaryResponse struct {
+	DocumentCount int64 `json:"document_count"`
+	FolderCount   int64 `json:"folder_count"`
+	GuestCount    int64 `json:"guest_count"`
+}
