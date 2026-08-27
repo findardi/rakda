@@ -184,6 +184,28 @@ export const en: Record<keyof Dict, string> = {
 	'room.archive.submitCount': 'Archive room ({n} guests lose downloads)',
 	'room.unarchive.submit': 'Reopen room',
 	'room.delete.blocked': 'An archived room cannot be deleted. Reopen the room first.',
+	'room.archive.exportHint':
+		'You can build a ZIP archive at any time, before or after the room is archived.',
+
+	// Archive & export
+	'archive.title': 'Archive & export',
+	'archive.body':
+		'One ZIP holding a PDF of every document, an index, and the audit trail. Assembled in the background and kept for 30 days.',
+	'archive.create': 'Build archive',
+	'archive.queued': 'The archive is being assembled.',
+	'archive.empty': 'No archives yet.',
+	'archive.download': 'Download',
+	'archive.delete': 'Delete',
+	'archive.documents': '{n} documents',
+	'archive.missing': '{n} not included',
+	'archive.expires': 'expires {date}',
+	'archive.status.pending': 'Assembling',
+	'archive.status.ready': 'Ready',
+	'archive.status.failed': 'Failed',
+	'archive.err.pending': 'An archive is already being assembled for this room.',
+	'archive.err.busy': 'The server is assembling another archive. Try again shortly.',
+	'archive.err.notFound': 'Archive not found.',
+	'archive.err.notReady': 'The archive is not ready to download yet.',
 
 	// Edit room
 	'ws.edit.open': 'Edit',

@@ -1,13 +1,11 @@
 package handler
 
 import (
-	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/findardi/rakda/server/internal/platform/middleware"
 	"github.com/findardi/rakda/server/internal/platform/response"
@@ -163,8 +161,7 @@ func (h *QAHandler) ExportQuestions(w http.ResponseWriter, r *http.Request) {
 		GroupID:     q.Get("group_id"),
 	}
 
-	page, err := h.svc.ExportQuestions(r.Context(), req, actor)
-	if err != nil {
+	if _, err := h.svc.ExportQuestions(r.Context(), req, actor); err != nil {
 		h.qaError(w, err, "export questions")
 		return
 	}
@@ -175,42 +172,8 @@ func (h *QAHandler) ExportQuestions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cw := csv.NewWriter(w)
-	cw.Write([]string{"number", "group", "subject", "status", "type", "author", "role", "body", "document", "folder", "created_at"})
-
-	for {
-		for _, row := range page.Rows {
-			cw.Write([]string{
-				strconv.FormatInt(int64(row.Number), 10),
-				row.Group,
-				row.Subject,
-				row.Status,
-				row.Type,
-				row.Author,
-				row.Role,
-				row.Body,
-				row.Document,
-				row.Folder,
-				row.CreatedAt.Format(time.RFC3339Nano),
-			})
-		}
-
-		cw.Flush()
-		if err := cw.Error(); err != nil {
-			log.Printf("export questions write aborted: %v", err)
-			return
-		}
-
-		if page.NextCursor == "" {
-			return
-		}
-
-		req.Cursor = page.NextCursor
-		page, err = h.svc.ExportQuestions(r.Context(), req, actor)
-		if err != nil {
-			log.Printf("export questions aborted mid-stream: %v", err)
-			return
-		}
+	if err := h.svc.WriteQuestionsCSV(r.Context(), w, req, actor); err != nil {
+		log.Printf("export questions aborted mid-stream: %v", err)
 	}
 }
 

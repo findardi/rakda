@@ -12,11 +12,15 @@ import (
 
 type Querier interface {
 	ClearVersionRenditionFailure(ctx context.Context, id pgtype.UUID) error
+	CountPendingArchives(ctx context.Context, workspaceID pgtype.UUID) (int32, error)
+	CreateArchive(ctx context.Context, arg CreateArchiveParams) (WorkspaceArchive, error)
 	CreateDefaultFolder(ctx context.Context, arg CreateDefaultFolderParams) (Folder, error)
 	CreateDocument(ctx context.Context, arg CreateDocumentParams) (Document, error)
 	CreateDocumentVersion(ctx context.Context, arg CreateDocumentVersionParams) (DocumentVersion, error)
 	CreateFolder(ctx context.Context, arg CreateFolderParams) (Folder, error)
+	DeleteArchive(ctx context.Context, arg DeleteArchiveParams) error
 	DeleteVersionPageText(ctx context.Context, versionID pgtype.UUID) error
+	GetArchive(ctx context.Context, arg GetArchiveParams) (WorkspaceArchive, error)
 	GetCurrentVersion(ctx context.Context, id pgtype.UUID) (DocumentVersion, error)
 	GetDefaultFolder(ctx context.Context, workspaceID pgtype.UUID) (Folder, error)
 	GetDocumentByID(ctx context.Context, id pgtype.UUID) (Document, error)
@@ -30,14 +34,22 @@ type Querier interface {
 	GetTrashedDocumentByID(ctx context.Context, id pgtype.UUID) (Document, error)
 	GetTrashedFolderByID(ctx context.Context, id pgtype.UUID) (Folder, error)
 	GetVersionByID(ctx context.Context, id pgtype.UUID) (DocumentVersion, error)
+	GetWorkspaceSlugForArchive(ctx context.Context, id pgtype.UUID) (string, error)
 	InsertPageText(ctx context.Context, arg InsertPageTextParams) error
+	ListArchiveDocuments(ctx context.Context, workspaceID pgtype.UUID) ([]ListArchiveDocumentsRow, error)
+	ListArchiveFolders(ctx context.Context, workspaceID pgtype.UUID) ([]ListArchiveFoldersRow, error)
+	ListArchiveMembers(ctx context.Context, workspaceID pgtype.UUID) ([]ListArchiveMembersRow, error)
+	ListArchives(ctx context.Context, workspaceID pgtype.UUID) ([]WorkspaceArchive, error)
 	ListDocumentsByFolder(ctx context.Context, folderID pgtype.UUID) ([]ListDocumentsByFolderRow, error)
+	ListExpiredArchives(ctx context.Context) ([]ListExpiredArchivesRow, error)
 	ListExpiredTrashDocuments(ctx context.Context, cutoff pgtype.Timestamptz) ([]ListExpiredTrashDocumentsRow, error)
 	ListExpiredTrashFolders(ctx context.Context, cutoff pgtype.Timestamptz) ([]ListExpiredTrashFoldersRow, error)
 	ListFolderAccess(ctx context.Context, arg ListFolderAccessParams) ([]ListFolderAccessRow, error)
+	ListFolderAccessMatrix(ctx context.Context, workspaceID pgtype.UUID) ([]ListFolderAccessMatrixRow, error)
 	ListPendingOCRPages(ctx context.Context, limitCount int32) ([]ListPendingOCRPagesRow, error)
 	ListPendingTextExtraction(ctx context.Context, limit int32) ([]ListPendingTextExtractionRow, error)
 	ListPendingWordBoxes(ctx context.Context, limitCount int32) ([]ListPendingWordBoxesRow, error)
+	ListStalePendingArchives(ctx context.Context, cutoff pgtype.Timestamptz) ([]ListStalePendingArchivesRow, error)
 	ListTrashDocuments(ctx context.Context, workspaceID pgtype.UUID) ([]ListTrashDocumentsRow, error)
 	ListTrashFolders(ctx context.Context, workspaceID pgtype.UUID) ([]ListTrashFoldersRow, error)
 	ListVersionByDocument(ctx context.Context, documentID pgtype.UUID) ([]DocumentVersion, error)
@@ -49,6 +61,8 @@ type Querier interface {
 	ListVersionsWithUploader(ctx context.Context, documentID pgtype.UUID) ([]ListVersionsWithUploaderRow, error)
 	ListVisibleFolders(ctx context.Context, arg ListVisibleFoldersParams) ([]ListVisibleFoldersRow, error)
 	LockWorkspaceStructure(ctx context.Context, workspaceID pgtype.UUID) error
+	MarkArchiveFailed(ctx context.Context, arg MarkArchiveFailedParams) error
+	MarkArchiveReady(ctx context.Context, arg MarkArchiveReadyParams) error
 	MoveDocument(ctx context.Context, arg MoveDocumentParams) error
 	MoveFolder(ctx context.Context, arg MoveFolderParams) error
 	// The where-guard makes promotion atomic and idempotent: it only fires while
@@ -78,6 +92,7 @@ type Querier interface {
 	SearchVisibleFolderBreadcrumbs(ctx context.Context, arg SearchVisibleFolderBreadcrumbsParams) ([]SearchVisibleFolderBreadcrumbsRow, error)
 	SearchVisibleFolders(ctx context.Context, arg SearchVisibleFoldersParams) ([]SearchVisibleFoldersRow, error)
 	SearchWordBoxes(ctx context.Context, arg SearchWordBoxesParams) ([]SearchWordBoxesRow, error)
+	SetArchiveObjectKey(ctx context.Context, arg SetArchiveObjectKeyParams) error
 	// An explicit pointer set (first upload, restore) supersedes any staging in
 	// flight: a version left staged after the owner chose another would promote
 	// itself behind their back the moment its conversion finished.

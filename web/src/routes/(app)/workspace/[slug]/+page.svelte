@@ -8,11 +8,14 @@
 	import {
 		canDeleteWorkspace,
 		canEditWorkspace,
+		canManageAccess,
 		canTransitionRoom,
 		isRoomOpenTo,
 		isRoomReadOnly
 	} from '$lib/access/roles';
+	import { formatBytes } from '$lib/format';
 	import { t } from '$lib/i18n';
+	import type { ArchiveData } from '$lib/types/archive';
 	import type { MyAccessWorkspace, WorkspaceStatus } from '$lib/types/workspace';
 	import type { PageProps } from './$types';
 
@@ -30,6 +33,50 @@
 	const roomOpen = $derived(isRoomOpenTo(status, role));
 	const readOnly = $derived(isRoomReadOnly(status));
 	const guestCount = $derived((data as { guestCount?: number }).guestCount ?? 0);
+
+	// Archive exports are manager-only on the backend; mirror that here.
+	const canExport = $derived(canManageAccess(role));
+	const archives = $derived((data as { archives?: ArchiveData[] }).archives ?? []);
+	const archivePending = $derived(archives.some((a) => a.status === 'pending'));
+
+	// Assembly runs for minutes in a goroutine with no socket attached, so the
+	// only way the page learns it finished is to ask again.
+	$effect(() => {
+		if (!archivePending) return;
+		const timer = setInterval(() => {
+			if (document.visibilityState === 'visible') void invalidateAll();
+		}, 10_000);
+		return () => clearInterval(timer);
+	});
+
+	let exportSubmitting = $state(false);
+	const submitExport: SubmitFunction = () => {
+		exportSubmitting = true;
+		return async ({ result }) => {
+			exportSubmitting = false;
+			if (result.type === 'success') {
+				await invalidateAll();
+				showToast(t('archive.queued'), 'success');
+			} else if (result.type === 'failure') {
+				showToast((result.data?.message as string) ?? t('err.generic'), 'error');
+			} else {
+				showToast(t('err.generic'), 'error');
+			}
+		};
+	};
+
+	const submitArchiveDelete: SubmitFunction = () => {
+		return async ({ result }) => {
+			if (result.type === 'success') {
+				await invalidateAll();
+			} else {
+				showToast(t('err.generic'), 'error');
+			}
+		};
+	};
+
+	const archiveHref = (id: string) =>
+		`/api/content/archives/${id}/download?workspaceId=${encodeURIComponent(ws.id)}`;
 
 	const dateFmt = new Intl.DateTimeFormat('id-ID', {
 		day: 'numeric',
@@ -225,6 +272,87 @@
 			{/if}
 		</section>
 
+		<!-- Archive & export -->
+		{#if canExport}
+			<section class="mt-10 border-t border-base-content/10 pt-6">
+				<div class="flex flex-wrap items-start justify-between gap-3">
+					<div class="min-w-0">
+						<h2 class="text-sm font-semibold">{t('archive.title')}</h2>
+						<p class="mt-1 max-w-[52ch] text-sm text-muted text-pretty">{t('archive.body')}</p>
+					</div>
+					<form method="POST" action="?/createArchive" use:enhance={submitExport} class="flex-none">
+						<Button
+							type="submit"
+							variant="ghost"
+							loading={exportSubmitting}
+							disabled={archivePending}
+						>
+							{t('archive.create')}
+						</Button>
+					</form>
+				</div>
+
+				{#if archives.length === 0}
+					<p class="mt-4 text-sm text-muted">{t('archive.empty')}</p>
+				{:else}
+					<ul class="mt-4 flex flex-col gap-2">
+						{#each archives as a (a.id)}
+							<li
+								class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-box border border-base-content/10 bg-base-100 px-4 py-3"
+							>
+								<div class="min-w-0">
+									<p class="flex flex-wrap items-center gap-x-2 text-sm">
+										<span class="font-medium">{t(`archive.status.${a.status}`)}</span>
+										{#if a.status === 'ready'}
+											<span class="font-mono text-xs text-muted">{formatBytes(a.size_bytes)}</span>
+											<span aria-hidden="true" class="text-muted">·</span>
+											<span class="font-mono text-xs text-muted">
+												{t('archive.documents', { n: a.document_count })}
+											</span>
+											{#if a.missing_count > 0}
+												<span aria-hidden="true" class="text-muted">·</span>
+												<span class="font-mono text-xs text-muted">
+													{t('archive.missing', { n: a.missing_count })}
+												</span>
+											{/if}
+										{/if}
+									</p>
+									<p class="mt-0.5 font-mono text-xs text-muted">
+										{fmtDate(a.created_at)} · {a.requested_by_name} · {t('archive.expires', {
+											date: fmtDate(a.expires_at)
+										})}
+									</p>
+									{#if a.status === 'failed' && a.error}
+										<p class="mt-1 text-xs text-muted">{a.error}</p>
+									{/if}
+									{#if a.status === 'ready' && a.checksum_sha256}
+										<p class="mt-1 truncate font-mono text-[0.6875rem] text-muted">
+											sha256 {a.checksum_sha256}
+										</p>
+									{/if}
+								</div>
+								<div class="flex flex-none items-center gap-2">
+									{#if a.status === 'ready'}
+										<!-- Plain link: a room-sized ZIP must stream to disk, never through a Blob. -->
+										<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- endpoint, not a page: resolve() has no entry for /api routes -->
+										<a href={archiveHref(a.id)} class="btn btn-ghost btn-sm" download>
+											{t('archive.download')}
+										</a>
+									{/if}
+									{#if !readOnly}
+										<form method="POST" action="?/deleteArchive" use:enhance={submitArchiveDelete}>
+											<input type="hidden" name="archive_id" value={a.id} />
+											<Button type="submit" variant="ghost" size="sm">{t('archive.delete')}</Button>
+										</form>
+									{/if}
+								</div>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			</section>
+		{/if}
+
 		<!-- Delete — quiet settings-style row; the red button carries the danger. -->
 		{#if canDelete}
 			<section
@@ -343,6 +471,9 @@
 		</h2>
 		<p class="mt-2 text-sm text-muted text-pretty">{t('room.archive.body')}</p>
 		<p class="mt-2 text-sm text-muted text-pretty">{t('room.archive.caveat')}</p>
+		{#if canExport}
+			<p class="mt-2 text-sm text-muted text-pretty">{t('room.archive.exportHint')}</p>
+		{/if}
 
 		{#if archiveMessage}
 			<div class="mt-4"><Alert align="start">{archiveMessage}</Alert></div>

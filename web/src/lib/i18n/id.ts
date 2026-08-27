@@ -180,6 +180,28 @@ export const id = {
 	'room.archive.submitCount': 'Arsipkan ruang ({n} tamu kehilangan unduhan)',
 	'room.unarchive.submit': 'Buka kembali ruang',
 	'room.delete.blocked': 'Ruang arsip tidak dapat dihapus. Buka kembali ruang lebih dulu.',
+	'room.archive.exportHint':
+		'Anda dapat membuat arsip ZIP kapan saja, sebelum maupun sesudah ruang diarsipkan.',
+
+	// Archive & export
+	'archive.title': 'Arsip & ekspor',
+	'archive.body':
+		'Satu berkas ZIP berisi PDF setiap dokumen, indeks, dan jejak audit. Dirakit di latar belakang dan disimpan 30 hari.',
+	'archive.create': 'Buat arsip',
+	'archive.queued': 'Arsip sedang dirakit.',
+	'archive.empty': 'Belum ada arsip.',
+	'archive.download': 'Unduh',
+	'archive.delete': 'Hapus',
+	'archive.documents': '{n} dokumen',
+	'archive.missing': '{n} tidak disertakan',
+	'archive.expires': 'kedaluwarsa {date}',
+	'archive.status.pending': 'Sedang dirakit',
+	'archive.status.ready': 'Siap',
+	'archive.status.failed': 'Gagal',
+	'archive.err.pending': 'Masih ada arsip yang sedang dirakit untuk ruang ini.',
+	'archive.err.busy': 'Server sedang merakit arsip lain. Coba lagi sebentar.',
+	'archive.err.notFound': 'Arsip tidak ditemukan.',
+	'archive.err.notReady': 'Arsip belum siap diunduh.',
 
 	// Edit room
 	'ws.edit.open': 'Edit',

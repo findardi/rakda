@@ -61,7 +61,8 @@ func (h *ContentHandler) CreateFolder(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, service.ErrParentNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
-		case errors.Is(err, service.ErrParentCrossWorkspace):
+		case errors.Is(err, service.ErrParentCrossWorkspace),
+			errors.Is(err, service.ErrFolderNameInvalid):
 			response.Error(w, http.StatusBadRequest, err.Error(), nil)
 		case errors.Is(err, service.ErrFolderNameTaken):
 			response.Error(w, http.StatusConflict, err.Error(), nil)
@@ -278,6 +279,8 @@ func (h *ContentHandler) RenameFolder(w http.ResponseWriter, r *http.Request) {
 	res, err := h.svc.RenameFolder(r.Context(), req, actor)
 	if err != nil {
 		switch {
+		case errors.Is(err, service.ErrFolderNameInvalid):
+			response.Error(w, http.StatusBadRequest, err.Error(), nil)
 		case errors.Is(err, service.ErrFolderNameTaken):
 			response.Error(w, http.StatusConflict, err.Error(), nil)
 		case errors.Is(err, service.ErrFolderNotFound):
@@ -445,7 +448,8 @@ func (h *ContentHandler) CompletedUpload(w http.ResponseWriter, r *http.Request)
 		case errors.Is(err, service.ErrFolderNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
 		case errors.Is(err, service.ErrUploadNotFound),
-			errors.Is(err, service.ErrInvalidStorageKey):
+			errors.Is(err, service.ErrInvalidStorageKey),
+			errors.Is(err, service.ErrDocumentNameInvalid):
 			response.Error(w, http.StatusBadRequest, err.Error(), nil)
 		case errors.Is(err, service.ErrNotUploadable):
 			response.Error(w, http.StatusUnsupportedMediaType, err.Error(), nil)
@@ -1096,6 +1100,8 @@ func (h *ContentHandler) InitMultipart(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, service.ErrFolderNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
+		case errors.Is(err, service.ErrDocumentNameInvalid):
+			response.Error(w, http.StatusBadRequest, err.Error(), nil)
 		case errors.Is(err, service.ErrUploadTooLarge):
 			response.Error(w, http.StatusRequestEntityTooLarge, err.Error(), nil)
 		case errors.Is(err, service.ErrDocumentNameTaken):

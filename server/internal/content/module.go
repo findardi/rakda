@@ -44,9 +44,9 @@ type Module struct {
 	storage    storage.Storage
 }
 
-func NewModule(pool *pgxpool.Pool, verifier middleware.TokenVerifier, store storage.Storage, viewer service.Viewer, trashRetention time.Duration, activity service.ActivityRecorder, stampConcurrency int) *Module {
+func NewModule(pool *pgxpool.Pool, verifier middleware.TokenVerifier, store storage.Storage, viewer service.Viewer, trashRetention time.Duration, activity service.ActivityRecorder, stampConcurrency int, archive service.ArchiveDeps) *Module {
 	r := repository.New(pool)
-	s := service.NewContentService(r, store, viewer, trashRetention, activity, stampConcurrency)
+	s := service.NewContentService(r, store, viewer, trashRetention, activity, stampConcurrency, archive)
 	h := handler.NewContentHandler(s)
 
 	mw := middleware.New(verifier, userStatusReader{repo: auth.New(pool)}, nil)
@@ -99,6 +99,7 @@ func (m *Module) RegisterRoutes(r chi.Router) {
 
 			r.Group(func(r chi.Router) {
 				r.Post("/search/log", m.handler.LogSearch)
+				r.Post("/archives", m.handler.CreateArchive)
 				r.With(m.mw.RequirePermission(permission.PermDocumentEdit)).
 					Post("/documents/{documentID}/versions/{versionID}/retry-rendition", m.handler.RetryRendition)
 			})
@@ -109,6 +110,12 @@ func (m *Module) RegisterRoutes(r chi.Router) {
 				r.Get("/search", m.handler.SearchContent)
 				r.Get("/search/content/pages", m.handler.SearchContentPages)
 				r.Get("/download-limits", m.handler.GetDownloadLimits)
+
+				r.Route("/archives", func(r chi.Router) {
+					r.Get("/", m.handler.ListArchives)
+					r.Get("/{archiveID}/download", m.handler.DownloadArchive)
+					r.Delete("/{archiveID}", m.handler.DeleteArchive)
+				})
 
 				r.Route("/folder-templates", func(r chi.Router) {
 					r.With(m.mw.RequirePermission(permission.PermFolderCreate)).Get("/", m.handler.ListFolderTemplates)

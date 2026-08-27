@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/findardi/rakda/server/internal/activity/dto"
 	"github.com/findardi/rakda/server/internal/activity/service"
@@ -198,8 +197,7 @@ func (h *ActivityHandler) ExportActivity(w http.ResponseWriter, r *http.Request)
 		Action:      q.Get("action"),
 	}
 
-	page, err := h.svc.ListActivity(r.Context(), req, ms.Role)
-	if err != nil {
+	if _, err := h.svc.ListActivity(r.Context(), req, ms.Role); err != nil {
 		switch {
 		case errors.Is(err, service.ErrActivityForbidden):
 			response.Error(w, http.StatusForbidden, err.Error(), nil)
@@ -218,41 +216,8 @@ func (h *ActivityHandler) ExportActivity(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	cw := csv.NewWriter(w)
-	cw.Write([]string{"id", "created_at", "actor_id", "actor_name", "actor_role", "action", "target_type", "target_id", "target_name", "metadata"})
-
-	for {
-		for _, it := range page.Items {
-			cw.Write([]string{
-				it.ID,
-				it.CreatedAt.Format(time.RFC3339Nano),
-				it.ActorID,
-				it.ActorName,
-				it.ActorRole,
-				it.Action,
-				it.TargetType,
-				it.TargetID,
-				it.TargetName,
-				string(it.Metadata),
-			})
-		}
-
-		cw.Flush()
-		if err := cw.Error(); err != nil {
-			log.Printf("export activity write aborted: %v", err)
-			return
-		}
-
-		if page.NextCursor == "" {
-			return
-		}
-
-		req.Cursor = page.NextCursor
-		page, err = h.svc.ListActivity(r.Context(), req, ms.Role)
-		if err != nil {
-			log.Printf("export activity aborted mid-stream: %v", err)
-			return
-		}
+	if err := h.svc.WriteActivityCSV(r.Context(), w, req, ms.Role); err != nil {
+		log.Printf("export activity aborted mid-stream: %v", err)
 	}
 }
 
