@@ -12,8 +12,19 @@ select * from workspaces where owner_id = $1;
 select * from workspaces 
 where owner_id = $1 and slug = $2;
 
+-- name: GetWorkspaceByNameAndOwner :one
+select * from workspaces 
+where owner_id = $1 and name = $2;
+
 -- name: GetWorkspaceByID :one
 select * from workspaces where id = $1;
+
+-- name: GetWorkspaceForMember :one
+select w.* from workspaces w
+join workspace_members m on m.workspace_id = w.id
+where w.id = sqlc.arg(workspace_id)
+  and m.user_id = sqlc.arg(user_id)
+  and m.status = 'active';
 
 -- name: UpdateWorkspaceStatus :exec
 update workspaces set 

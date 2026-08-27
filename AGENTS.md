@@ -109,17 +109,19 @@ and `brainstorm-folder/` holds files for the active phase only.
 ```
 brainstorm-folder/
   current-phase.md          # permanent. index + history. never deleted.
+  open-debts.md             # permanent. debt & finding register. never deleted.
   phase-9-description.md    # scope of the active phase
   phase-9-a.md              # step notes, in order
   phase-9-b.md
 ```
 
-Flat — no subfolders, no files for past or future phases. Create the folder if
-it does not exist; it is committed, not gitignored.
+Flat — no subfolders, no files for past or future phases. Create the folder if it
+does not exist. It is **gitignored** (`.gitignore:3`, and `web/PHASE.md` via
+`web/.gitignore:2`) — deliberately: these notes stay local and are never pushed.
 
 ### `current-phase.md`
 
-The only permanent file. It is the answer to "where is this project". Appended
+One of two permanent files. It is the answer to "where is this project". Appended
 to as steps close; the Completed phases section is written at every transition.
 
 ```
@@ -144,6 +146,36 @@ What shipped, what was decided, what was deliberately deferred, what is
 still owed. Written at closing time — once the phase-8 files are deleted
 this paragraph is all that survives of them.
 ```
+
+
+### `open-debts.md`
+
+The second permanent file, and the only one not tied to a phase. Every debt,
+known bug, wrong claim in the docs, and unmeasured assumption lives here — with
+`path:line` evidence, so it can be verified months later.
+
+Why it exists: debt used to be scattered across per-phase summaries and step
+files that get **deleted** at transition, so old debt had to be rediscovered by
+reading the whole history, and findings made while researching something else had
+no home at all.
+
+```
+### U-07 — one-line title
+`open` · `needs decision` · where it was found
+
+Two or three sentences with path:line evidence and the concrete consequence.
+```
+
+Rules:
+
+- **Adding**: use the next unused ID; never recycle a retired one. An entry
+  without evidence cannot be verified later.
+- **Closing**: move it to the **Lunas** (settled) section with how it was closed.
+  Never delete — that settled list is what stops the same debt being rediscovered.
+- **Status**: `terbuka` (open) · `butuh keputusan` (waiting on the user, not on an
+  engineer) · `diterima` (deliberately accepted, not an oversight) · `lunas`.
+- Debt with a natural home in a phase still goes here, with a pointer to that
+  phase. This file is the index; it does not compete with the phase notes.
 
 ### `phase-N-description.md`
 

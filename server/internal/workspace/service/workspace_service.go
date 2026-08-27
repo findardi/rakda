@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"regexp"
@@ -44,11 +46,16 @@ func NewWorkspaceService(repo WorkspaceRepository, access AccessService, content
 	}
 }
 
-func (s *WorkspaceService) slugify(name string) string {
+func (s *WorkspaceService) slugBase(name string) string {
 	slug := strings.ToLower(name)
 	slug = slugInvalidChars.ReplaceAllString(slug, "-")
-	slug = strings.Trim(slug, "-")
-	return slug
+	return strings.Trim(slug, "-")
+}
+
+func (s *WorkspaceService) slugify(name string) string {
+	randomID := make([]byte, 4)
+	_, _ = rand.Read(randomID)
+	return s.slugBase(name) + "-" + hex.EncodeToString(randomID)
 }
 
 func uuidString(u pgtype.UUID) string {
@@ -89,10 +96,10 @@ func (s *WorkspaceService) CreateWorkspace(ctx context.Context, req dto.Workspac
 		return dto.WorkspaceResponse{}, fmt.Errorf("parse owner id: %w", err)
 	}
 
-	slug := s.slugify(req.Name)
-	if slug == "" {
+	if s.slugBase(req.Name) == "" {
 		return dto.WorkspaceResponse{}, ErrWorkspaceNameInvalid
 	}
+	slug := s.slugify(req.Name)
 
 	cuurentWorkspace, err := s.repo.GetWorkspacesByOwner(ctx, uid)
 	if err != nil {
@@ -102,9 +109,9 @@ func (s *WorkspaceService) CreateWorkspace(ctx context.Context, req dto.Workspac
 		return dto.WorkspaceResponse{}, ErrWorkspaceExceedLimits
 	}
 
-	if _, err := s.repo.GetWorkspaceBySlugAndOwner(ctx, workspacedb.GetWorkspaceBySlugAndOwnerParams{
+	if _, err := s.repo.GetWorkspaceByNameAndOwner(ctx, workspacedb.GetWorkspaceByNameAndOwnerParams{
 		OwnerID: uid,
-		Slug:    slug,
+		Name:    req.Name,
 	}); err == nil {
 		return dto.WorkspaceResponse{}, ErrWorkspaceNameTaken
 	}
@@ -216,13 +223,19 @@ func (s *WorkspaceService) GetWorkspacesByOwner(ctx context.Context, userID stri
 	return workspaces, nil
 }
 
-func (s *WorkspaceService) GetWorkspace(ctx context.Context, workspaceID string) (dto.WorkspaceResponse, error) {
-	var uid pgtype.UUID
+func (s *WorkspaceService) GetWorkspace(ctx context.Context, workspaceID, actorID string) (dto.WorkspaceResponse, error) {
+	var uid, aid pgtype.UUID
 	if err := uid.Scan(workspaceID); err != nil {
 		return dto.WorkspaceResponse{}, fmt.Errorf("parse workspace id: %w", err)
 	}
+	if err := aid.Scan(actorID); err != nil {
+		return dto.WorkspaceResponse{}, fmt.Errorf("parse actor id: %w", err)
+	}
 
-	workspace, err := s.repo.GetWorkspaceByID(ctx, uid)
+	workspace, err := s.repo.GetWorkspaceForMember(ctx, workspacedb.GetWorkspaceForMemberParams{
+		WorkspaceID: uid,
+		UserID:      aid,
+	})
 
 	if errors.Is(err, pgx.ErrNoRows) {
 		return dto.WorkspaceResponse{}, ErrWorkspaceNotFound
@@ -274,9 +287,27 @@ func (s *WorkspaceService) UpdateWorkspace(ctx context.Context, req dto.Workspac
 		return dto.WorkspaceResponse{}, fmt.Errorf("parse workspace id: %w", err)
 	}
 
-	slug := s.slugify(req.Name)
-	if slug == "" {
-		return dto.WorkspaceResponse{}, ErrWorkspaceNameInvalid
+	current, err := s.repo.GetWorkspaceByID(ctx, uid)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return dto.WorkspaceResponse{}, ErrWorkspaceNotFound
+	} else if err != nil {
+		return dto.WorkspaceResponse{}, fmt.Errorf("get workspace: %w", err)
+	}
+
+	slug := current.Slug
+	if req.Name != current.Name {
+		if s.slugBase(req.Name) == "" {
+			return dto.WorkspaceResponse{}, ErrWorkspaceNameInvalid
+		}
+
+		if _, err := s.repo.GetWorkspaceByNameAndOwner(ctx, workspacedb.GetWorkspaceByNameAndOwnerParams{
+			OwnerID: current.OwnerID,
+			Name:    req.Name,
+		}); err == nil {
+			return dto.WorkspaceResponse{}, ErrWorkspaceNameTaken
+		}
+
+		slug = s.slugify(req.Name)
 	}
 
 	var desc *string

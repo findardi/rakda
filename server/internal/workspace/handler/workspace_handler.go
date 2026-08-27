@@ -83,10 +83,15 @@ func (h *WorkspaceHandler) GetWorkspaces(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *WorkspaceHandler) GetWorkspace(w http.ResponseWriter, r *http.Request) {
-	// ownership already enforced by RequireOwner middleware
+	claims, ok := middleware.ClaimsFromContext(r.Context())
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
 	id := chi.URLParam(r, "workspaceID")
 
-	res, err := h.svc.GetWorkspace(r.Context(), id)
+	res, err := h.svc.GetWorkspace(r.Context(), id, claims.ID)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrWorkspaceNotFound):

@@ -78,6 +78,32 @@ func (q *Queries) GetWorkspaceByID(ctx context.Context, id pgtype.UUID) (Workspa
 	return i, err
 }
 
+const getWorkspaceByNameAndOwner = `-- name: GetWorkspaceByNameAndOwner :one
+select id, owner_id, name, slug, description, status, created_at, updated_at from workspaces 
+where owner_id = $1 and name = $2
+`
+
+type GetWorkspaceByNameAndOwnerParams struct {
+	OwnerID pgtype.UUID `json:"owner_id"`
+	Name    string      `json:"name"`
+}
+
+func (q *Queries) GetWorkspaceByNameAndOwner(ctx context.Context, arg GetWorkspaceByNameAndOwnerParams) (Workspace, error) {
+	row := q.db.QueryRow(ctx, getWorkspaceByNameAndOwner, arg.OwnerID, arg.Name)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.Name,
+		&i.Slug,
+		&i.Description,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getWorkspaceBySlugAndOwner = `-- name: GetWorkspaceBySlugAndOwner :one
 select id, owner_id, name, slug, description, status, created_at, updated_at from workspaces 
 where owner_id = $1 and slug = $2
@@ -90,6 +116,35 @@ type GetWorkspaceBySlugAndOwnerParams struct {
 
 func (q *Queries) GetWorkspaceBySlugAndOwner(ctx context.Context, arg GetWorkspaceBySlugAndOwnerParams) (Workspace, error) {
 	row := q.db.QueryRow(ctx, getWorkspaceBySlugAndOwner, arg.OwnerID, arg.Slug)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.Name,
+		&i.Slug,
+		&i.Description,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getWorkspaceForMember = `-- name: GetWorkspaceForMember :one
+select w.id, w.owner_id, w.name, w.slug, w.description, w.status, w.created_at, w.updated_at from workspaces w
+join workspace_members m on m.workspace_id = w.id
+where w.id = $1
+  and m.user_id = $2
+  and m.status = 'active'
+`
+
+type GetWorkspaceForMemberParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	UserID      pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) GetWorkspaceForMember(ctx context.Context, arg GetWorkspaceForMemberParams) (Workspace, error) {
+	row := q.db.QueryRow(ctx, getWorkspaceForMember, arg.WorkspaceID, arg.UserID)
 	var i Workspace
 	err := row.Scan(
 		&i.ID,

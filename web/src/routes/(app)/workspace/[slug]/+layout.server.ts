@@ -3,7 +3,6 @@ import { canManageAccess } from '$lib/access/roles';
 import {
 	countWaitingQuestions,
 	getMyAccessWorkspace,
-	getWorkspace,
 	getWorkspaces,
 	listQuestions
 } from '$lib/server/api';
@@ -16,25 +15,13 @@ export const load: LayoutServerLoad = async ({ locals, params }) => {
 	if (!locals.user || !locals.session) redirect(303, '/login');
 	if (locals.user.status === 'pending') redirect(303, '/verify-email');
 
-	// No by-slug endpoint exists: resolve slug -> id via the (owner-scoped) list,
-	// then fetch the authoritative record by id (which also runs the owner check).
 	const list = await getWorkspaces(locals.session);
 	if (!list.ok) error(502, t('ws.loadError'));
 
 	const match = list.data.find((w) => w.slug === params.slug);
 	if (!match) error(404, t('ws.detail.notFound'));
 
-	const [workRes, myAccessRes] = await Promise.all([
-		getWorkspace(locals.session, match.id),
-		getMyAccessWorkspace(locals.session, match.id)
-	]);
-
-	if (!workRes.ok) {
-		if (workRes.status === 401) redirect(303, '/login');
-		if (workRes.status === 403) error(403, t('ws.detail.forbidden'));
-		if (workRes.status === 404) error(404, t('ws.detail.notFound'));
-		error(workRes.status || 500, t('err.generic'));
-	}
+	const myAccessRes = await getMyAccessWorkspace(locals.session, match.id);
 
 	if (!myAccessRes.ok) {
 		if (myAccessRes.status === 401) redirect(303, '/login');
@@ -55,5 +42,5 @@ export const load: LayoutServerLoad = async ({ locals, params }) => {
 		if (qaRes.ok) qaEnabled = qaRes.data.qa_enabled;
 	}
 
-	return { workspace: workRes.data, access: myAccessRes.data, qaWaiting, qaEnabled };
+	return { workspace: match, access: myAccessRes.data, qaWaiting, qaEnabled };
 };

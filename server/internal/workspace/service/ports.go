@@ -13,10 +13,12 @@ type WorkspaceRepository interface {
 
 	DeleteWorkspace(ctx context.Context, id pgtype.UUID) error
 
+	GetWorkspaceByNameAndOwner(ctx context.Context, arg workspacedb.GetWorkspaceByNameAndOwnerParams) (workspacedb.Workspace, error)
 	GetWorkspaceBySlugAndOwner(ctx context.Context, arg workspacedb.GetWorkspaceBySlugAndOwnerParams) (workspacedb.Workspace, error)
 	GetWorkspacesByOwner(ctx context.Context, ownerID pgtype.UUID) ([]workspacedb.Workspace, error)
 	GetWorkspaces(ctx context.Context, auserId pgtype.UUID) ([]workspacedb.Workspace, error)
 	GetWorkspaceByID(ctx context.Context, id pgtype.UUID) (workspacedb.Workspace, error)
+	GetWorkspaceForMember(ctx context.Context, arg workspacedb.GetWorkspaceForMemberParams) (workspacedb.Workspace, error)
 
 	UpdateWorkspace(ctx context.Context, arg workspacedb.UpdateWorkspaceParams) (workspacedb.Workspace, error)
 	UpdateWorkspaceStatus(ctx context.Context, arg workspacedb.UpdateWorkspaceStatusParams) error
