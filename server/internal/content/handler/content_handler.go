@@ -124,7 +124,13 @@ func actorFromRequest(r *http.Request) (service.Actor, bool) {
 		return service.Actor{}, false
 	}
 
-	return service.Actor{UserID: claims.ID, Role: ms.Role, Name: claims.Username, Email: claims.Email}, true
+	return service.Actor{
+		UserID:     claims.ID,
+		Role:       ms.Role,
+		Name:       claims.Username,
+		Email:      claims.Email,
+		RoomStatus: ms.WorkspaceStatus,
+	}, true
 }
 
 func (h *ContentHandler) GetFoldersTree(w http.ResponseWriter, r *http.Request) {

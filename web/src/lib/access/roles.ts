@@ -7,6 +7,8 @@
 // legacy contributor/viewer still returned by the backend) is treated as guest,
 // i.e. least privilege.
 
+import type { WorkspaceStatus } from '$lib/types/workspace';
+
 export type WorkspaceRole = 'owner' | 'admin' | 'guest';
 
 export function normalizeRole(role: string): WorkspaceRole {
@@ -58,4 +60,40 @@ export function assignableRoles<T extends { name: string }>(viewerRole: string, 
 	if (r === 'owner') return roles.filter((x) => x.name !== 'owner');
 	if (r === 'admin') return roles.filter((x) => x.name === 'guest');
 	return [];
+}
+
+// Room lifecycle. Mirrors the server gate (platform/middleware
+// RequireRoomOpenForGuests + RequireRoomWritable) so the UI can stop offering
+// what the server will refuse. Same disclaimer as the role helpers above: the
+// server decides, these only shape what is shown.
+
+export function isRoomReadOnly(status: string): boolean {
+	return status === 'archive';
+}
+
+export function isRoomOpenTo(status: string, role: string): boolean {
+	return !(status === 'prepare' && normalizeRole(role) === 'guest');
+}
+
+export function canMutateRoom(status: string, role: string): boolean {
+	return !isRoomReadOnly(status) && isRoomOpenTo(status, role);
+}
+
+const ROOM_TRANSITIONS: Record<string, WorkspaceStatus[]> = {
+	prepare: ['active', 'archive'],
+	active: ['archive'],
+	archive: ['active']
+};
+
+export function canTransitionRoom(from: string, to: WorkspaceStatus): boolean {
+	return (ROOM_TRANSITIONS[from] ?? []).includes(to);
+}
+
+// Reads the room gate straight off `page.data`, which the room layout load
+// fills. Structural param, not `App.PageData`, so this stays importable from
+// server load files too.
+type RoomContext = { roomStatus?: string; access?: { role?: string } } | undefined;
+
+export function roomWritableFrom(data: RoomContext): boolean {
+	return canMutateRoom(data?.roomStatus ?? '', data?.access?.role ?? '');
 }

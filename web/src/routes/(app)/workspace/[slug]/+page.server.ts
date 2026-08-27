@@ -1,13 +1,27 @@
 import { fail, redirect } from '@sveltejs/kit';
+import { canEditWorkspace } from '$lib/access/roles';
 import {
 	deleteWorkspace,
+	getMembers,
 	getWorkspaces,
 	updateWorkspace,
 	updateWorkspaceStatus
 } from '$lib/server/api';
 import { t } from '$lib/i18n';
 import type { WorkspaceStatus } from '$lib/types/workspace';
-import type { Actions } from './$types';
+import type { Actions, PageServerLoad } from './$types';
+
+// The archive confirmation carries the number of guests that lose downloads, so
+// it is only worth a request when archiving is actually reachable from here.
+export const load: PageServerLoad = async ({ locals, parent }) => {
+	const { access, workspace, roomStatus } = await parent();
+	if (!locals.session || !canEditWorkspace(access.role) || roomStatus === 'archive') {
+		return { guestCount: 0 };
+	}
+
+	const res = await getMembers(locals.session, workspace.id);
+	return { guestCount: res.ok ? res.data.filter((m) => m.role_name === 'guest').length : 0 };
+};
 
 const STATUSES: WorkspaceStatus[] = ['prepare', 'active', 'archive'];
 

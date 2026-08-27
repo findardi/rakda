@@ -16,6 +16,7 @@
 		hasDirectory,
 		readTree
 	} from '$lib/dnd';
+	import { roomWritableFrom } from '$lib/access/roles';
 	import { t } from '$lib/i18n';
 	import { findNode } from '$lib/tree';
 	import type { FolderTreeNode } from '$lib/types/content';
@@ -43,12 +44,15 @@
 	const rowHref = (folderId: string) => (onAccess ? accessHref(folderId) : docHref(folderId));
 
 	const perms = $derived((page.data as { access?: MyAccessWorkspace }).access?.permissions ?? []);
-	const canCreate = $derived(perms.includes('folder:create'));
-	const canEdit = $derived(perms.includes('folder:edit'));
-	const canDelete = $derived(perms.includes('folder:delete'));
-	const canUpload = $derived(perms.includes('document:upload'));
-	const canEditDoc = $derived(perms.includes('document:edit'));
-	const canAssign = $derived(perms.includes('group:assign'));
+	// An archived room is frozen for every role: the server answers 423, so the
+	// controls that would trigger it are not offered.
+	const writable = $derived(roomWritableFrom(page.data));
+	const canCreate = $derived(perms.includes('folder:create') && writable);
+	const canEdit = $derived(perms.includes('folder:edit') && writable);
+	const canDelete = $derived(perms.includes('folder:delete') && writable);
+	const canUpload = $derived(perms.includes('document:upload') && writable);
+	const canEditDoc = $derived(perms.includes('document:edit') && writable);
+	const canAssign = $derived(perms.includes('group:assign') && writable);
 	const canAct = $derived(canCreate || canEdit || canDelete || canAssign);
 
 	const defaultFolder = $derived(folders.find((f) => f.is_default) ?? null);

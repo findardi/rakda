@@ -4,7 +4,7 @@
 	import { resolve } from '$app/paths';
 	import { navigating, page } from '$app/state';
 	import type { ActionResult, SubmitFunction } from '@sveltejs/kit';
-	import { normalizeRole } from '$lib/access/roles';
+	import { normalizeRole, roomWritableFrom } from '$lib/access/roles';
 	import { DocumentVersions } from '$lib/components/app';
 	import { Alert, Button, showToast } from '$lib/components/common';
 	import { DOCUMENT_MIME, filesFrom, treeFromInput } from '$lib/dnd';
@@ -49,10 +49,12 @@
 	const access = $derived((page.data as { access?: MyAccessWorkspace }).access);
 	const perms = $derived(access?.permissions ?? []);
 	const role = $derived(normalizeRole(access?.role ?? ''));
-	const canUpload = $derived(perms.includes('document:upload') && !forbidden);
+	const writable = $derived(roomWritableFrom(page.data));
+	const canUpload = $derived(perms.includes('document:upload') && !forbidden && writable);
+	// Reading survives the archive freeze; only writes are refused.
 	const canDownload = $derived(perms.includes('document:download') && role !== 'guest');
 	// Picking a folder creates subfolders, so it needs more than upload rights.
-	const canCreate = $derived(perms.includes('folder:create') && !forbidden);
+	const canCreate = $derived(perms.includes('folder:create') && !forbidden && writable);
 
 	const downloading = new SvelteSet<string>();
 	const downloadAbort = new AbortController();
@@ -68,8 +70,8 @@
 		downloading.delete(doc.id);
 		if (!outcome.ok) showToast(outcome.message, 'error');
 	}
-	const canDelete = $derived(perms.includes('document:delete'));
-	const canEditDoc = $derived(perms.includes('document:edit'));
+	const canDelete = $derived(perms.includes('document:delete') && writable);
+	const canEditDoc = $derived(perms.includes('document:edit') && writable);
 	// Version history is owner/admin upstream regardless of `document:view`, so a
 	// guest never sees the disclosure rather than opening it into a 403.
 	const canSeeVersions = $derived(role === 'owner' || role === 'admin');

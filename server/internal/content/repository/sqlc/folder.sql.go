@@ -252,10 +252,12 @@ func (q *Queries) GetTrashedFolderByID(ctx context.Context, id pgtype.UUID) (Fol
 }
 
 const listExpiredTrashFolders = `-- name: ListExpiredTrashFolders :many
-select id, workspace_id, name from folders
-where deleted_at is not null 
-and deleted_root_folder_id is null
-and deleted_at < $1
+select f.id, f.workspace_id, f.name from folders f
+join workspaces w on w.id = f.workspace_id
+where f.deleted_at is not null 
+and f.deleted_root_folder_id is null
+and f.deleted_at < $1
+and w.status <> 'archive'
 `
 
 type ListExpiredTrashFoldersRow struct {

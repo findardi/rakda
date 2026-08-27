@@ -267,19 +267,32 @@ func (q *Queries) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams
 	return i, err
 }
 
-const updateWorkspaceStatus = `-- name: UpdateWorkspaceStatus :exec
+const updateWorkspaceStatus = `-- name: UpdateWorkspaceStatus :one
 update workspaces set 
-    status = $2,
+    status = $1,
     updated_at = now()
-where id = $1
+where id = $2 and status = $3
+returning id, owner_id, name, slug, description, status, created_at, updated_at
 `
 
 type UpdateWorkspaceStatusParams struct {
-	ID     pgtype.UUID `json:"id"`
-	Status string      `json:"status"`
+	Status     string      `json:"status"`
+	ID         pgtype.UUID `json:"id"`
+	FromStatus string      `json:"from_status"`
 }
 
-func (q *Queries) UpdateWorkspaceStatus(ctx context.Context, arg UpdateWorkspaceStatusParams) error {
-	_, err := q.db.Exec(ctx, updateWorkspaceStatus, arg.ID, arg.Status)
-	return err
+func (q *Queries) UpdateWorkspaceStatus(ctx context.Context, arg UpdateWorkspaceStatusParams) (Workspace, error) {
+	row := q.db.QueryRow(ctx, updateWorkspaceStatus, arg.Status, arg.ID, arg.FromStatus)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.Name,
+		&i.Slug,
+		&i.Description,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

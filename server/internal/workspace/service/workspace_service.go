@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strings"
 
+	activityservice "github.com/findardi/rakda/server/internal/activity/service"
+	"github.com/findardi/rakda/server/internal/platform/permission"
 	"github.com/findardi/rakda/server/internal/workspace/dto"
 	workspacedb "github.com/findardi/rakda/server/internal/workspace/repository/sqlc"
 	"github.com/jackc/pgx/v5"
@@ -17,10 +19,31 @@ import (
 )
 
 const (
-	StatusPrepare = "prepare"
-	StatusActive  = "active"
-	StatusArchive = "archive"
+	StatusPrepare = permission.RoomPrepare
+	StatusActive  = permission.RoomActive
+	StatusArchive = permission.RoomArchive
 )
+
+var statusTransitions = map[string][]string{
+	StatusPrepare: {StatusActive, StatusArchive},
+	StatusActive:  {StatusArchive},
+	StatusArchive: {StatusActive},
+}
+
+func canTransition(from, to string) bool {
+	for _, allowed := range statusTransitions[from] {
+		if allowed == to {
+			return true
+		}
+	}
+	return false
+}
+
+type Actor struct {
+	UserID string
+	Name   string
+	Role   string
+}
 
 var (
 	ErrWorkspaceNameTaken    = errors.New("workspace name already taken")
@@ -28,21 +51,38 @@ var (
 	ErrWorkspaceNotFound     = errors.New("workspace not found")
 	ErrWorkspaceExceedLimits = errors.New("workspace exceeds limit")
 	ErrInvalidStatus         = errors.New("invalid workspace status")
+	ErrStatusTransition      = errors.New("workspace status transition not allowed")
+	ErrWorkspaceArchived     = errors.New("workspace is archived")
 )
 
 var slugInvalidChars = regexp.MustCompile(`[^a-z0-9]+`)
 
 type WorkspaceService struct {
-	repo    WorkspaceRepository
-	access  AccessService
-	content ContentProvisioner
+	repo     WorkspaceRepository
+	access   AccessService
+	content  ContentProvisioner
+	activity ActivityRecorder
 }
 
-func NewWorkspaceService(repo WorkspaceRepository, access AccessService, content ContentProvisioner) *WorkspaceService {
+func NewWorkspaceService(repo WorkspaceRepository, access AccessService, content ContentProvisioner, activity ActivityRecorder) *WorkspaceService {
 	return &WorkspaceService{
-		repo:    repo,
-		access:  access,
-		content: content,
+		repo:     repo,
+		access:   access,
+		content:  content,
+		activity: activity,
+	}
+}
+
+func workspaceResponse(w workspacedb.Workspace) dto.WorkspaceResponse {
+	return dto.WorkspaceResponse{
+		ID:          uuidString(w.ID),
+		OwnerID:     uuidString(w.OwnerID),
+		Name:        w.Name,
+		Slug:        w.Slug,
+		Description: deref(w.Description),
+		Status:      w.Status,
+		CreatedAt:   w.CreatedAt.Time,
+		UpdatedAt:   w.UpdatedAt.Time,
 	}
 }
 
@@ -255,30 +295,66 @@ func (s *WorkspaceService) GetWorkspace(ctx context.Context, workspaceID, actorI
 	}, nil
 }
 
-func (s *WorkspaceService) UpdateStatusWorkspace(ctx context.Context, req dto.WorkspaceUpdateStatusRequest) error {
+func (s *WorkspaceService) UpdateStatusWorkspace(ctx context.Context, req dto.WorkspaceUpdateStatusRequest, actor Actor) (dto.WorkspaceResponse, error) {
 	if !isValidStatus(req.Status) {
-		return ErrInvalidStatus
+		return dto.WorkspaceResponse{}, ErrInvalidStatus
 	}
 
 	var uid pgtype.UUID
 	if err := uid.Scan(req.ID); err != nil {
-		return fmt.Errorf("parse workspace id: %w", err)
+		return dto.WorkspaceResponse{}, fmt.Errorf("parse workspace id: %w", err)
 	}
 
-	if _, err := s.repo.GetWorkspaceByID(ctx, uid); errors.Is(err, pgx.ErrNoRows) {
-		return ErrWorkspaceNotFound
+	current, err := s.repo.GetWorkspaceByID(ctx, uid)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return dto.WorkspaceResponse{}, ErrWorkspaceNotFound
 	} else if err != nil {
-		return fmt.Errorf("get workspace: %w", err)
+		return dto.WorkspaceResponse{}, fmt.Errorf("get workspace: %w", err)
 	}
 
-	if err := s.repo.UpdateWorkspaceStatus(ctx, workspacedb.UpdateWorkspaceStatusParams{
-		ID:     uid,
-		Status: req.Status,
-	}); err != nil {
-		return fmt.Errorf("update status: %w", err)
+	if !canTransition(current.Status, req.Status) {
+		return dto.WorkspaceResponse{}, ErrStatusTransition
 	}
 
-	return nil
+	var updated workspacedb.Workspace
+	err = s.repo.ExecTx(ctx, func(q *workspacedb.Queries, tx pgx.Tx) error {
+		w, err := q.UpdateWorkspaceStatus(ctx, workspacedb.UpdateWorkspaceStatusParams{
+			ID:         uid,
+			Status:     req.Status,
+			FromStatus: current.Status,
+		})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrStatusTransition
+		}
+		if err != nil {
+			return fmt.Errorf("update status: %w", err)
+		}
+
+		if err := s.activity.RecordTx(ctx, tx, activityservice.Entry{
+			WorkspaceID: req.ID,
+			ActorID:     actor.UserID,
+			ActorName:   actor.Name,
+			ActorRole:   actor.Role,
+			Action:      activityservice.ActionWorkspaceStatusChanged,
+			TargetType:  activityservice.TargetWorkspace,
+			TargetID:    req.ID,
+			TargetName:  w.Name,
+			Metadata: map[string]any{
+				"from": current.Status,
+				"to":   req.Status,
+			},
+		}); err != nil {
+			return err
+		}
+
+		updated = w
+		return nil
+	})
+	if err != nil {
+		return dto.WorkspaceResponse{}, err
+	}
+
+	return workspaceResponse(updated), nil
 }
 
 func (s *WorkspaceService) UpdateWorkspace(ctx context.Context, req dto.WorkspaceUpdateRequest) (dto.WorkspaceResponse, error) {
@@ -349,10 +425,15 @@ func (s *WorkspaceService) DeleteWorkspace(ctx context.Context, workspaceID stri
 		return fmt.Errorf("parse workspace id: %w", err)
 	}
 
-	if _, err := s.repo.GetWorkspaceByID(ctx, uid); errors.Is(err, pgx.ErrNoRows) {
+	current, err := s.repo.GetWorkspaceByID(ctx, uid)
+	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrWorkspaceNotFound
 	} else if err != nil {
 		return fmt.Errorf("get workspace: %w", err)
+	}
+
+	if current.Status == StatusArchive {
+		return ErrWorkspaceArchived
 	}
 
 	if err := s.repo.DeleteWorkspace(ctx, uid); err != nil {

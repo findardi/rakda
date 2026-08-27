@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/findardi/rakda/server/internal/platform/middleware"
+	"github.com/findardi/rakda/server/internal/platform/permission"
 	"github.com/findardi/rakda/server/internal/platform/response"
 	"github.com/findardi/rakda/server/internal/platform/validation"
 	"github.com/findardi/rakda/server/internal/workspace/dto"
@@ -120,12 +121,25 @@ func (h *WorkspaceHandler) UpdateStatusWorkspace(w http.ResponseWriter, r *http.
 		return
 	}
 
-	if err := h.svc.UpdateStatusWorkspace(r.Context(), req); err != nil {
+	claims, ok := middleware.ClaimsFromContext(r.Context())
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	res, err := h.svc.UpdateStatusWorkspace(r.Context(), req, service.Actor{
+		UserID: claims.ID,
+		Name:   claims.Username,
+		Role:   permission.RoleOwner,
+	})
+	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrInvalidStatus):
 			response.Error(w, http.StatusBadRequest, err.Error(), nil)
 		case errors.Is(err, service.ErrWorkspaceNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
+		case errors.Is(err, service.ErrStatusTransition):
+			response.Error(w, http.StatusConflict, err.Error(), nil)
 		default:
 			log.Printf("update status internal error: %v", err)
 			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
@@ -133,7 +147,7 @@ func (h *WorkspaceHandler) UpdateStatusWorkspace(w http.ResponseWriter, r *http.
 		return
 	}
 
-	response.Success(w, http.StatusOK, "success update status", nil)
+	response.Success(w, http.StatusOK, "success update status", res)
 }
 
 func (h *WorkspaceHandler) UpdateWorkspace(w http.ResponseWriter, r *http.Request) {
@@ -174,6 +188,8 @@ func (h *WorkspaceHandler) DeleteWorkspace(w http.ResponseWriter, r *http.Reques
 		switch {
 		case errors.Is(err, service.ErrWorkspaceNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
+		case errors.Is(err, service.ErrWorkspaceArchived):
+			response.Error(w, http.StatusLocked, err.Error(), nil)
 		default:
 			log.Printf("delete workspace internal error: %v", err)
 			response.Error(w, http.StatusInternalServerError, "internal server error", nil)

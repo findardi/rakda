@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 
+	activityservice "github.com/findardi/rakda/server/internal/activity/service"
 	workspacedb "github.com/findardi/rakda/server/internal/workspace/repository/sqlc"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -21,9 +22,13 @@ type WorkspaceRepository interface {
 	GetWorkspaceForMember(ctx context.Context, arg workspacedb.GetWorkspaceForMemberParams) (workspacedb.Workspace, error)
 
 	UpdateWorkspace(ctx context.Context, arg workspacedb.UpdateWorkspaceParams) (workspacedb.Workspace, error)
-	UpdateWorkspaceStatus(ctx context.Context, arg workspacedb.UpdateWorkspaceStatusParams) error
+	UpdateWorkspaceStatus(ctx context.Context, arg workspacedb.UpdateWorkspaceStatusParams) (workspacedb.Workspace, error)
 
 	ExecTx(ctx context.Context, fn func(*workspacedb.Queries, pgx.Tx) error) error
+}
+
+type ActivityRecorder interface {
+	RecordTx(ctx context.Context, tx pgx.Tx, e activityservice.Entry) error
 }
 
 type AccessService interface {

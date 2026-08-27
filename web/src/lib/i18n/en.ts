@@ -159,10 +159,31 @@ export const en: Record<keyof Dict, string> = {
 	'ws.status.prepare': 'Preparing',
 	'ws.status.active': 'Active',
 	'ws.status.archive': 'Archived',
-	'ws.status.hint.prepare': 'The room is still being prepared — not yet shared externally.',
-	'ws.status.hint.active': 'The room is active — parties with access can open it.',
-	'ws.status.hint.archive': 'The room is archived — read-only, kept for audit.',
+	'ws.status.hint.prepare': 'The room is still being prepared. Guests cannot open it yet.',
+	'ws.status.hint.active': 'The room is active. Parties with access can open it.',
+	'ws.status.hint.archive':
+		'The room is archived. Its contents are read-only for every role, including the owner.',
 	'ws.status.updated': 'Data room status updated.',
+
+	// Room lifecycle
+	'room.readOnly.strip': 'This room is archived. Read-only for every role.',
+	'room.notOpen.title': 'Room not open yet',
+	'room.notOpen.body':
+		'The owner is still preparing this data room. You can open it once the room is activated.',
+	'room.activate.title': 'Open the room to guests',
+	'room.activate.body':
+		'Guests cannot open this room yet. Open it once the folder structure and group permissions are ready.',
+	'room.activate.submit': 'Open room',
+	'room.archive.open': 'Archive',
+	'room.archive.title': 'Archive data room',
+	'room.archive.body':
+		'The room becomes read-only for every role, including you. Guests can still read, but downloads are turned off and every page carries a watermark.',
+	'room.archive.caveat':
+		'Pages already cached in a guest browser cannot be pulled back. The archive can be reopened at any time.',
+	'room.archive.submit': 'Archive room',
+	'room.archive.submitCount': 'Archive room ({n} guests lose downloads)',
+	'room.unarchive.submit': 'Reopen room',
+	'room.delete.blocked': 'An archived room cannot be deleted. Reopen the room first.',
 
 	// Edit room
 	'ws.edit.open': 'Edit',
@@ -215,6 +236,10 @@ export const en: Record<keyof Dict, string> = {
 	'err.invalidOtp': 'The OTP code is incorrect or expired.',
 	'err.forbidden': 'You do not have permission for this action.',
 	'err.forbiddenContent': 'Your group has not been given access to this content.',
+	'err.roomArchived': 'This room is archived. Changes cannot be saved.',
+	'err.roomNotOpen': 'The room is not open to guests yet.',
+	'err.roomTransition': 'That status change is not allowed.',
+	'err.conflict': 'The request conflicts with the current state.',
 
 	// management access
 	'ma.title': 'Access management',
