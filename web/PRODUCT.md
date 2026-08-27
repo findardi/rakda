@@ -126,7 +126,61 @@ Aturan yang mengikat salinan UI:
 - Nama & deskripsi template datang dari server (dwibahasa); web tidak
   menyimpan salinannya.
 - Jalur pulang selalu disebut: folder tak diinginkan dihapus ke Sampah
-  (15 hari), bisa bulk lewat mode pilih.
+  (**30 hari**, `TRASH_RETENTION`; angkanya datang dari server, jangan ditulis
+  ulang di web), bisa bulk lewat mode pilih. Di ruangan berstatus **Arsip**
+  penyapu Sampah dibekukan — isinya tidak pernah musnah selama ruangan diarsipkan.
+
+## Siklus hidup ruangan
+
+Ruang data punya tiga keadaan, dan salinan UI-nya sudah lama menjanjikannya —
+sejak 2026-08-27 janji itu benar-benar ditegakkan.
+
+- **Persiapan** — ruangan internal. Pemilik dan admin bekerja penuh; **tamu belum
+  bisa masuk sama sekali**. Ini bukan formalitas: grup bawaan sudah memegang izin
+  lihat atas folder `General` sejak ruangan lahir, dan setiap tamu yang menerima
+  undangan otomatis masuk grup itu — tanpa Persiapan, tamu pertama langsung
+  melihat apa pun yang sudah terlanjur dijatuhkan. Ruangan baru selalu lahir di
+  sini, dan halaman ikhtisar menyediakan tombol membuka ruang.
+- **Aktif** — tanpa batasan.
+- **Arsip** — beku untuk **semua** peran termasuk pemilik, tapi **tetap terbaca**
+  oleh semua peran. Tamu turun menjadi hanya-lihat: unduhan mati dan halaman
+  selalu ber-watermark. Menyunting apa pun ditolak dengan alasan yang jelas,
+  bukan galat mentah.
+
+Salinan yang mengikat:
+
+- Arsip **reversibel** — jangan pernah menuliskannya seperti penghapusan.
+  Konfirmasinya memakai pola proyek ini (kalimat peringatan + tombol ber-angka),
+  bukan ketik-nama milik tombol hapus.
+- Jangan menjanjikan "akses dicabut seketika". Halaman yang sudah ter-cache di
+  peramban tamu tidak bisa ditarik kembali.
+- Ruangan arsip **tidak bisa dihapus** sebelum diaktifkan lagi. Itu disengaja:
+  menghapus ruangan memusnahkan seluruh jejak auditnya, jadi "disimpan untuk
+  audit" harus benar secara struktural, bukan bergantung kehati-hatian.
+
+## Ekspor & arsip
+
+Tiga ekspor CSV yang sudah lama ada — linimasa aktivitas, engagement per dokumen,
+dan Q&A — plus **paket arsip** sejak 2026-08-27.
+
+Paket arsip adalah berkas ZIP berisi seluruh dokumen ruangan (versi yang sedang
+disajikan, sebagai PDF bersih) ditambah pohon foldernya, indeks yang bisa diklik,
+dan jejak auditnya. Ia dibuat di latar, bukan diunduh langsung: ruangan besar
+butuh waktu, dan menunggu di halaman akan gagal di koneksi lambat.
+
+Salinan yang mengikat:
+
+- Sebut **"paket arsip"**, bukan "backup" — ini serah-terima saat deal tutup,
+  bukan cadangan berkala.
+- Paket berumur **30 hari** lalu dihapus; ZIP yang sudah diunduh berlaku
+  selamanya. Bedanya harus jelas di layar.
+- Nomor folder ikut ditulis ke dalam nama berkas di dalam ZIP, karena sebuah ZIP
+  kehilangan urutan begitu lepas dari aplikasi. Nomor itu tetap tidak pernah
+  disimpan di basis data.
+- Dokumen yang gagal disiapkan **disebut jumlahnya**, tidak dihilangkan diam-diam.
+- Jangan menjanjikan paket sebagai potret detik pengarsipan — isinya adalah
+  ruangan pada stempel waktu ekspor, dan indeksnya yang membuktikan.
+
 
 ## Q&A
 
