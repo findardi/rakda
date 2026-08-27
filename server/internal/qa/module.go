@@ -76,9 +76,10 @@ func (m *Module) workspaceMember(ctx context.Context, workspaceID, userID string
 	}
 
 	return &middleware.Membership{
-		Role:        row.RoleName,
-		Permissions: row.Permissions,
-		Status:      row.Status,
+		Role:            row.RoleName,
+		Permissions:     row.Permissions,
+		Status:          row.Status,
+		WorkspaceStatus: row.WorkspaceStatus,
 	}, nil
 }
 
@@ -89,6 +90,8 @@ func (m *Module) RegisterRoutes(r chi.Router) {
 
 		r.Route("/workspaces/{workspaceID}", func(r chi.Router) {
 			r.Use(m.mw.RequireMember("workspaceID", m.workspaceMember))
+			r.Use(m.mw.RequireRoomOpenForGuests)
+			r.Use(m.mw.RequireRoomWritable)
 
 			r.Route("/questions", func(r chi.Router) {
 				r.Get("/", m.handler.ListQuestions)

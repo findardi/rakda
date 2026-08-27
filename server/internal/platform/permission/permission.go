@@ -58,6 +58,20 @@ const (
 	RoleGuest = "guest"
 )
 
+const (
+	RoomPrepare = "prepare"
+	RoomActive  = "active"
+	RoomArchive = "archive"
+)
+
+func IsValidRoomStatus(s string) bool {
+	switch s {
+	case RoomPrepare, RoomActive, RoomArchive:
+		return true
+	}
+	return false
+}
+
 type SystemRole struct {
 	Name        string
 	Permissions []string

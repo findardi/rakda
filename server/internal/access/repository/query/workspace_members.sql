@@ -13,9 +13,10 @@ select * from workspace_members
 where workspace_id = $1 and user_id = $2;
 
 -- name: GetMembershipWithPermissions :one
-select m.status, r.name as role_name, r.permissions
+select m.status, r.name as role_name, r.permissions, w.status as workspace_status
 from workspace_members m
 join workspace_roles r on r.id = m.role_id
+join workspaces w on w.id = m.workspace_id
 where m.workspace_id = $1 and m.user_id = $2;
 
 -- name: GetMembers :many

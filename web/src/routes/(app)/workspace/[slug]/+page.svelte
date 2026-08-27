@@ -5,7 +5,13 @@
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { Alert, Button, Field, TextareaField, Toaster, showToast } from '$lib/components/common';
 	import { WorkspaceStatusBadge } from '$lib/components/app';
-	import { canDeleteWorkspace, canEditWorkspace } from '$lib/access/roles';
+	import {
+		canDeleteWorkspace,
+		canEditWorkspace,
+		canTransitionRoom,
+		isRoomOpenTo,
+		isRoomReadOnly
+	} from '$lib/access/roles';
 	import { t } from '$lib/i18n';
 	import type { MyAccessWorkspace, WorkspaceStatus } from '$lib/types/workspace';
 	import type { PageProps } from './$types';
@@ -18,6 +24,13 @@
 	const canEdit = $derived(canEditWorkspace(role));
 	const canDelete = $derived(canDeleteWorkspace(role));
 
+	// One source for the gate: `roomStatus` comes from the same membership query
+	// the server guards read, so the UI can never offer what the API refuses.
+	const status = $derived((data as { roomStatus?: WorkspaceStatus }).roomStatus ?? ws.status);
+	const roomOpen = $derived(isRoomOpenTo(status, role));
+	const readOnly = $derived(isRoomReadOnly(status));
+	const guestCount = $derived((data as { guestCount?: number }).guestCount ?? 0);
+
 	const dateFmt = new Intl.DateTimeFormat('id-ID', {
 		day: 'numeric',
 		month: 'short',
@@ -25,21 +38,32 @@
 	});
 	const fmtDate = (iso: string) => dateFmt.format(new Date(iso));
 
-	const statuses: WorkspaceStatus[] = ['prepare', 'active', 'archive'];
-	const statusHint = $derived(t(`ws.status.hint.${ws.status}`));
+	const statusHint = $derived(t(`ws.status.hint.${status}`));
 
 	// --- Status change ---
 	let pendingStatus = $state<WorkspaceStatus | null>(null);
+	let archiveDialog = $state<HTMLDialogElement>();
+	let archiveMessage = $state<string | null>(null);
+
+	function openArchive() {
+		archiveMessage = null;
+		archiveDialog?.showModal();
+	}
+
 	const submitStatus: SubmitFunction = ({ formData }) => {
 		pendingStatus = formData.get('status') as WorkspaceStatus;
+		archiveMessage = null;
 		return async ({ result }) => {
 			if (result.type === 'success') {
+				archiveDialog?.close();
 				await invalidateAll();
 				showToast(t('ws.status.updated'), 'success');
 			} else if (result.type === 'redirect') {
 				await applyAction(result);
 			} else if (result.type === 'failure') {
-				showToast((result.data?.message as string) ?? t('err.generic'), 'error');
+				const msg = (result.data?.message as string) ?? t('err.generic');
+				if (pendingStatus === 'archive' && archiveDialog?.open) archiveMessage = msg;
+				else showToast(msg, 'error');
 			} else {
 				showToast(t('err.generic'), 'error');
 			}
@@ -126,81 +150,101 @@
 
 <svelte:head><title>{ws.name} · {t('brand.name')}</title></svelte:head>
 
-<div class="mx-auto w-full max-w-2xl px-6 py-8">
-	<header class="flex items-start justify-between gap-4">
-		<div class="min-w-0">
-			<h1 class="truncate text-2xl font-semibold tracking-[-0.02em]">{ws.name}</h1>
-			<p class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-xs text-muted">
-				<span>{ws.slug}</span>
-				<span aria-hidden="true">·</span>
-				<span>{t('ws.detail.created')} {fmtDate(ws.created_at)}</span>
-				<span aria-hidden="true">·</span>
-				<span>{t('ws.detail.updated')} {fmtDate(ws.updated_at)}</span>
-			</p>
+{#if !roomOpen}
+	<div class="mx-auto w-full max-w-2xl px-6 py-8">
+		<h1 class="truncate text-2xl font-semibold tracking-[-0.02em]">{ws.name}</h1>
+		<div class="mt-6 rounded-box border border-base-content/10 bg-base-100 p-6">
+			<h2 class="text-sm font-semibold">{t('room.notOpen.title')}</h2>
+			<p class="mt-1.5 max-w-[52ch] text-sm text-muted text-pretty">{t('room.notOpen.body')}</p>
 		</div>
-		{#if canEdit}
-			<Button variant="ghost" onclick={openEdit}>{t('ws.edit.open')}</Button>
-		{/if}
-	</header>
-
-	{#if ws.description}
-		<p class="mt-5 max-w-[65ch] text-[0.9375rem] leading-relaxed text-muted text-pretty">
-			{ws.description}
-		</p>
-	{/if}
-
-	<!-- Status -->
-	<section class="mt-10">
-		<h2 id="status-label" class="text-sm font-semibold">{t('ws.status.label')}</h2>
-		<p class="mt-1 text-sm text-muted">{statusHint}</p>
-
-		{#if canEdit}
-			<form
-				method="POST"
-				action="?/updateStatus"
-				use:enhance={submitStatus}
-				role="group"
-				aria-labelledby="status-label"
-				class="mt-3 inline-flex rounded-field border border-base-content/10 p-0.5"
-			>
-				{#each statuses as s (s)}
-					{@const current = s === ws.status}
-					<button
-						name="status"
-						value={s}
-						disabled={current || pendingStatus !== null}
-						aria-pressed={current}
-						class="inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm font-medium transition-colors {current
-							? 'bg-primary/10 text-primary'
-							: 'text-muted hover:bg-base-content/5 hover:text-base-content disabled:cursor-not-allowed disabled:text-muted/60 disabled:hover:bg-transparent disabled:hover:text-muted/60'}"
-					>
-						{#if pendingStatus === s}
-							<span class="loading loading-spinner loading-xs"></span>
-						{/if}
-						{t(`ws.status.${s}`)}
-					</button>
-				{/each}
-			</form>
-		{:else}
-			<div class="mt-3"><WorkspaceStatusBadge status={ws.status} /></div>
-		{/if}
-	</section>
-
-	<!-- Delete — quiet settings-style row; the red button carries the danger. -->
-	{#if canDelete}
-		<section
-			class="mt-10 flex flex-col gap-3 border-t border-base-content/10 pt-6 sm:flex-row sm:items-start sm:justify-between sm:gap-6"
-		>
+	</div>
+{:else}
+	<div class="mx-auto w-full max-w-2xl px-6 py-8">
+		<header class="flex items-start justify-between gap-4">
 			<div class="min-w-0">
-				<h2 class="text-sm font-semibold">{t('ws.delete.title')}</h2>
-				<p class="mt-1 max-w-[48ch] text-sm text-muted text-pretty">{t('ws.delete.body')}</p>
+				<h1 class="truncate text-2xl font-semibold tracking-[-0.02em]">{ws.name}</h1>
+				<p
+					class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-xs text-muted"
+				>
+					<span>{ws.slug}</span>
+					<span aria-hidden="true">·</span>
+					<span>{t('ws.detail.created')} {fmtDate(ws.created_at)}</span>
+					<span aria-hidden="true">·</span>
+					<span>{t('ws.detail.updated')} {fmtDate(ws.updated_at)}</span>
+				</p>
 			</div>
-			<div class="flex-none">
-				<Button variant="danger" onclick={openDelete}>{t('ws.delete.open')}</Button>
-			</div>
+			{#if canEdit}
+				<Button variant="ghost" onclick={openEdit}>{t('ws.edit.open')}</Button>
+			{/if}
+		</header>
+
+		{#if ws.description}
+			<p class="mt-5 max-w-[65ch] text-[0.9375rem] leading-relaxed text-muted text-pretty">
+				{ws.description}
+			</p>
+		{/if}
+
+		<!-- Status — the badge states it; the controls offer only legal transitions
+	     (server map: prepare→active|archive, active→archive, archive→active). -->
+		<section class="mt-10">
+			<h2 class="text-sm font-semibold">{t('ws.status.label')}</h2>
+			<div class="mt-2"><WorkspaceStatusBadge {status} /></div>
+			<p class="mt-2 max-w-[52ch] text-sm text-muted text-pretty">{statusHint}</p>
+
+			{#if canEdit}
+				{#if status === 'prepare'}
+					<div class="mt-5 rounded-box border border-base-content/10 bg-base-100 p-5">
+						<h3 class="text-sm font-semibold">{t('room.activate.title')}</h3>
+						<p class="mt-1 max-w-[52ch] text-sm text-muted text-pretty">
+							{t('room.activate.body')}
+						</p>
+						<div class="mt-4 flex flex-wrap items-center gap-2">
+							<form method="POST" action="?/updateStatus" use:enhance={submitStatus}>
+								<input type="hidden" name="status" value="active" />
+								<Button type="submit" loading={pendingStatus === 'active'}>
+									{t('room.activate.submit')}
+								</Button>
+							</form>
+							{#if canTransitionRoom(status, 'archive')}
+								<Button variant="ghost" onclick={openArchive}>{t('room.archive.open')}</Button>
+							{/if}
+						</div>
+					</div>
+				{:else if status === 'active'}
+					<div class="mt-4">
+						<Button variant="ghost" onclick={openArchive}>{t('room.archive.open')}</Button>
+					</div>
+				{:else if status === 'archive'}
+					<form method="POST" action="?/updateStatus" use:enhance={submitStatus} class="mt-4">
+						<input type="hidden" name="status" value="active" />
+						<Button type="submit" variant="ghost" loading={pendingStatus === 'active'}>
+							{t('room.unarchive.submit')}
+						</Button>
+					</form>
+				{/if}
+			{/if}
 		</section>
-	{/if}
-</div>
+
+		<!-- Delete — quiet settings-style row; the red button carries the danger. -->
+		{#if canDelete}
+			<section
+				class="mt-10 flex flex-col gap-3 border-t border-base-content/10 pt-6 sm:flex-row sm:items-start sm:justify-between sm:gap-6"
+			>
+				<div class="min-w-0">
+					<h2 class="text-sm font-semibold">{t('ws.delete.title')}</h2>
+					<p class="mt-1 max-w-[48ch] text-sm text-muted text-pretty">
+						{readOnly ? t('room.delete.blocked') : t('ws.delete.body')}
+					</p>
+				</div>
+				<div class="flex-none">
+					<Button variant="danger" disabled={readOnly} onclick={openDelete}>
+						{t('ws.delete.open')}
+					</Button>
+				</div>
+			</section>
+		{/if}
+	</div>
+{/if}
 
 <!-- Edit dialog -->
 <dialog bind:this={editDialog} class="modal" aria-labelledby="edit-title">
@@ -283,6 +327,42 @@
 					{deleteSubmitting ? t('ws.delete.submitting') : t('ws.delete.submit')}
 				</Button>
 			</div>
+		</form>
+	</div>
+	<form method="dialog" class="modal-backdrop">
+		<button aria-label={t('ws.dialog.cancel')}></button>
+	</form>
+</dialog>
+
+<!-- Archive confirmation — counted button, not type-to-confirm: archiving is
+     reversible and must not read like deletion. -->
+<dialog bind:this={archiveDialog} class="modal" aria-labelledby="archive-title">
+	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+		<h2 id="archive-title" class="text-lg font-semibold tracking-[-0.01em]">
+			{t('room.archive.title')}
+		</h2>
+		<p class="mt-2 text-sm text-muted text-pretty">{t('room.archive.body')}</p>
+		<p class="mt-2 text-sm text-muted text-pretty">{t('room.archive.caveat')}</p>
+
+		{#if archiveMessage}
+			<div class="mt-4"><Alert align="start">{archiveMessage}</Alert></div>
+		{/if}
+
+		<form
+			method="POST"
+			action="?/updateStatus"
+			use:enhance={submitStatus}
+			class="mt-5 flex justify-end gap-2"
+		>
+			<input type="hidden" name="status" value="archive" />
+			<Button type="button" variant="ghost" onclick={() => archiveDialog?.close()}>
+				{t('ws.dialog.cancel')}
+			</Button>
+			<Button type="submit" loading={pendingStatus === 'archive'}>
+				{guestCount > 0
+					? t('room.archive.submitCount', { n: guestCount })
+					: t('room.archive.submit')}
+			</Button>
 		</form>
 	</div>
 	<form method="dialog" class="modal-backdrop">

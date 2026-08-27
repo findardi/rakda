@@ -1,5 +1,5 @@
 import { error, redirect } from '@sveltejs/kit';
-import { canManageAccess } from '$lib/access/roles';
+import { canManageAccess, isRoomOpenTo } from '$lib/access/roles';
 import {
 	countWaitingQuestions,
 	getMyAccessWorkspace,
@@ -11,7 +11,7 @@ import type { LayoutServerLoad } from './$types';
 
 // Loaded at the layout level so the whole room subtree (shell sidebar + every
 // module page) shares one authoritative workspace record via `page.data`.
-export const load: LayoutServerLoad = async ({ locals, params }) => {
+export const load: LayoutServerLoad = async ({ locals, params, url }) => {
 	if (!locals.user || !locals.session) redirect(303, '/login');
 	if (locals.user.status === 'pending') redirect(303, '/verify-email');
 
@@ -30,17 +30,29 @@ export const load: LayoutServerLoad = async ({ locals, params }) => {
 		error(myAccessRes.status || 500, t('err.generic'));
 	}
 
+	const access = myAccessRes.data;
+	const roomStatus = access.workspace_status ?? match.status;
+	const roomOpen = isRoomOpenTo(roomStatus, access.role);
+
+	// A room still in `prepare` is closed to guests on every module, so the room
+	// subtree has nothing it can load. Land on the overview, which explains the
+	// state as a page instead of an error.
+	const overview = `/workspace/${params.slug}`;
+	if (!roomOpen && url.pathname !== overview) redirect(303, overview);
+
 	// Q&A shell data, best-effort: the manager badge needs the waiting count,
 	// guest entry points need the group's qa_enabled. Neither may break the room.
 	let qaWaiting = 0;
 	let qaEnabled = true;
-	if (canManageAccess(myAccessRes.data.role)) {
-		const countRes = await countWaitingQuestions(locals.session, match.id);
-		if (countRes.ok) qaWaiting = countRes.data.waiting_count;
-	} else {
-		const qaRes = await listQuestions(locals.session, match.id, { limit: 1 });
-		if (qaRes.ok) qaEnabled = qaRes.data.qa_enabled;
+	if (roomOpen) {
+		if (canManageAccess(access.role)) {
+			const countRes = await countWaitingQuestions(locals.session, match.id);
+			if (countRes.ok) qaWaiting = countRes.data.waiting_count;
+		} else {
+			const qaRes = await listQuestions(locals.session, match.id, { limit: 1 });
+			if (qaRes.ok) qaEnabled = qaRes.data.qa_enabled;
+		}
 	}
 
-	return { workspace: match, access: myAccessRes.data, qaWaiting, qaEnabled };
+	return { workspace: match, access, roomStatus, roomOpen, qaWaiting, qaEnabled };
 };

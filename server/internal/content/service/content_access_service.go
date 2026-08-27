@@ -14,10 +14,11 @@ import (
 )
 
 type Actor struct {
-	UserID string
-	Role   string
-	Name   string
-	Email  string
+	UserID     string
+	Role       string
+	Name       string
+	Email      string
+	RoomStatus string
 }
 
 func (a Actor) managesRoom() bool {

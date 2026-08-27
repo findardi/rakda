@@ -193,7 +193,8 @@ async function postJson<T>(url: string, body: unknown, method = 'POST'): Promise
 	});
 	if (!res.ok) {
 		const msg = await messageOf(res);
-		if (res.status === 415 || res.status === 413) throw new TerminalUploadError(msg);
+		if (res.status === 415 || res.status === 413 || res.status === 423)
+			throw new TerminalUploadError(msg);
 		throw new Error(msg);
 	}
 	return (await res.json()) as T;

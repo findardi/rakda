@@ -138,4 +138,5 @@ export interface MyAccessWorkspace {
 	role: string;
 	permissions: string[];
 	status: string;
+	workspace_status: WorkspaceStatus;
 }

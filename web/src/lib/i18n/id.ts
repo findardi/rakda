@@ -155,10 +155,31 @@ export const id = {
 	'ws.status.prepare': 'Persiapan',
 	'ws.status.active': 'Aktif',
 	'ws.status.archive': 'Arsip',
-	'ws.status.hint.prepare': 'Ruang masih disiapkan — belum dibagikan ke pihak luar.',
-	'ws.status.hint.active': 'Ruang aktif — pihak dengan akses dapat membukanya.',
-	'ws.status.hint.archive': 'Ruang diarsipkan — hanya-baca, disimpan untuk audit.',
+	'ws.status.hint.prepare': 'Ruang masih disiapkan. Tamu belum dapat membukanya.',
+	'ws.status.hint.active': 'Ruang aktif. Pihak dengan akses dapat membukanya.',
+	'ws.status.hint.archive':
+		'Ruang diarsipkan. Isi terkunci hanya-baca untuk semua peran, termasuk pemilik.',
 	'ws.status.updated': 'Status ruang data diperbarui.',
+
+	// Room lifecycle
+	'room.readOnly.strip': 'Ruang diarsipkan. Hanya-baca untuk semua peran.',
+	'room.notOpen.title': 'Ruang belum dibuka',
+	'room.notOpen.body':
+		'Pemilik masih menyiapkan ruang data ini. Anda dapat membukanya setelah ruang diaktifkan.',
+	'room.activate.title': 'Buka ruang untuk tamu',
+	'room.activate.body':
+		'Tamu belum dapat membuka ruang ini. Buka setelah struktur folder dan izin grup siap.',
+	'room.activate.submit': 'Buka ruang',
+	'room.archive.open': 'Arsipkan',
+	'room.archive.title': 'Arsipkan ruang data',
+	'room.archive.body':
+		'Ruang menjadi hanya-baca untuk semua peran, termasuk Anda. Tamu tetap dapat membaca, tetapi unduhan dimatikan dan setiap halaman diberi watermark.',
+	'room.archive.caveat':
+		'Halaman yang sudah tersimpan di peramban tamu tidak dapat ditarik kembali. Arsip dapat dibuka kembali kapan saja.',
+	'room.archive.submit': 'Arsipkan ruang',
+	'room.archive.submitCount': 'Arsipkan ruang ({n} tamu kehilangan unduhan)',
+	'room.unarchive.submit': 'Buka kembali ruang',
+	'room.delete.blocked': 'Ruang arsip tidak dapat dihapus. Buka kembali ruang lebih dulu.',
 
 	// Edit room
 	'ws.edit.open': 'Edit',
@@ -210,6 +231,10 @@ export const id = {
 	'err.invalidOtp': 'Kode OTP salah atau kedaluwarsa.',
 	'err.forbidden': 'Anda tidak punya izin untuk tindakan ini.',
 	'err.forbiddenContent': 'Grup Anda tidak diberi akses ke konten ini.',
+	'err.roomArchived': 'Ruang diarsipkan. Perubahan tidak dapat disimpan.',
+	'err.roomNotOpen': 'Ruang belum dibuka untuk tamu.',
+	'err.roomTransition': 'Perubahan status itu tidak diizinkan.',
+	'err.conflict': 'Permintaan bentrok dengan keadaan saat ini.',
 
 	// management access
 	'ma.title': 'Manajemen akses',

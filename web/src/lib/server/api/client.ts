@@ -96,13 +96,18 @@ function translateFieldMessage(m: string): string {
 
 function translateMessage(status: number, raw: string): string {
 	if (status === 401) return t('err.invalidCredentials');
+	if (status === 423) return t('err.roomArchived');
 	if (status === 409) {
 		const m = raw.toLowerCase();
 		if (m.includes('email')) return t('err.emailTaken');
 		if (m.includes('username')) return t('err.usernameTaken');
+		if (m.includes('transition')) return t('err.roomTransition');
+		return t('err.conflict');
 	}
 	if (status === 403) {
-		if (raw.toLowerCase().includes('no access')) return t('err.forbiddenContent');
+		const m = raw.toLowerCase();
+		if (m.includes('no access')) return t('err.forbiddenContent');
+		if (m.includes('not open')) return t('err.roomNotOpen');
 		return t('err.forbidden');
 	}
 	if (status >= 500 || status === 0) return t('err.generic');

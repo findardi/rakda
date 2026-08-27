@@ -8,6 +8,7 @@ import (
 	"net/netip"
 	"testing"
 
+	"github.com/findardi/rakda/server/internal/platform/permission"
 	"github.com/findardi/rakda/server/internal/platform/token"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -242,4 +243,108 @@ func TestResolveClientIPIPv6LoopbackPeer(t *testing.T) {
 	req.RemoteAddr = "[::1]:5555"
 	req.Header.Set("X-Forwarded-For", "203.0.113.5")
 	assert.Equal(t, "203.0.113.5", resolveClientIP(req, loopback))
+}
+
+func reqWithMembership(method string, ms *Membership) *http.Request {
+	req := httptest.NewRequest(method, "/", nil)
+	if ms == nil {
+		return req
+	}
+	return req.WithContext(context.WithValue(req.Context(), membershipKey, ms))
+}
+
+func TestRequireRoomOpenForGuests(t *testing.T) {
+	m := New(nil, nil, nil)
+
+	cases := []struct {
+		name       string
+		role       string
+		roomStatus string
+		wantCode   int
+		wantCalled bool
+	}{
+		{"guest blocked in prepare", permission.RoleGuest, permission.RoomPrepare, http.StatusForbidden, false},
+		{"guest allowed in active", permission.RoleGuest, permission.RoomActive, http.StatusOK, true},
+		{"guest allowed in archive", permission.RoleGuest, permission.RoomArchive, http.StatusOK, true},
+		{"owner allowed in prepare", permission.RoleOwner, permission.RoomPrepare, http.StatusOK, true},
+		{"admin allowed in prepare", permission.RoleAdmin, permission.RoomPrepare, http.StatusOK, true},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			called := false
+			req := reqWithMembership(http.MethodGet, &Membership{Role: c.role, WorkspaceStatus: c.roomStatus})
+
+			rec := httptest.NewRecorder()
+			m.RequireRoomOpenForGuests(spyHandler(&called)).ServeHTTP(rec, req)
+
+			assert.Equal(t, c.wantCode, rec.Code)
+			assert.Equal(t, c.wantCalled, called)
+		})
+	}
+
+	t.Run("fails closed when membership missing in context", func(t *testing.T) {
+		called := false
+		rec := httptest.NewRecorder()
+		m.RequireRoomOpenForGuests(spyHandler(&called)).ServeHTTP(rec, reqWithMembership(http.MethodGet, nil))
+
+		assert.Equal(t, http.StatusInternalServerError, rec.Code)
+		assert.False(t, called)
+	})
+}
+
+func TestRequireRoomWritable(t *testing.T) {
+	m := New(nil, nil, nil)
+
+	writeMethods := []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete}
+
+	t.Run("archive freezes every write method", func(t *testing.T) {
+		for _, method := range writeMethods {
+			called := false
+			req := reqWithMembership(method, &Membership{Role: permission.RoleOwner, WorkspaceStatus: permission.RoomArchive})
+
+			rec := httptest.NewRecorder()
+			m.RequireRoomWritable(spyHandler(&called)).ServeHTTP(rec, req)
+
+			assert.Equal(t, http.StatusLocked, rec.Code, method)
+			assert.False(t, called, method)
+		}
+	})
+
+	t.Run("archive stays readable", func(t *testing.T) {
+		for _, method := range []string{http.MethodGet, http.MethodHead} {
+			called := false
+			req := reqWithMembership(method, &Membership{Role: permission.RoleGuest, WorkspaceStatus: permission.RoomArchive})
+
+			rec := httptest.NewRecorder()
+			m.RequireRoomWritable(spyHandler(&called)).ServeHTTP(rec, req)
+
+			assert.Equal(t, http.StatusOK, rec.Code, method)
+			assert.True(t, called, method)
+		}
+	})
+
+	t.Run("non-archive rooms are untouched", func(t *testing.T) {
+		for _, status := range []string{permission.RoomPrepare, permission.RoomActive} {
+			for _, method := range writeMethods {
+				called := false
+				req := reqWithMembership(method, &Membership{Role: permission.RoleOwner, WorkspaceStatus: status})
+
+				rec := httptest.NewRecorder()
+				m.RequireRoomWritable(spyHandler(&called)).ServeHTTP(rec, req)
+
+				assert.Equal(t, http.StatusOK, rec.Code, status+" "+method)
+				assert.True(t, called, status+" "+method)
+			}
+		}
+	})
+
+	t.Run("fails closed when membership missing in context", func(t *testing.T) {
+		called := false
+		rec := httptest.NewRecorder()
+		m.RequireRoomWritable(spyHandler(&called)).ServeHTTP(rec, reqWithMembership(http.MethodPost, nil))
+
+		assert.Equal(t, http.StatusInternalServerError, rec.Code)
+		assert.False(t, called)
+	})
 }

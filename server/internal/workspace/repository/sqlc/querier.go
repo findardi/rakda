@@ -20,7 +20,7 @@ type Querier interface {
 	GetWorkspaces(ctx context.Context, userID pgtype.UUID) ([]Workspace, error)
 	GetWorkspacesByOwner(ctx context.Context, ownerID pgtype.UUID) ([]Workspace, error)
 	UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (Workspace, error)
-	UpdateWorkspaceStatus(ctx context.Context, arg UpdateWorkspaceStatusParams) error
+	UpdateWorkspaceStatus(ctx context.Context, arg UpdateWorkspaceStatusParams) (Workspace, error)
 }
 
 var _ Querier = (*Queries)(nil)

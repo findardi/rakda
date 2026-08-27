@@ -26,11 +26,12 @@ where w.id = sqlc.arg(workspace_id)
   and m.user_id = sqlc.arg(user_id)
   and m.status = 'active';
 
--- name: UpdateWorkspaceStatus :exec
+-- name: UpdateWorkspaceStatus :one
 update workspaces set 
-    status = $2,
+    status = sqlc.arg(status),
     updated_at = now()
-where id = $1;
+where id = sqlc.arg(id) and status = sqlc.arg(from_status)
+returning *;
 
 -- name: UpdateWorkspace :one
 update workspaces set
