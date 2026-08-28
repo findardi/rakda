@@ -1,0 +1,180 @@
+name: rakda-full
+
+networks:
+  rakda:
+    ipam:
+      config:
+        # 14-b: nilai TRUSTED_PROXY_CIDRS = subnet ini
+        - subnet: 172.28.0.0/24
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: rakda
+      POSTGRES_PASSWORD: rakda
+      POSTGRES_DB: rakda
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U rakda -d rakda']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    mem_limit: 512m
+    restart: unless-stopped
+    networks:
+      - rakda
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: miniouser
+      MINIO_ROOT_PASSWORD: miniopassword
+    ports:
+      # presigned PUT dari browser mendarat di sini
+      - '127.0.0.1:9000:9000'
+      - '127.0.0.1:9001:9001'
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    mem_limit: 512m
+    restart: unless-stopped
+    networks:
+      rakda:
+        # satu host string untuk dua audiens: container resolve via DNS compose,
+        # browser resolve *.localhost ke loopback (RFC 6761, Chrome/Firefox).
+        # Safari/resolver OS lain: tambah "127.0.0.1 minio.localhost" di /etc/hosts.
+        aliases:
+          - minio.localhost
+
+  gotenberg:
+    image: gotenberg/gotenberg:8.36
+    command: ['gotenberg', '--api-timeout=150s']
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://localhost:3000/health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    mem_limit: 1g
+    restart: unless-stopped
+    networks:
+      - rakda
+
+  api:
+    build:
+      context: ../server
+      dockerfile: ../docker/server.Dockerfile
+      target: runtime
+    environment:
+      ADDR: ':8080'
+      DB_HOST: postgres
+      DB_PORT: '5432'
+      DB_USER: rakda
+      DB_PASSWORD: rakda
+      DB_NAME: rakda
+      DB_SSLMODE: disable
+      MINIO_ENDPOINT: minio.localhost:9000
+      MINIO_ACCESS_KEY: miniouser
+      MINIO_SECRET_KEY: miniopassword
+      MINIO_BUCKET: rakda-file
+      MINIO_SSL_MODE: 'false'
+      GOTENBERG_URL: http://gotenberg:3000
+      WEB_URL: http://localhost:5173
+      # hanya traefik (.10) dan web (.11), bukan seluruh subnet — IP gateway
+      # (klien ter-NAT dari host) sengaja TIDAK tepercaya supaya jadi hasil resolve
+      TRUSTED_PROXY_CIDRS: 172.28.0.10/32,172.28.0.11/32
+    env_file:
+      - .env.full
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      gotenberg:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:8080/check']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    mem_limit: 1g
+    restart: unless-stopped
+    networks:
+      - rakda
+
+  web:
+    build:
+      context: ../web
+      dockerfile: ../docker/web.Dockerfile
+    environment:
+      AUTH_API_URL: http://api:8080
+      ORIGIN: http://localhost:5173
+      PORT: '3000'
+      BODY_SIZE_LIMIT: 10M
+      # Traefik meng-append tepat satu hop XFF; XFF_DEPTH=1 mengambil hop itu,
+      # spoof dari klien tergeser ke kiri dan diabaikan
+      ADDRESS_HEADER: x-forwarded-for
+      XFF_DEPTH: '1'
+    depends_on:
+      api:
+        condition: service_healthy
+    mem_limit: 256m
+    restart: unless-stopped
+    networks:
+      rakda:
+        ipv4_address: 172.28.0.11
+
+  traefik:
+    image: traefik:v3.7
+    command:
+      - --entrypoints.web.address=:5173
+      - --providers.file.filename=/etc/traefik/dynamic.yml
+      - --accesslog=true
+      - --ping=true
+    ports:
+      # 5173 dipertahankan: registrasi OAuth & WEB_URL sudah menunjuk ke sana.
+      # Jangan jalan bersamaan dengan compose dev harian (bentrok 9000).
+      - '127.0.0.1:5173:5173'
+    volumes:
+      - ./traefik/dynamic-dev.yml:/etc/traefik/dynamic.yml:ro
+    depends_on:
+      web:
+        condition: service_started
+    healthcheck:
+      test: ['CMD', 'traefik', 'healthcheck', '--ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    mem_limit: 128m
+    restart: unless-stopped
+    networks:
+      rakda:
+        ipv4_address: 172.28.0.10
+
+  migrate:
+    build:
+      context: ../server
+      dockerfile: ../docker/server.Dockerfile
+      target: migrate
+    profiles:
+      - tools
+    environment:
+      GOOSE_DRIVER: postgres
+      GOOSE_DBSTRING: postgres://rakda:rakda@postgres:5432/rakda?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - rakda
+
+volumes:
+  pgdata:
+  miniodata:

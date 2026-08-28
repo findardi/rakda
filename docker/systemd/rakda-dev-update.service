@@ -1,0 +1,11 @@
+[Unit]
+Description=Rakda dev: tarik image :dev dan rekonsiliasi stack server dev
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+# GANTI: lokasi folder docker/ di server dev
+WorkingDirectory=/opt/rakda/docker
+ExecStart=/usr/bin/podman compose -f compose.dev-server.yaml pull --quiet api web
+ExecStart=/usr/bin/podman compose -f compose.dev-server.yaml up -d

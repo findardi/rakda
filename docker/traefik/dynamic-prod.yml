@@ -1,0 +1,16 @@
+http:
+  routers:
+    web:
+      # GANTI example.com dengan domain produksi — samakan dengan ORIGIN
+      # (.env.prod.web) dan WEB_URL (.env.prod.api)
+      rule: Host(`app.example.com`)
+      entryPoints:
+        - websecure
+      service: web
+      tls:
+        certResolver: le
+  services:
+    web:
+      loadBalancer:
+        servers:
+          - url: http://web:3000

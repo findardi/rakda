@@ -70,7 +70,7 @@ export function downloadDocument(
 ): Promise<Response> {
 	return fetch(
 		`${API_URL}${documentsBase(workspaceId)}/${documentId}/download${versionQuery(versionId)}`,
-		{ headers: { authorization: `Bearer ${token}` } }
+		{ headers: upstreamHeaders(token) }
 	);
 }
 
@@ -105,7 +105,7 @@ export function fetchViewPage(
 ): Promise<Response> {
 	return fetch(
 		`${API_URL}${documentsBase(workspaceId)}/${documentId}/pages/${page}${versionQuery(versionId)}`,
-		{ headers: { authorization: `Bearer ${token}` } }
+		{ headers: upstreamHeaders(token) }
 	);
 }
 

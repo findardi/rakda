@@ -1,0 +1,4 @@
+configs/.env
+*.log
+.dockerignore
+Dockerfile
