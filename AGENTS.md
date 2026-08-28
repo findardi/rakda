@@ -62,6 +62,17 @@ go test ./...                  # Run all tests
 - `configs/.env` is `include`d by the Makefile as if sourcing shell vars.
 - Requires running PostgreSQL + Minio instance.
 - Gotenberg service for document conversion at runtime.
+- All three infra services are provided by `docker compose up -d` at the repo root.
+
+### Docker stacks (everything in `docker/`; run from repo root)
+```sh
+docker compose -f docker/compose.yaml up -d        # Daily dev: infra only (Postgres 16, Minio, Gotenberg); API/web run on the host
+docker compose -f docker/compose.full.yaml build   # Full-docker dev, prod-shaped images
+docker compose -f docker/compose.full.yaml run --rm migrate up
+docker compose -f docker/compose.full.yaml up -d   # Browser at http://localhost:5173 via Traefik (don't run alongside the daily stack)
+docker compose -f docker/compose.prod.yaml config  # Validate prod skeleton
+```
+Dockerfiles are `docker/server.Dockerfile` and `docker/web.Dockerfile` (contexts stay `server/` and `web/` — the two `.dockerignore` files must remain at those context roots to work). Secrets for the full/prod stacks live in gitignored env files inside `docker/`, copied from the committed samples (`.env.full.sample`, `.env.prod.api.sample`, `.env.prod.web.sample`). Postgres is pinned to major **16** to match the managed database. In prod only api/web/gotenberg are containers: Postgres is the provider's managed database and Minio is replaced by S3-compatible object storage — both external, configured purely via env. `MINIO_ENDPOINT` is baked into browser-facing presigned upload URLs; the full-docker stack solves the two-audience problem with the `minio.localhost` network alias (never point it at a container-only hostname).
 
 ### Architecture
 - Modules: `auth`, `workspace`, `access`, `invitation`, `content`, `activity`, `qa` under `internal/`.
@@ -96,7 +107,7 @@ go test ./...                  # Run all tests
 - Full details in `web/PRODUCT.md` and `web/DESIGN.md`.
 
 ## CI
-- `.github/workflows/` is currently empty — no CI pipeline yet.
+- `.github/workflows/deploy.yml` (push to `main`): test → build+push GHCR images tagged `sha-<commit>` → goose migrate to managed PG (secret `PROD_GOOSE_DBSTRING`) → promote `:main`. `:main` never moves before migrations succeed. `rollback.yml` (manual) retags `:main` to an older `sha-<commit>`; goose is never auto-rolled-back — migrations must stay additive. The prod host runs **rootful Podman** (rootless discards real client IPs via rootlessport — breaks the XFF chain); updater = systemd timer in `docker/systemd/` running `podman compose pull` + `up -d` every 5 min (Watchtower dropped, Docker-API-only). GHCR is private: one-time `podman login ghcr.io` with a `read:packages` PAT; enable `podman-restart.service` for reboot persistence. `deploy-dev.yml` (push to `dev`) mirrors the pipeline on the dev channel: migrates `rakda_dev` (secret `DEV_GOOSE_DBSTRING`, same managed instance) and promotes `:dev` for the separate dev VPS (`docker/compose.dev-server.yaml`, pull-only, timer `rakda-dev-update`); dev rolls forward — `rollback.yml` targets `:main` only. CI does not run eslint (U-38); lint stays manual.
 
 ## Workflow
 

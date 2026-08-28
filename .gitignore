@@ -1,3 +1,8 @@
 *.log
 graphify-out/
 brainstorm-folder/
+docker/.env.full
+docker/.env.prod.api
+docker/.env.prod.web
+docker/.env.dev.api
+docker/.env.dev.web

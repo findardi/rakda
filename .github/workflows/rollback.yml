@@ -1,0 +1,33 @@
+name: rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: 'SHA commit penuh rilis tujuan (image bertag sha-<sha>)'
+        required: true
+
+env:
+  IMAGE_API: ghcr.io/findardi/rakda-api
+  IMAGE_WEB: ghcr.io/findardi/rakda-web
+  IMAGE_MIGRATE: ghcr.io/findardi/rakda-migrate
+
+# Me-retag :main ke rilis lama; timer auto-update di server menariknya pada
+# run berikutnya (≤5 menit). Skema goose TIDAK di-rollback otomatis — migrasi
+# wajib additive; menurunkan skema adalah keputusan manual
+# (compose run --rm migrate down).
+jobs:
+  retag:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - run: |
+          docker buildx imagetools create -t ${{ env.IMAGE_API }}:main ${{ env.IMAGE_API }}:sha-${{ inputs.sha }}
+          docker buildx imagetools create -t ${{ env.IMAGE_WEB }}:main ${{ env.IMAGE_WEB }}:sha-${{ inputs.sha }}
+          docker buildx imagetools create -t ${{ env.IMAGE_MIGRATE }}:main ${{ env.IMAGE_MIGRATE }}:sha-${{ inputs.sha }}

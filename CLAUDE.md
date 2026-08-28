@@ -56,7 +56,19 @@ make migrate-status
 make sqlc                                # Regenerate sqlc code — REQUIRED after editing any repository/query/*.sql
 ```
 
-Prerequisites: `configs/.env` (gitignored, `include`d by the Makefile as shell vars), running PostgreSQL + Minio, and a Gotenberg service for document conversion.
+Prerequisites: `configs/.env` (gitignored, `include`d by the Makefile as shell vars), running PostgreSQL + Minio, and a Gotenberg service for document conversion — all three provided by `docker compose up -d` (below).
+
+### Docker (everything lives in `docker/`; run from repo root)
+
+```sh
+docker compose -f docker/compose.yaml up -d        # Daily dev: infra only (Postgres 16, Minio, Gotenberg); API/web run on the host
+docker compose -f docker/compose.full.yaml build   # Full-docker dev, prod-shaped images
+docker compose -f docker/compose.full.yaml run --rm migrate up
+docker compose -f docker/compose.full.yaml up -d   # Browser at http://localhost:5173 via Traefik (don't run alongside the daily stack)
+docker compose -f docker/compose.prod.yaml config  # Validate prod skeleton
+```
+
+Dockerfiles are `docker/server.Dockerfile` and `docker/web.Dockerfile` (contexts stay `server/` and `web/` — the two `.dockerignore` files must remain at those context roots to work). Secrets for the full/prod stacks live in gitignored env files inside `docker/`, copied from the committed samples (`.env.full.sample`, `.env.prod.api.sample`, `.env.prod.web.sample`). Postgres is pinned to major **16** to match the managed database. In prod only api/web/gotenberg are containers: Postgres is the provider's managed database and Minio is replaced by S3-compatible object storage — both external, configured purely via env. `MINIO_ENDPOINT` is baked into browser-facing presigned upload URLs; the full-docker stack solves the two-audience problem with the `minio.localhost` network alias (never point it at a container-only hostname).
 
 ## Server architecture
 
@@ -69,7 +81,7 @@ Prerequisites: `configs/.env` (gitignored, `include`d by the Makefile as shell v
 - **Cross-domain transactions**: repositories expose `ExecTx`/`ExecTxTx` so one pgx transaction can span domains (e.g. invitation acceptance feeds an `InvitationConsumer` implemented in `access`).
 - **Audit & activity** (`activity` domain): every meaningful action writes one row to `activity_logs` — same-tx via `RecordTx(tx)` when the action already runs in `ExecTxTx`, best-effort `Record` otherwise; consumers declare an `ActivityRecorder` port in their `ports.go`. Page views (`view_page`, server-emitted) and read durations (`page_duration`, browser-beacon) go to `content_events` — append-only, `document_id` deliberately has no FK, names/actors are snapshotted at write time. **Room managers produce no `content_events` at all**: owner/admin are filtered on the *write* side (`content_view_service.go` skips `RecordPageEvent`, `RecordPageDurations` no-ops, the client builds no dwell tracker), so a guest later promoted to admin keeps their reading history — `activity_logs` still records `document_viewed` for every role. Timeline and engagement endpoints are owner/admin only (guests are recorded, never readers). Engagement is **per reader, two levels** — L1 reader list, L2 that reader's pages; there is no cross-reader page heatmap.
 - **Search pipeline**: `pdftotext` fills `document_page_texts` (one row per page keyed to `version_id`, with `tsv_id`/`tsv_en` generated columns for the `indonesian` and `english` configs) via a quota'd background sweeper following the `RunReaper` shape. Pages with no text layer are OCR'd by Tesseract in a second sweeper quota'd **per page, not per version** — a 750-page scan is ~40 min of CPU, so it must be resumable mid-document; it also stores word boxes normalised to 0..1. Name search uses `pg_trgm` + `ILIKE`; content search is permission-filtered **inside the query** by reusing the `granted` CTE from `ListVisibleFolders`, which makes snippet and result-count leaks impossible by construction. Searches are audited with their keywords (`search_performed`, `target_name` = query) and written on commit via `POST /search/log` — never from the `GET`, which must stay side-effect free.
-- **Migrations**: goose, sequential numbering (`-s`), in `server/migrations/`.
+- **Migrations**: goose, sequential numbering (`-s`), in `server/migrations/`. **Migrations must stay additive (expand-contract)**: the deploy pipeline moves the schema before Watchtower swaps images (old code briefly runs on the new schema), and rollback retags images without ever running `goose down` — a destructive migration breaks both directions.
 
 ## Web architecture
 
@@ -115,7 +127,13 @@ Prerequisites: `configs/.env` (gitignored, `include`d by the Makefile as shell v
 
 ## CI
 
-`.github/workflows/` is empty — no CI pipeline yet. Lint/check/test must be run manually before committing.
+Two workflows in `.github/workflows/`:
+
+- **`deploy.yml`** (push to `main`): test (`go test`, `bun run check`) → build+push all three images to GHCR tagged `sha-<commit>` only → run goose migrations against the managed prod DB (secret `PROD_GOOSE_DBSTRING`; the provider must allow GitHub-runner connections) → **promote**: retag `sha-<commit>` as `:main`. The `:main` tag never moves before migrations succeed, so the server-side updater never pulls an image whose schema isn't ready.
+- **`rollback.yml`** (manual, workflow_dispatch with a commit SHA): retags `:main` back to that release's `sha-<commit>`; the updater picks it up on its next run. Goose is never rolled back automatically — migrations must stay additive.
+- **`deploy-dev.yml`** (push to `dev`): the same pipeline on the dev channel — migrates the **`rakda_dev`** database (secret `DEV_GOOSE_DBSTRING`; same managed instance, separate database and S3 bucket) and promotes **`:dev`**, pulled by a separate dev VPS (`docker/compose.dev-server.yaml`, subnet 172.30.0.0/24, pull-only — no `build:`, timer `rakda-dev-update`). Dev rolls forward (push again); `rollback.yml` targets `:main` only.
+
+The prod host runs **rootful Podman, not Docker**. Rootful is mandatory: rootless bridge networking (rootlessport) discards real client source IPs, which would silently collapse the XFF chain (watermark + rate-limit IPs). The updater is a **systemd timer** (`docker/systemd/rakda-update.{service,timer}`) running `podman compose pull` + `up -d` every 5 minutes — Watchtower was dropped as a Docker-API-only tool. GHCR images are private: one-time `podman login ghcr.io` with a `read:packages` PAT. Enable `podman-restart.service` so containers come back after reboot. CI does not run eslint (U-38); lint stays manual.
 
 ## Workflow
 
