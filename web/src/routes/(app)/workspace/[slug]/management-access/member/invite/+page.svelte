@@ -309,7 +309,7 @@
 
 <!-- Revoke confirm -->
 <dialog bind:this={revokeDialog} class="modal" aria-labelledby="invite-revoke-title">
-	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+	<div class="modal-box max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
 		<h2 id="invite-revoke-title" class="text-lg font-semibold tracking-[-0.01em]">
 			{t('pending.revoke.title')}
 		</h2>
@@ -327,7 +327,7 @@
 			method="POST"
 			action="?/revoke"
 			use:enhance={submitRevoke}
-			class="mt-5 flex justify-end gap-2"
+			class="mt-5 flex flex-wrap justify-end gap-2"
 		>
 			<input type="hidden" name="invitationId" value={revokeTarget?.id ?? ''} />
 			<Button type="button" variant="ghost" onclick={() => revokeDialog?.close()}>

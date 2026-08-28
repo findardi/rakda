@@ -207,7 +207,7 @@
 	aria-labelledby="ws-create-title"
 	aria-describedby="ws-create-subtitle"
 >
-	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+	<div class="modal-box max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
 		<h2 id="ws-create-title" class="text-lg font-semibold tracking-[-0.01em]">
 			{t('ws.dialog.title')}
 		</h2>
@@ -264,7 +264,7 @@
 				error={fieldErrors.description}
 			/>
 
-			<div class="mt-2 flex justify-end gap-2">
+			<div class="mt-2 flex flex-wrap justify-end gap-2">
 				<Button type="button" variant="ghost" onclick={() => dialog?.close()}>
 					{t('ws.dialog.cancel')}
 				</Button>

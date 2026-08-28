@@ -11,11 +11,11 @@
 		style="width: {size}px; height: {size}px"
 		class="flex-none"
 	>
-		<rect x="3" y="3" width="18" height="18" rx="5" stroke="currentColor" stroke-width="1.6" />
+		<rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" stroke-width="1.4" />
 		<path
-			d="M8 9.5h8M8 13h8M8 16.5h5"
+			d="M6 6.75h12M6 10.1h8.2M6 13.45h8.2M6 16.8h8.2"
 			stroke="currentColor"
-			stroke-width="1.6"
+			stroke-width="1.4"
 			stroke-linecap="round"
 		/>
 	</svg>

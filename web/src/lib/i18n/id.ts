@@ -584,6 +584,10 @@ export const id = {
 	'doc.view.failed.retryErr': 'Gagal memulai penyiapan ulang. Coba lagi.',
 	'doc.view.failed.noPerm': 'Minta pengelola ruangan menyiapkannya ulang.',
 	'doc.view.emptyPages': 'Dokumen ini tidak punya halaman untuk ditampilkan.',
+	'doc.view.small.title': 'Layar terlalu kecil untuk membaca dokumen',
+	'doc.view.small.body':
+		'Viewer dokumen membutuhkan area baca setidaknya seukuran tablet. Buka dari perangkat berlayar lebih lebar, atau perbesar jendela peramban.',
+	'doc.view.small.back': 'Kembali ke daftar dokumen',
 	'doc.view.curtain.title': 'Isi dokumen disembunyikan',
 	'doc.view.curtain.hint': 'Kembali ke jendela ini untuk melanjutkan membaca.',
 	'doc.view.print.title': 'Isi dokumen tidak dicetak',

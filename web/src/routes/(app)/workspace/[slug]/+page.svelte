@@ -640,7 +640,7 @@
 
 <!-- Edit dialog -->
 <dialog bind:this={editDialog} class="modal" aria-labelledby="edit-title">
-	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+	<div class="modal-box max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
 		<h2 id="edit-title" class="text-lg font-semibold tracking-[-0.01em]">{t('ws.edit.title')}</h2>
 
 		{#if editMessage}
@@ -670,7 +670,7 @@
 				maxlength={500}
 				error={editFieldErrors.description}
 			/>
-			<div class="mt-2 flex justify-end gap-2">
+			<div class="mt-2 flex flex-wrap justify-end gap-2">
 				<Button type="button" variant="ghost" onclick={() => editDialog?.close()}>
 					{t('ws.dialog.cancel')}
 				</Button>
@@ -687,7 +687,7 @@
 
 <!-- Delete dialog -->
 <dialog bind:this={deleteDialog} class="modal" aria-labelledby="delete-title">
-	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+	<div class="modal-box max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
 		<h2 id="delete-title" class="text-lg font-semibold tracking-[-0.01em]">
 			{t('ws.delete.title')}
 		</h2>
@@ -711,7 +711,7 @@
 				placeholder={ws.name}
 				autocomplete="off"
 			/>
-			<div class="mt-2 flex justify-end gap-2">
+			<div class="mt-2 flex flex-wrap justify-end gap-2">
 				<Button type="button" variant="ghost" onclick={() => deleteDialog?.close()}>
 					{t('ws.dialog.cancel')}
 				</Button>
@@ -729,7 +729,7 @@
 <!-- Archive confirmation — counted button, not type-to-confirm: archiving is
      reversible and must not read like deletion. -->
 <dialog bind:this={archiveDialog} class="modal" aria-labelledby="archive-title">
-	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+	<div class="modal-box max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
 		<h2 id="archive-title" class="text-lg font-semibold tracking-[-0.01em]">
 			{t('room.archive.title')}
 		</h2>
@@ -747,13 +747,13 @@
 			method="POST"
 			action="?/updateStatus"
 			use:enhance={submitStatus}
-			class="mt-5 flex justify-end gap-2"
+			class="mt-5 flex flex-wrap justify-end gap-2"
 		>
 			<input type="hidden" name="status" value="archive" />
 			<Button type="button" variant="ghost" onclick={() => archiveDialog?.close()}>
 				{t('ws.dialog.cancel')}
 			</Button>
-			<Button type="submit" loading={pendingStatus === 'archive'}>
+			<Button type="submit" wrap loading={pendingStatus === 'archive'}>
 				{guestCount > 0
 					? t('room.archive.submitCount', { n: guestCount })
 					: t('room.archive.submit')}
@@ -766,7 +766,7 @@
 </dialog>
 
 <dialog bind:this={activateDialog} class="modal" aria-labelledby="activate-title">
-	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+	<div class="modal-box max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
 		<h2 id="activate-title" class="text-lg font-semibold tracking-[-0.01em]">
 			{t('room.activate.title')}
 		</h2>
@@ -781,13 +781,13 @@
 			method="POST"
 			action="?/updateStatus"
 			use:enhance={submitStatus}
-			class="mt-5 flex justify-end gap-2"
+			class="mt-5 flex flex-wrap justify-end gap-2"
 		>
 			<input type="hidden" name="status" value="active" />
 			<Button type="button" variant="ghost" onclick={() => activateDialog?.close()}>
 				{t('ws.dialog.cancel')}
 			</Button>
-			<Button type="submit" loading={pendingStatus === 'active'}>
+			<Button type="submit" wrap loading={pendingStatus === 'active'}>
 				{guestCount > 0
 					? t('room.activate.submitCount', { n: guestCount })
 					: t('room.activate.submit')}
@@ -800,7 +800,7 @@
 </dialog>
 
 <dialog bind:this={archiveDeleteDialog} class="modal" aria-labelledby="archive-delete-title">
-	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+	<div class="modal-box max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
 		<h2 id="archive-delete-title" class="text-lg font-semibold tracking-[-0.01em]">
 			{t('archive.delete.title')}
 		</h2>
@@ -818,7 +818,7 @@
 			method="POST"
 			action="?/deleteArchive"
 			use:enhance={submitArchiveDelete}
-			class="mt-5 flex justify-end gap-2"
+			class="mt-5 flex flex-wrap justify-end gap-2"
 		>
 			<input type="hidden" name="archive_id" value={archiveDeleteTarget?.id ?? ''} />
 			<Button type="button" variant="ghost" onclick={() => archiveDeleteDialog?.close()}>

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { tick } from 'svelte';
 	import { prefersReducedMotion } from 'svelte/motion';
+	import { MediaQuery } from 'svelte/reactivity';
 	import { fade } from 'svelte/transition';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -50,6 +51,13 @@
 	const backHref = $derived(
 		resolve('/(app)/workspace/[slug]/document/[folderId]', { slug, folderId })
 	);
+
+	// Below tablet size the viewer is not served at all: raster pages, the
+	// protection layers, and honest dwell figures all assume a reading-sized
+	// viewport. SSR assumes it fits so desktop never flashes the gate; page
+	// images only ever load client-side, so a gated phone fetches nothing.
+	const fitsViewer = new MediaQuery('(min-width: 768px) and (min-height: 480px)', true);
+	const tooSmall = $derived(!fitsViewer.current);
 
 	// Entry point 11-d: lands on the Q&A page with the ask dialog prefilled.
 	// The name in the query is display-only — the server re-resolves the id.
@@ -159,7 +167,7 @@
 	}
 
 	$effect(() => {
-		if (pageJumped || !meta?.version_id || pageCount === 0) return;
+		if (pageJumped || !meta?.version_id || pageCount === 0 || tooSmall) return;
 		const p = Number(page.url.searchParams.get('page'));
 		if (!Number.isInteger(p) || p < 1) return;
 		pageJumped = true;
@@ -175,7 +183,7 @@
 
 	$effect(() => {
 		const versionId = meta?.version_id;
-		if (!versionId || pageCount === 0 || managesRoom) return;
+		if (!versionId || pageCount === 0 || managesRoom || tooSmall) return;
 
 		const tracker = createDwellTracker({ workspaceId: workspace.id, documentId, versionId });
 		dwell = tracker;
@@ -307,6 +315,7 @@
 		// Ctrl+F / ⌘F belongs to the document, not the browser: the viewer
 		// serves pixels, so the native find has nothing to search.
 		if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
+			if (tooSmall) return;
 			e.preventDefault();
 			openFind();
 			return;
@@ -487,8 +496,9 @@
 	}
 
 	// Deep link ?page=N&q=… (from 9-d results): run the find once meta is here.
+	// Gated viewports wait: the audited find fires only once results can show.
 	$effect(() => {
-		if (!meta?.version_id) return;
+		if (!meta?.version_id || tooSmall) return;
 		const q = page.url.searchParams.get('q') ?? '';
 		if (!q) return;
 		findOpen = true;
@@ -618,7 +628,7 @@
 
 		<!-- Only owners and admins ever receive a version list, so this is their
 		     control alone; everyone else reads the current version, unlabelled. -->
-		{#if meta && versions.length > 1}
+		{#if meta && versions.length > 1 && !tooSmall}
 			<label class="flex-none">
 				<span class="sr-only">{t('doc.view.ver.label')}</span>
 				<select
@@ -640,7 +650,7 @@
 			</label>
 		{/if}
 
-		{#if meta && pageCount > 0}
+		{#if meta && pageCount > 0 && !tooSmall}
 			<!-- Page stepper -->
 			<div class="flex flex-none items-center gap-0.5">
 				<button
@@ -895,7 +905,7 @@
 	</header>
 
 	<!-- In-document find bar (Ctrl+F / ⌘F). -->
-	{#if findOpen}
+	{#if findOpen && !tooSmall}
 		<div
 			class="flex flex-none items-center gap-2 border-b border-base-content/10 bg-base-100 px-3 py-2 sm:px-4"
 		>
@@ -1013,7 +1023,7 @@
 
 	<!-- Reading an old version is a legitimate act, not an error — say which one
 	     is on screen and keep the way back one click away. -->
-	{#if meta && stale}
+	{#if meta && stale && !tooSmall}
 		<div
 			class="flex flex-none flex-wrap items-center gap-x-3 gap-y-1 border-b border-warning/35 bg-warning/15 px-3 py-1.5 sm:px-4"
 		>
@@ -1132,6 +1142,32 @@
 						{t('doc.view.failed.retry')}
 					</button>
 				{/if}
+			</div>
+		</div>
+	{:else if meta && pageCount > 0 && tooSmall}
+		<!-- Below tablet size the reader never mounts: no page is fetched, so a
+		     phone visit records no page views it could not deliver. -->
+		<div class="flex flex-1 items-center justify-center overflow-y-auto px-6 py-16">
+			<div class="flex max-w-sm flex-col items-center gap-4 text-center">
+				<svg
+					class="h-9 w-9 text-muted/70"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="1.4"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					aria-hidden="true"
+				>
+					<rect x="3" y="7" width="14" height="13" rx="2" />
+					<path d="M14 4h6v6" />
+					<path d="M20 4l-6.5 6.5" />
+				</svg>
+				<div>
+					<p class="text-[0.9375rem] font-medium">{t('doc.view.small.title')}</p>
+					<p class="mt-1 text-sm text-muted text-pretty">{t('doc.view.small.body')}</p>
+				</div>
+				<a href={backHref} class="btn btn-primary btn-sm">{t('doc.view.small.back')}</a>
 			</div>
 		</div>
 	{:else if meta && pageCount > 0}

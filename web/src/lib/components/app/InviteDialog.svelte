@@ -174,7 +174,7 @@
 	class="modal"
 	aria-labelledby="invite-dialog-title"
 >
-	<div class="modal-box w-full max-w-lg rounded-box border border-base-content/10 bg-base-100 p-6">
+	<div class="modal-box max-w-lg rounded-box border border-base-content/10 bg-base-100 p-6">
 		<h2 id="invite-dialog-title" class="text-lg font-semibold tracking-[-0.01em]">
 			{t('member.invite.title')}
 		</h2>
@@ -226,7 +226,7 @@
 				</div>
 			</div>
 
-			<div class="mt-5 flex items-center justify-between gap-2">
+			<div class="mt-5 flex flex-wrap items-center justify-between gap-2">
 				{#if pendingHref}
 					<a href={pendingHref} class="text-sm font-medium text-primary hover:underline">
 						{t('member.invite.viewPending')}
@@ -321,7 +321,7 @@
 					</select>
 				</div>
 
-				<div class="mt-6 flex justify-end gap-2">
+				<div class="mt-6 flex flex-wrap justify-end gap-2">
 					<Button type="button" variant="ghost" onclick={() => dialog?.close()}>
 						{t('member.invite.close')}
 					</Button>

@@ -238,9 +238,9 @@
 
 		<form method="POST" action="{actionBase}?/applyTemplate" use:enhance={submitApply}>
 			<input type="hidden" name="template" value={tpl.key} />
-			<div class="mt-4 flex justify-end gap-2">
+			<div class="mt-4 flex flex-wrap justify-end gap-2">
 				<Button type="button" variant="ghost" onclick={back}>{t('tpl.detail.back')}</Button>
-				<Button type="submit" loading={applySubmitting}>
+				<Button type="submit" wrap loading={applySubmitting}>
 					{applySubmitting ? t('tpl.applying') : t('tpl.applyCount', { n: newCount })}
 				</Button>
 			</div>

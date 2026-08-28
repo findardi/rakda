@@ -290,7 +290,7 @@
 	class="modal"
 	aria-labelledby="member-role-title"
 >
-	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+	<div class="modal-box max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
 		<h2 id="member-role-title" class="text-lg font-semibold tracking-[-0.01em]">
 			{t('member.roleConfirm.title')}
 		</h2>
@@ -312,7 +312,7 @@
 			method="POST"
 			action="?/updateRole"
 			use:enhance={submitRoleChange}
-			class="mt-5 flex justify-end gap-2"
+			class="mt-5 flex flex-wrap justify-end gap-2"
 		>
 			<input type="hidden" name="memberId" value={roleChange?.member.id ?? ''} />
 			<input type="hidden" name="roleId" value={roleChange?.toRoleId ?? ''} />
@@ -329,7 +329,7 @@
 
 <!-- Remove confirm -->
 <dialog bind:this={removeDialog} class="modal" aria-labelledby="member-remove-title">
-	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+	<div class="modal-box max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
 		<h2 id="member-remove-title" class="text-lg font-semibold tracking-[-0.01em]">
 			{t('member.remove.title')}
 		</h2>
@@ -347,7 +347,7 @@
 			method="POST"
 			action="?/delete"
 			use:enhance={submitRemove}
-			class="mt-5 flex justify-end gap-2"
+			class="mt-5 flex flex-wrap justify-end gap-2"
 		>
 			<input type="hidden" name="memberId" value={pending?.id ?? ''} />
 			<Button type="button" variant="ghost" onclick={() => removeDialog?.close()}>
