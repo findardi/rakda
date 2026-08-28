@@ -13,4 +13,5 @@ http:
     web:
       loadBalancer:
         servers:
-          - url: http://web:3000
+          # IP statis service web — network tanpa aardvark, nama tidak resolve
+          - url: http://172.30.0.11:3000
