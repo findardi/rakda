@@ -6,9 +6,13 @@ name: rakda-dev-server
 
 networks:
   rakda:
-    ipam:
-      config:
-        - subnet: 172.30.0.0/24
+    # aardvark-dns 1.4 (Ubuntu noble) terbukti tidak meneruskan query DNS
+    # eksternal — container DNS mati total. Network dibuat manual TANPA
+    # aardvark, sekali, sebelum up pertama:
+    #   sudo podman network create --subnet 172.30.0.0/24 --disable-dns rakda-dev-net
+    # Nama service tidak lagi di-resolve — alamat internal memakai IP statis.
+    external: true
+    name: rakda-dev-net
 
 services:
   gotenberg:
@@ -22,12 +26,18 @@ services:
     mem_limit: 1g
     restart: unless-stopped
     networks:
-      - rakda
+      rakda:
+        ipv4_address: 172.30.0.13
 
   api:
     image: ghcr.io/findardi/rakda-api:dev
     env_file:
       - .env.dev.api
+    # aardvark-dns 1.4 meneruskan query eksternal ke stub 127.0.0.53 host —
+    # upstream eksplisit; nama internal tetap dilayani aardvark lebih dulu
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     depends_on:
       gotenberg:
         condition: service_healthy
@@ -40,7 +50,8 @@ services:
     mem_limit: 1536m
     restart: unless-stopped
     networks:
-      - rakda
+      rakda:
+        ipv4_address: 172.30.0.12
 
   web:
     image: ghcr.io/findardi/rakda-web:dev
@@ -61,6 +72,10 @@ services:
 
   traefik:
     image: traefik:v3.7
+    # DNS eksternal untuk ACME (validasi Let's Encrypt)
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     ports:
       - '80:80'
       - '443:443'
@@ -89,6 +104,9 @@ services:
       - tools
     env_file:
       - .env.dev.api
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     networks:
       - rakda
 

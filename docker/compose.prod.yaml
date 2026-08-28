@@ -5,10 +5,14 @@ name: rakda
 
 networks:
   rakda:
-    ipam:
-      config:
-        # 14-b: nilai TRUSTED_PROXY_CIDRS = subnet ini
-        - subnet: 172.29.0.0/24
+    # aardvark-dns 1.4 (Ubuntu noble) tidak meneruskan query DNS eksternal —
+    # pola sama dengan server dev: network dibuat manual TANPA aardvark,
+    # sekali, sebelum up pertama:
+    #   sudo podman network create --subnet 172.29.0.0/24 --disable-dns rakda-net
+    # Nama service tidak di-resolve — alamat internal memakai IP statis.
+    # 14-b: nilai TRUSTED_PROXY_CIDRS = /32 traefik (.10) + web (.11).
+    external: true
+    name: rakda-net
 
 services:
   gotenberg:
@@ -22,7 +26,8 @@ services:
     mem_limit: 1g
     restart: unless-stopped
     networks:
-      - rakda
+      rakda:
+        ipv4_address: 172.29.0.13
 
   api:
     # CI push ke main menerbitkan tag ini; server pull, tidak build (14-e).
@@ -33,6 +38,11 @@ services:
       target: runtime
     env_file:
       - .env.prod.api
+    # aardvark-dns 1.4 meneruskan query eksternal ke stub 127.0.0.53 host —
+    # upstream eksplisit; nama internal tetap dilayani aardvark lebih dulu
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     depends_on:
       gotenberg:
         condition: service_healthy
@@ -45,7 +55,8 @@ services:
     mem_limit: 1536m
     restart: unless-stopped
     networks:
-      - rakda
+      rakda:
+        ipv4_address: 172.29.0.12
 
   web:
     image: ghcr.io/findardi/rakda-web:main
@@ -69,6 +80,10 @@ services:
 
   traefik:
     image: traefik:v3.7
+    # DNS eksternal untuk ACME (validasi Let's Encrypt)
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     ports:
       - '80:80'
       - '443:443'
@@ -101,6 +116,9 @@ services:
       - tools
     env_file:
       - .env.prod.api
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     networks:
       - rakda
 
