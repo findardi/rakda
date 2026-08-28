@@ -178,7 +178,7 @@
 </div>
 
 <dialog bind:this={detailDialog} class="modal" aria-labelledby="inv-detail-title">
-	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+	<div class="modal-box max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
 		{#if selected}
 			{@const exp = expiry(selected.expires_at)}
 			<div class="flex items-start gap-3">
@@ -215,7 +215,7 @@
 				<div class="mt-4"><Alert align="start">{detailMessage}</Alert></div>
 			{/if}
 
-			<div class="mt-6 flex justify-end gap-2">
+			<div class="mt-6 flex flex-wrap justify-end gap-2">
 				<form method="POST" action="?/reject" use:enhance={submitAction('reject')}>
 					<input type="hidden" name="id" value={selected.id} />
 					<Button

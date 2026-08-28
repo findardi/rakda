@@ -1470,7 +1470,7 @@
 
 <!-- Move -->
 <dialog bind:this={moveDialog} class="modal" aria-labelledby="folder-move-title">
-	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+	<div class="modal-box max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
 		<h2 id="folder-move-title" class="text-lg font-semibold tracking-[-0.01em]">
 			{t('doc.move.title')}
 		</h2>
@@ -1499,7 +1499,7 @@
 				{/each}
 			</select>
 
-			<div class="mt-6 flex justify-end gap-2">
+			<div class="mt-6 flex flex-wrap justify-end gap-2">
 				<Button type="button" variant="ghost" onclick={() => moveDialog?.close()}>
 					{t('doc.cancel')}
 				</Button>
@@ -1516,7 +1516,7 @@
 
 <!-- Delete -->
 <dialog bind:this={deleteDialog} class="modal" aria-labelledby="folder-delete-title">
-	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+	<div class="modal-box max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
 		<h2 id="folder-delete-title" class="text-lg font-semibold tracking-[-0.01em]">
 			{t('doc.delete.title')}
 		</h2>
@@ -1553,7 +1553,7 @@
 				placeholder={deleting?.name ?? ''}
 				autocomplete="off"
 			/>
-			<div class="mt-1 flex justify-end gap-2">
+			<div class="mt-1 flex flex-wrap justify-end gap-2">
 				<Button type="button" variant="ghost" onclick={() => deleteDialog?.close()}>
 					{t('doc.cancel')}
 				</Button>
@@ -1569,7 +1569,7 @@
 </dialog>
 
 <dialog bind:this={bulkDialog} class="modal" aria-labelledby="folder-bulk-delete-title">
-	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+	<div class="modal-box max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
 		<h2 id="folder-bulk-delete-title" class="text-lg font-semibold tracking-[-0.01em]">
 			{t('doc.select.foldersTitle')}
 		</h2>
@@ -1585,7 +1585,7 @@
 			method="POST"
 			action="{actionBase}?/bulkDelete"
 			use:enhance={submitBulkDelete}
-			class="mt-6 flex justify-end gap-2"
+			class="mt-6 flex flex-wrap justify-end gap-2"
 		>
 			{#each [...selectedFolders] as id (id)}
 				<input type="hidden" name="folderId" value={id} />
@@ -1604,7 +1604,7 @@
 </dialog>
 
 <dialog bind:this={templateDialog} class="modal" aria-labelledby="folder-template-title">
-	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+	<div class="modal-box max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
 		<h2 id="folder-template-title" class="text-lg font-semibold tracking-[-0.01em]">
 			{t('tpl.title')}
 		</h2>

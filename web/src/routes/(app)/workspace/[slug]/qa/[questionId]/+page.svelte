@@ -349,7 +349,7 @@
 </div>
 
 <dialog bind:this={promoteDialog} class="modal" aria-labelledby="qa-promote-title">
-	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+	<div class="modal-box max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
 		<h2 id="qa-promote-title" class="text-lg font-semibold tracking-[-0.01em]">
 			{t('qa.promote.title')}
 		</h2>
@@ -384,7 +384,7 @@
 				rows={5}
 			/>
 
-			<div class="mt-1 flex justify-end gap-2">
+			<div class="mt-1 flex flex-wrap justify-end gap-2">
 				<Button type="button" variant="ghost" onclick={() => promoteDialog?.close()}>
 					{t('qa.ask.cancel')}
 				</Button>

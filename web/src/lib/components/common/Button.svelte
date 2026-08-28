@@ -8,6 +8,8 @@
 		loading?: boolean;
 		disabled?: boolean;
 		full?: boolean;
+		/** Counted labels can be long; let them wrap on narrow screens instead of clipping. */
+		wrap?: boolean;
 		onclick?: () => void;
 		children: Snippet;
 	};
@@ -19,6 +21,7 @@
 		loading = false,
 		disabled = false,
 		full = false,
+		wrap = false,
 		onclick,
 		children
 	}: Props = $props();
@@ -37,7 +40,7 @@
 <button
 	{type}
 	{onclick}
-	class="btn {variantClass}"
+	class="btn {variantClass} {wrap ? 'h-auto min-h-10 py-1.5 whitespace-normal' : ''}"
 	class:btn-sm={size === 'sm'}
 	class:btn-block={full}
 	disabled={disabled || loading}

@@ -332,7 +332,7 @@
 <!-- Assign members -->
 <dialog bind:this={assignDialog} class="modal" aria-labelledby="group-assign-title">
 	<div
-		class="modal-box flex max-h-[80vh] w-full max-w-md flex-col rounded-box border border-base-content/10 bg-base-100 p-6"
+		class="modal-box flex max-h-[80vh] max-w-md flex-col rounded-box border border-base-content/10 bg-base-100 p-6"
 	>
 		<h2 id="group-assign-title" class="text-lg font-semibold tracking-[-0.01em]">
 			{t('group.move')}
@@ -417,7 +417,7 @@
 				</ul>
 
 				<div
-					class="mt-4 flex items-center justify-between gap-2 border-t border-base-content/10 pt-4"
+					class="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-base-content/10 pt-4"
 				>
 					<span class="text-sm text-muted" aria-live="polite">
 						{t('group.assign.selected', { n: selectedIds.length })}

@@ -588,6 +588,10 @@ export const en: Record<keyof Dict, string> = {
 	'doc.view.failed.retryErr': 'Could not restart preparation. Try again.',
 	'doc.view.failed.noPerm': 'Ask a room manager to prepare it again.',
 	'doc.view.emptyPages': 'This document has no pages to display.',
+	'doc.view.small.title': 'This screen is too small to read documents',
+	'doc.view.small.body':
+		'The document viewer needs a reading area at least the size of a tablet. Open it from a device with a larger screen, or enlarge the browser window.',
+	'doc.view.small.back': 'Back to the document list',
 	'doc.view.curtain.title': 'Document content hidden',
 	'doc.view.curtain.hint': 'Return to this window to continue reading.',
 	'doc.view.print.title': 'Document content is not printed',

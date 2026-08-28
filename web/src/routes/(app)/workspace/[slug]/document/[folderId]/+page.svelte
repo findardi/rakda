@@ -992,7 +992,7 @@
 </section>
 
 <dialog bind:this={moveDialog} class="modal" aria-labelledby="doc-move-title">
-	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+	<div class="modal-box max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
 		<h2 id="doc-move-title" class="text-lg font-semibold tracking-[-0.01em]">
 			{t('doc.docs.move.title')}
 		</h2>
@@ -1024,7 +1024,7 @@
 				{/each}
 			</select>
 
-			<div class="mt-6 flex justify-end gap-2">
+			<div class="mt-6 flex flex-wrap justify-end gap-2">
 				<Button type="button" variant="ghost" onclick={() => moveDialog?.close()}>
 					{t('doc.cancel')}
 				</Button>
@@ -1040,7 +1040,7 @@
 </dialog>
 
 <dialog bind:this={deleteDialog} class="modal" aria-labelledby="doc-delete-title">
-	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+	<div class="modal-box max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
 		<h2 id="doc-delete-title" class="text-lg font-semibold tracking-[-0.01em]">
 			{t('doc.docs.delete.title')}
 		</h2>
@@ -1065,7 +1065,7 @@
 			method="POST"
 			action="?/deleteDocument"
 			use:enhance={submitDelete}
-			class="mt-6 flex justify-end gap-2"
+			class="mt-6 flex flex-wrap justify-end gap-2"
 		>
 			<input type="hidden" name="documentId" value={deleting?.id ?? ''} />
 			<Button type="button" variant="ghost" onclick={() => deleteDialog?.close()}>
@@ -1082,7 +1082,7 @@
 </dialog>
 
 <dialog bind:this={bulkDialog} class="modal" aria-labelledby="doc-bulk-delete-title">
-	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+	<div class="modal-box max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
 		<h2 id="doc-bulk-delete-title" class="text-lg font-semibold tracking-[-0.01em]">
 			{t('doc.select.docsTitle')}
 		</h2>
@@ -1098,7 +1098,7 @@
 			method="POST"
 			action="?/bulkDeleteDocuments"
 			use:enhance={submitBulkDelete}
-			class="mt-6 flex justify-end gap-2"
+			class="mt-6 flex flex-wrap justify-end gap-2"
 		>
 			{#each [...selectedDocs] as id (id)}
 				<input type="hidden" name="documentId" value={id} />
