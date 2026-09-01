@@ -43,15 +43,16 @@ import (
 const defaultTrashRetention = 30 * 24 * time.Hour
 
 type App struct {
-	router          chi.Router
-	addr            string
-	shutdownTimeout time.Duration
-	reap            func(ctx context.Context)
-	sweep           func(ctx context.Context)
-	ocrSweep        func(ctx context.Context)
-	bboxSweep       func(ctx context.Context)
-	pageCacheSweep  func(ctx context.Context)
-	archiveSweep    func(ctx context.Context)
+	router           chi.Router
+	addr             string
+	shutdownTimeout  time.Duration
+	reap             func(ctx context.Context)
+	sweep            func(ctx context.Context)
+	ocrSweep         func(ctx context.Context)
+	bboxSweep        func(ctx context.Context)
+	pageCacheSweep   func(ctx context.Context)
+	archiveSweep     func(ctx context.Context)
+	downloadJobSweep func(ctx context.Context)
 }
 
 func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.Storage, viewer contentservice.Viewer) *App {
@@ -156,6 +157,12 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 		archiveSweepInterval = time.Hour
 	}
 
+	downloadJobSweepInterval, err := config.GetEnvDuration("DOWNLOAD_JOB_SWEEP_INTERVAL", 5*time.Minute)
+	if err != nil {
+		log.Printf("invalid DOWNLOAD_JOB_SWEEP_INTERVAL, fallback to 5m: %v", err)
+		downloadJobSweepInterval = 5 * time.Minute
+	}
+
 	shutdownTimeout, err := config.GetEnvDuration("SHUTDOWN_TIMEOUT", 60*time.Second)
 	if err != nil {
 		log.Printf("invalid SHUTDOWN_TIMEOUT, fallback to 60s: %v", err)
@@ -233,6 +240,9 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 		archiveSweep: func(ctx context.Context) {
 			contentSvc.RunArchiveSweeper(ctx, archiveSweepInterval, archiveTTL)
 		},
+		downloadJobSweep: func(ctx context.Context) {
+			contentSvc.RunDownloadJobSweeper(ctx, downloadJobSweepInterval)
+		},
 	}
 }
 
@@ -243,7 +253,7 @@ func (a *App) Run() error {
 	var background sync.WaitGroup
 
 	for _, task := range []func(context.Context){
-		a.reap, a.sweep, a.ocrSweep, a.bboxSweep, a.pageCacheSweep, a.archiveSweep,
+		a.reap, a.sweep, a.ocrSweep, a.bboxSweep, a.pageCacheSweep, a.archiveSweep, a.downloadJobSweep,
 	} {
 		background.Add(1)
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { downloadJobs } from '$lib/download/jobs.svelte';
 	import { tick } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { applyAction, deserialize, enhance } from '$app/forms';
@@ -28,6 +29,7 @@
 	let { data, children }: LayoutProps = $props();
 	const folders = $derived(data.folders);
 	const workspace = $derived(data.workspace);
+	$effect(() => downloadJobs.bind(workspace.id));
 	const noAccess = $derived(data.noAccess);
 
 	const ROOT = '';

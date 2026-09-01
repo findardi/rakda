@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { afterNavigate } from '$app/navigation';
 	import { page } from '$app/state';
-	import { AppSidebar, AppTopbar, RoomSidebar } from '$lib/components/app';
+	import { AppSidebar, AppTopbar, DownloadJobs, RoomSidebar } from '$lib/components/app';
 	import { isRoomReadOnly } from '$lib/access/roles';
 	import { t } from '$lib/i18n';
 	import type { MyAccessWorkspace, WorkspaceData } from '$lib/types/workspace';
@@ -87,6 +87,7 @@
 
 			<main class="min-w-0 flex-1 overflow-y-auto">
 				{@render children()}
+				<DownloadJobs />
 			</main>
 		</div>
 	</div>

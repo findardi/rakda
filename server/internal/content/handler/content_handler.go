@@ -605,7 +605,7 @@ func (h *ContentHandler) GetDownloadURL(w http.ResponseWriter, r *http.Request) 
 		Secondary: time.Now().UTC().Format("2006-01-02 15:04 MST") + " · " + middleware.ClientIP(r),
 	}
 
-	body, name, err := h.svc.DownloadDocument(r.Context(), wID, dID, versionID, actor, mark)
+	res, err := h.svc.DownloadDocument(r.Context(), wID, dID, versionID, actor, mark)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrContentForbidden):
@@ -626,14 +626,19 @@ func (h *ContentHandler) GetDownloadURL(w http.ResponseWriter, r *http.Request) 
 		}
 		return
 	}
-	defer body.Close()
+	if res.JobID != "" {
+		response.Success(w, http.StatusAccepted, "download queued", map[string]any{"job_id": res.JobID})
+		return
+	}
+
+	defer res.Body.Close()
 
 	w.Header().Set("Content-Type", "application/pdf")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, name))
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, res.FileName))
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
 
-	if _, err := io.Copy(w, body); err != nil {
+	if _, err := io.Copy(w, res.Body); err != nil {
 		log.Printf("stream download body: %v", err)
 	}
 }

@@ -7,6 +7,7 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import { Button, showToast } from '$lib/components/common';
 	import { downloadRendition } from '$lib/download';
+	import { downloadJobs } from '$lib/download/jobs.svelte';
 	import { formatBytes, formatDateTime } from '$lib/format';
 	import { t } from '$lib/i18n';
 	import type { DocumentData, VersionData } from '$lib/types/content';
@@ -80,7 +81,15 @@
 			downloadAbort.signal
 		);
 		downloading.delete(v.id);
-		if (!outcome.ok) showToast(outcome.message, 'error');
+		if (!outcome.ok) {
+			showToast(outcome.message, 'error');
+			return;
+		}
+
+		if (outcome.queued) {
+			downloadJobs.track(outcome.jobId);
+			showToast(t('doc.dl.queued'));
+		}
 	}
 
 	// --- restore -----------------------------------------------------------

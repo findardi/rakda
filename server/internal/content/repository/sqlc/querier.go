@@ -17,20 +17,24 @@ type Querier interface {
 	CreateDefaultFolder(ctx context.Context, arg CreateDefaultFolderParams) (Folder, error)
 	CreateDocument(ctx context.Context, arg CreateDocumentParams) (Document, error)
 	CreateDocumentVersion(ctx context.Context, arg CreateDocumentVersionParams) (DocumentVersion, error)
+	CreateDownloadJob(ctx context.Context, arg CreateDownloadJobParams) (DocumentDownloadJob, error)
 	CreateFolder(ctx context.Context, arg CreateFolderParams) (Folder, error)
 	DeleteArchive(ctx context.Context, arg DeleteArchiveParams) error
+	DeleteDownloadJob(ctx context.Context, id pgtype.UUID) error
 	DeleteVersionPageText(ctx context.Context, versionID pgtype.UUID) error
 	GetArchive(ctx context.Context, arg GetArchiveParams) (WorkspaceArchive, error)
 	GetCurrentVersion(ctx context.Context, id pgtype.UUID) (DocumentVersion, error)
 	GetDefaultFolder(ctx context.Context, workspaceID pgtype.UUID) (Folder, error)
 	GetDocumentByID(ctx context.Context, id pgtype.UUID) (Document, error)
 	GetDocumentByNameInFolder(ctx context.Context, arg GetDocumentByNameInFolderParams) (Document, error)
+	GetDownloadJob(ctx context.Context, id pgtype.UUID) (DocumentDownloadJob, error)
 	GetFolderByID(ctx context.Context, id pgtype.UUID) (Folder, error)
 	GetFolderByNameInParent(ctx context.Context, arg GetFolderByNameInParentParams) (Folder, error)
 	GetFoldersByWorkspace(ctx context.Context, workspaceID pgtype.UUID) ([]Folder, error)
 	GetMaxPosition(ctx context.Context, folderID pgtype.UUID) (int32, error)
 	GetMaxPositionInParent(ctx context.Context, arg GetMaxPositionInParentParams) (int32, error)
 	GetNextVersionNo(ctx context.Context, documentID pgtype.UUID) (int32, error)
+	GetPendingDownloadJob(ctx context.Context, arg GetPendingDownloadJobParams) (DocumentDownloadJob, error)
 	GetTrashedDocumentByID(ctx context.Context, id pgtype.UUID) (Document, error)
 	GetTrashedFolderByID(ctx context.Context, id pgtype.UUID) (Folder, error)
 	GetVersionByID(ctx context.Context, id pgtype.UUID) (DocumentVersion, error)
@@ -41,7 +45,9 @@ type Querier interface {
 	ListArchiveMembers(ctx context.Context, workspaceID pgtype.UUID) ([]ListArchiveMembersRow, error)
 	ListArchives(ctx context.Context, workspaceID pgtype.UUID) ([]WorkspaceArchive, error)
 	ListDocumentsByFolder(ctx context.Context, folderID pgtype.UUID) ([]ListDocumentsByFolderRow, error)
+	ListDownloadJobsForUser(ctx context.Context, arg ListDownloadJobsForUserParams) ([]DocumentDownloadJob, error)
 	ListExpiredArchives(ctx context.Context) ([]ListExpiredArchivesRow, error)
+	ListExpiredDownloadJobs(ctx context.Context) ([]DocumentDownloadJob, error)
 	ListExpiredTrashDocuments(ctx context.Context, cutoff pgtype.Timestamptz) ([]ListExpiredTrashDocumentsRow, error)
 	ListExpiredTrashFolders(ctx context.Context, cutoff pgtype.Timestamptz) ([]ListExpiredTrashFoldersRow, error)
 	ListFolderAccess(ctx context.Context, arg ListFolderAccessParams) ([]ListFolderAccessRow, error)
@@ -50,6 +56,7 @@ type Querier interface {
 	ListPendingTextExtraction(ctx context.Context, limit int32) ([]ListPendingTextExtractionRow, error)
 	ListPendingWordBoxes(ctx context.Context, limitCount int32) ([]ListPendingWordBoxesRow, error)
 	ListStalePendingArchives(ctx context.Context, cutoff pgtype.Timestamptz) ([]ListStalePendingArchivesRow, error)
+	ListStalePendingDownloadJobs(ctx context.Context, cutoff pgtype.Timestamptz) ([]DocumentDownloadJob, error)
 	ListTrashDocuments(ctx context.Context, workspaceID pgtype.UUID) ([]ListTrashDocumentsRow, error)
 	ListTrashFolders(ctx context.Context, workspaceID pgtype.UUID) ([]ListTrashFoldersRow, error)
 	ListVersionByDocument(ctx context.Context, documentID pgtype.UUID) ([]DocumentVersion, error)
@@ -63,6 +70,8 @@ type Querier interface {
 	LockWorkspaceStructure(ctx context.Context, workspaceID pgtype.UUID) error
 	MarkArchiveFailed(ctx context.Context, arg MarkArchiveFailedParams) error
 	MarkArchiveReady(ctx context.Context, arg MarkArchiveReadyParams) error
+	MarkDownloadJobFailed(ctx context.Context, arg MarkDownloadJobFailedParams) error
+	MarkDownloadJobReady(ctx context.Context, arg MarkDownloadJobReadyParams) error
 	MoveDocument(ctx context.Context, arg MoveDocumentParams) error
 	MoveFolder(ctx context.Context, arg MoveFolderParams) error
 	// The where-guard makes promotion atomic and idempotent: it only fires while

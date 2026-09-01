@@ -96,6 +96,16 @@ type ContentRepository interface {
 	DeleteArchive(ctx context.Context, arg contentdb.DeleteArchiveParams) error
 	ListExpiredArchives(ctx context.Context) ([]contentdb.ListExpiredArchivesRow, error)
 	ListStalePendingArchives(ctx context.Context, cutoff pgtype.Timestamptz) ([]contentdb.ListStalePendingArchivesRow, error)
+
+	CreateDownloadJob(ctx context.Context, arg contentdb.CreateDownloadJobParams) (contentdb.DocumentDownloadJob, error)
+	GetDownloadJob(ctx context.Context, id pgtype.UUID) (contentdb.DocumentDownloadJob, error)
+	GetPendingDownloadJob(ctx context.Context, arg contentdb.GetPendingDownloadJobParams) (contentdb.DocumentDownloadJob, error)
+	ListDownloadJobsForUser(ctx context.Context, arg contentdb.ListDownloadJobsForUserParams) ([]contentdb.DocumentDownloadJob, error)
+	MarkDownloadJobReady(ctx context.Context, arg contentdb.MarkDownloadJobReadyParams) error
+	MarkDownloadJobFailed(ctx context.Context, arg contentdb.MarkDownloadJobFailedParams) error
+	ListStalePendingDownloadJobs(ctx context.Context, cutoff pgtype.Timestamptz) ([]contentdb.DocumentDownloadJob, error)
+	ListExpiredDownloadJobs(ctx context.Context) ([]contentdb.DocumentDownloadJob, error)
+	DeleteDownloadJob(ctx context.Context, id pgtype.UUID) error
 	ListArchiveFolders(ctx context.Context, workspaceID pgtype.UUID) ([]contentdb.ListArchiveFoldersRow, error)
 	ListArchiveDocuments(ctx context.Context, workspaceID pgtype.UUID) ([]contentdb.ListArchiveDocumentsRow, error)
 	ListArchiveMembers(ctx context.Context, workspaceID pgtype.UUID) ([]contentdb.ListArchiveMembersRow, error)

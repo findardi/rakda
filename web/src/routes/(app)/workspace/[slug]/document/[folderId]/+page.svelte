@@ -9,6 +9,7 @@
 	import { Alert, Button, showToast } from '$lib/components/common';
 	import { DOCUMENT_MIME, filesFrom, treeFromInput } from '$lib/dnd';
 	import { downloadRendition } from '$lib/download';
+	import { downloadJobs } from '$lib/download/jobs.svelte';
 	import { formatBytes, formatDate, formatDateTime } from '$lib/format';
 	import { t } from '$lib/i18n';
 	import { recordFolderVisit } from '$lib/recents';
@@ -69,7 +70,15 @@
 			downloadAbort.signal
 		);
 		downloading.delete(doc.id);
-		if (!outcome.ok) showToast(outcome.message, 'error');
+		if (!outcome.ok) {
+			showToast(outcome.message, 'error');
+			return;
+		}
+
+		if (outcome.queued) {
+			downloadJobs.track(outcome.jobId);
+			showToast(t('doc.dl.queued'));
+		}
 	}
 	const canDelete = $derived(perms.includes('document:delete') && writable);
 	const canEditDoc = $derived(perms.includes('document:edit') && writable);

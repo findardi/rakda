@@ -111,6 +111,12 @@ func (m *Module) RegisterRoutes(r chi.Router) {
 				r.Get("/search/content/pages", m.handler.SearchContentPages)
 				r.Get("/download-limits", m.handler.GetDownloadLimits)
 
+				r.Get("/download-jobs", m.handler.ListDownloadJobs)
+				r.With(m.mw.RequirePermission(permission.PermDocumentDownload)).
+					Get("/download-jobs/{jobID}", m.handler.GetDownloadJob)
+				r.With(m.mw.RequirePermission(permission.PermDocumentDownload)).
+					Get("/download-jobs/{jobID}/download", m.handler.DownloadJobArtifact)
+
 				r.Get("/archives", m.handler.ListArchives)
 				r.Get("/archives/{archiveID}/download", m.handler.DownloadArchive)
 				r.Delete("/archives/{archiveID}", m.handler.DeleteArchive)

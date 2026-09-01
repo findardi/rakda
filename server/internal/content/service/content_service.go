@@ -44,6 +44,14 @@ const (
 	stampPagesPerRun          = 25
 	stampWorkers              = 2
 
+	asyncDownloadPageThreshold = 100
+	syncDownloadBudget         = 30 * time.Second
+	downloadJobTTL             = 30 * time.Minute
+	downloadJobTimeout         = 20 * time.Minute
+	downloadJobStoreTimeout    = 5 * time.Minute
+	downloadJobStaleAge        = 15 * time.Minute
+	downloadJobListLimit       = 20
+
 	// asyncConvertTimeout bounds the detached conversion kicked off by a version
 	// upload or a rendition retry. Generous: gotenberg on a large deck is slow,
 	// and an expiry only means the next open converts it lazily instead.
@@ -86,6 +94,8 @@ var (
 	ErrOCRFailed                 = errors.New("ocr failed")
 	ErrDownloadBusy              = errors.New("too many watermarked downloads in progress, retry later")
 	ErrWatermarkDownloadTooLarge = errors.New("document is too large to download as a watermarked copy, use the viewer")
+	ErrDownloadJobNotFound       = errors.New("download request not found")
+	ErrDownloadJobNotReady       = errors.New("download request is not ready yet")
 	ErrVersionTypeMismatch       = errors.New("version file type does not match the document")
 )
 

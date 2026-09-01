@@ -11,6 +11,7 @@
 	import { DocumentEngagement, ViewerPage } from '$lib/components/app';
 	import { Toaster, showToast } from '$lib/components/common';
 	import { downloadRendition } from '$lib/download';
+	import { downloadJobs } from '$lib/download/jobs.svelte';
 	import { formatDate } from '$lib/format';
 	import { t } from '$lib/i18n';
 	import { recordDocumentVisit } from '$lib/recents';
@@ -33,6 +34,7 @@
 	const stale = $derived(!!meta && !!current && meta.version_id !== current.id);
 
 	const workspace = $derived((page.data as { workspace: WorkspaceData }).workspace);
+	$effect(() => downloadJobs.bind(workspace.id));
 	const access = $derived((page.data as { access?: MyAccessWorkspace }).access);
 	// Owner/admin manage the room: they may read the engagement panel, and their
 	// own reading is never recorded — here or upstream.
@@ -559,7 +561,15 @@
 			downloadAbort.signal
 		);
 		downloading = false;
-		if (!outcome.ok) showToast(outcome.message, 'error');
+		if (!outcome.ok) {
+			showToast(outcome.message, 'error');
+			return;
+		}
+
+		if (outcome.queued) {
+			downloadJobs.track(outcome.jobId);
+			showToast(t('doc.dl.queued'));
+		}
 	}
 
 	// --- rendition failure (owner-only retry) ---

@@ -499,6 +499,18 @@ export const en: Record<keyof Dict, string> = {
 		'Another watermarked download is in progress. Try again in a moment — or use the viewer to read now.',
 	'doc.docs.err.downloadTooLarge':
 		'The document exceeds the page limit for watermarked downloads. Read it in the viewer.',
+	'doc.dl.title': 'Pending downloads',
+	'doc.dl.preparing': '{n} download being prepared',
+	'doc.dl.ready': '{n} download ready',
+	'doc.dl.pages': '{n} pages · watermarking',
+	'doc.dl.save': 'Save',
+	'doc.dl.dismiss': 'Dismiss',
+	'doc.dl.expiryHint': 'Download links last 30 minutes, then are removed from the server.',
+	'doc.dl.queued':
+		'This document takes a while to watermark. You will be notified in the download panel when it is ready — no need to wait on this page.',
+	'doc.dl.err.gone': 'This download has expired. Request it again from the document.',
+	'doc.dl.err.notReady': 'This download is still being prepared.',
+
 	'doc.docs.noAccess.title': 'This folder is not shared with you',
 	'doc.docs.noAccess.body':
 		'Your group has not been given access to this folder. Ask the room owner to open it up to your group.',

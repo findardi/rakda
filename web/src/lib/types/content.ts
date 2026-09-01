@@ -358,3 +358,19 @@ export interface SearchBoxesData {
 	matches: SearchBoxPage[];
 	pending: number[];
 }
+
+export interface DownloadJobData {
+	id: string;
+	document_id: string;
+	version_id: string;
+	document_name: string;
+	file_name: string;
+	version_no: number;
+	page_count: number;
+	status: 'pending' | 'ready' | 'failed';
+	size_bytes: number;
+	error?: string;
+	created_at: string;
+	completed_at?: string;
+	expires_at: string;
+}

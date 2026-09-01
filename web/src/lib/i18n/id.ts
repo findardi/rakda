@@ -494,6 +494,18 @@ export const id = {
 		'Unduhan dengan watermark lain sedang diproses. Coba lagi beberapa saat, atau baca dokumen di viewer.',
 	'doc.docs.err.downloadTooLarge':
 		'Dokumen melebihi batas halaman unduhan dengan watermark. Baca dokumen di viewer.',
+	'doc.dl.title': 'Unduhan tertunda',
+	'doc.dl.preparing': '{n} unduhan sedang disiapkan',
+	'doc.dl.ready': '{n} unduhan siap',
+	'doc.dl.pages': '{n} halaman · sedang di-watermark',
+	'doc.dl.save': 'Simpan',
+	'doc.dl.dismiss': 'Tutup',
+	'doc.dl.expiryHint': 'Tautan unduhan berlaku 30 menit, lalu dihapus dari server.',
+	'doc.dl.queued':
+		'Dokumen ini butuh waktu untuk di-watermark. Anda akan diberi tahu di panel unduhan saat siap — tidak perlu menunggu di halaman ini.',
+	'doc.dl.err.gone': 'Unduhan ini sudah kedaluwarsa. Minta ulang dari dokumennya.',
+	'doc.dl.err.notReady': 'Unduhan ini masih disiapkan.',
+
 	'doc.docs.noAccess.title': 'Folder ini tidak dibagikan ke Anda',
 	'doc.docs.noAccess.body':
 		'Grup Anda tidak diberi akses ke folder ini. Minta pemilik ruang membukanya untuk grup Anda.',
