@@ -1,0 +1,26 @@
+# graphify corpus scope. Read even when gitignore=False, so these stick
+# across `/graphify --update` runs.
+
+# Vendored agent skill docs — reference material, not Rakda code.
+# 94 files / 564 nodes / 25+ meaningless communities.
+.claude/skills/
+
+# Local critique reports — generated, not architecture.
+web/.impeccable/
+
+# Secrets. graphify runs with gitignore=False, so these are NOT covered
+# by .gitignore any more. Do not remove.
+.env
+.env.*
+*.env
+server/configs/.env
+docker/.env.*
+web/.env
+
+# Logs
+*.log
+
+# Brand assets — a logo carries no architecture, and each image costs its own
+# vision subagent chunk. rakda.{png,jpeg,webp} are the same mark three times.
+web/src/lib/assets/
+web/static/apple-touch-icon.png

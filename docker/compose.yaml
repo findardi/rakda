@@ -26,6 +26,12 @@ services:
     environment:
       MINIO_ROOT_USER: miniouser
       MINIO_ROOT_PASSWORD: miniopassword
+      # KMS single-key bawaan MinIO. Tanpa ini SSE-S3 tidak ada sama sekali dan
+      # enkripsi bucket-default gagal diam-diam, sehingga verifikasi lokal jadi
+      # teater. Kunci ini fixture dev yang sengaja di-commit — sekelas dengan
+      # miniouser/miniopassword di atas, dan tidak pernah dipakai produksi
+      # (di sana KMS milik provider).
+      MINIO_KMS_SECRET_KEY: 'rakda-dev-key:CuKOMLAFd8ObzK6o5uYT5HL1DOXaPZY6XBwcOutY4II='
     ports:
       - '127.0.0.1:9000:9000'
       - '127.0.0.1:9001:9001'

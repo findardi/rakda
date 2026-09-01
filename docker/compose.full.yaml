@@ -33,6 +33,9 @@ services:
     environment:
       MINIO_ROOT_USER: miniouser
       MINIO_ROOT_PASSWORD: miniopassword
+      # KMS single-key bawaan MinIO — prasyarat SSE-S3. Lihat catatan di
+      # compose.yaml; kunci dev yang sengaja di-commit, tidak dipakai produksi.
+      MINIO_KMS_SECRET_KEY: 'rakda-dev-key:CuKOMLAFd8ObzK6o5uYT5HL1DOXaPZY6XBwcOutY4II='
     ports:
       # presigned PUT dari browser mendarat di sini
       - '127.0.0.1:9000:9000'
@@ -85,6 +88,9 @@ services:
       MINIO_SECRET_KEY: miniopassword
       MINIO_BUCKET: rakda-file
       MINIO_SSL_MODE: 'false'
+      # MinIO lokal sudah ber-KMS jadi SSE menyala, tapi stack ini bicara ke
+      # storage tanpa TLS — jadi enkripsi dilaporkan, bukan disyaratkan.
+      MINIO_REQUIRE_ENCRYPTION: 'false'
       GOTENBERG_URL: http://gotenberg:3000
       WEB_URL: http://localhost:5173
       # hanya traefik (.10) dan web (.11), bukan seluruh subnet — IP gateway
