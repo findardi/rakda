@@ -37,6 +37,29 @@ func main() {
 		log.Fatal(err)
 	}
 
+	if minioCfg.RequireEncryption && !minioCfg.SslMode {
+		log.Fatal("MINIO_REQUIRE_ENCRYPTION=true menuntut MINIO_SSL_MODE=true")
+	}
+
+	if err := store.EnsureEncryption(context.Background()); err != nil {
+		log.Printf("storage: gagal menyetel enkripsi bucket, status tetap diperiksa: %v", err)
+	}
+
+	switch algo, err := store.EncryptionStatus(context.Background()); {
+	case err != nil:
+		if minioCfg.RequireEncryption {
+			log.Fatalf("MINIO_REQUIRE_ENCRYPTION=true tetapi status enkripsi bucket tidak bisa ditentukan: %v", err)
+		}
+		log.Printf("storage: status enkripsi bucket tidak bisa ditentukan: %v", err)
+	case algo == "":
+		if minioCfg.RequireEncryption {
+			log.Fatalf("MINIO_REQUIRE_ENCRYPTION=true tetapi bucket %q tidak terenkripsi at-rest", minioCfg.BucketName)
+		}
+		log.Printf("storage: bucket %q TIDAK terenkripsi at-rest", minioCfg.BucketName)
+	default:
+		log.Printf("storage: bucket %q terenkripsi at-rest (%s)", minioCfg.BucketName, algo)
+	}
+
 	viewerCfg, err := config.LoadViewerConfig()
 	if err != nil {
 		log.Fatal(err)

@@ -12,6 +12,7 @@ import (
 	"github.com/findardi/rakda/server/internal/platform/config"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+	"github.com/minio/minio-go/v7/pkg/sse"
 )
 
 type MinioStorage struct {
@@ -60,6 +61,33 @@ func (m *MinioStorage) ensureBucket(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (m *MinioStorage) EnsureEncryption(ctx context.Context) error {
+	if err := m.client.SetBucketEncryption(ctx, m.bucket, sse.NewConfigurationSSES3()); err != nil {
+		return fmt.Errorf("set bucket encryption: %w", err)
+	}
+
+	return nil
+}
+
+func (m *MinioStorage) EncryptionStatus(ctx context.Context) (string, error) {
+	cfg, err := m.client.GetBucketEncryption(ctx, m.bucket)
+	if err != nil {
+		if minio.ToErrorResponse(err).Code == "ServerSideEncryptionConfigurationNotFoundError" {
+			return "", nil
+		}
+
+		return "", fmt.Errorf("get bucket encryption: %w", err)
+	}
+
+	for _, rule := range cfg.Rules {
+		if algo := rule.Apply.SSEAlgorithm; algo != "" {
+			return algo, nil
+		}
+	}
+
+	return "", nil
 }
 
 func (m *MinioStorage) PresignedPut(ctx context.Context, key string, expiry time.Duration) (string, error) {
