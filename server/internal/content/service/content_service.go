@@ -36,8 +36,10 @@ const (
 	// RAM tidak lagi mengikuti jumlah halaman (~380 MB puncak untuk 60
 	// maupun 400 halaman); yang tersisa adalah batas waktu ~300 s dari
 	// timeout fetch proxy web. Diukur di dev 0,31 s/halaman dengan 2
-	// pekerja; dengan asumsi kotak sasaran 4 vCPU sampai 4× lebih lambat,
-	// 150 halaman ≈ 190 s. Naikkan hanya setelah diukur di kotak sasaran.
+	// pekerja. ANGKA 150 BELUM TERVALIDASI untuk kotak rilis 2 vCPU /
+	// 8 GB dengan `cpus: 1.5` pada container api: stampWorkers=2 tidak
+	// lagi punya dua inti penuh. Lihat U-60. Jangan naikkan, dan turunkan
+	// bila pengukuran di kotak sasaran melewati 300 s.
 	maxWatermarkDownloadPages = 150
 	stampPagesPerRun          = 25
 	stampWorkers              = 2

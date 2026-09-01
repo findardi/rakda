@@ -22,12 +22,38 @@ import (
 type TesseractOCR struct {
 	dpi     int
 	timeout time.Duration
+	nice    int
 	sem     chan struct{}
 	langs   string
 }
 
-func NewTesseract(dpi int, timeout time.Duration, concurrency int) (*TesseractOCR, error) {
-	for _, bin := range []string{"tesseract", "pdftoppm"} {
+type TesseractOption func(*tesseractOptions)
+
+type tesseractOptions struct {
+	concurrency int
+	nice        int
+}
+
+func WithOCRConcurrency(n int) TesseractOption {
+	return func(o *tesseractOptions) { o.concurrency = n }
+}
+
+func WithOCRNice(n int) TesseractOption {
+	return func(o *tesseractOptions) { o.nice = n }
+}
+
+func NewTesseract(dpi int, timeout time.Duration, opts ...TesseractOption) (*TesseractOCR, error) {
+	o := tesseractOptions{concurrency: 1}
+	for _, opt := range opts {
+		opt(&o)
+	}
+
+	bins := []string{"tesseract", "pdftoppm"}
+	if o.nice > 0 {
+		bins = append(bins, "nice")
+	}
+
+	for _, bin := range bins {
 		if _, err := exec.LookPath(bin); err != nil {
 			return nil, fmt.Errorf("ocr: %s not found in PATH: %w", bin, err)
 		}
@@ -38,17 +64,18 @@ func NewTesseract(dpi int, timeout time.Duration, concurrency int) (*TesseractOC
 		return nil, err
 	}
 
-	if concurrency < 1 {
-		concurrency = 1
+	if o.concurrency < 1 {
+		o.concurrency = 1
 	}
-	if concurrency > 2 {
-		concurrency = 2
+	if o.concurrency > 2 {
+		o.concurrency = 2
 	}
 
 	return &TesseractOCR{
 		dpi:     dpi,
 		timeout: timeout,
-		sem:     make(chan struct{}, concurrency),
+		nice:    o.nice,
+		sem:     make(chan struct{}, o.concurrency),
 		langs:   langs,
 	}, nil
 }
@@ -70,25 +97,36 @@ func detectOCRLangs() (string, error) {
 	return "eng", nil
 }
 
-func (o *TesseractOCR) OCRPage(ctx context.Context, pdf io.Reader, page int) (OCRResult, error) {
+func (o *TesseractOCR) OpenOCR(pdf io.Reader) (OCRDocument, error) {
+	work, cleanup, err := spool(pdf)
+	if err != nil {
+		return nil, err
+	}
+
+	return &tesseractDocument{o: o, work: work, cleanup: cleanup}, nil
+}
+
+type tesseractDocument struct {
+	o       *TesseractOCR
+	work    spooled
+	cleanup func()
+}
+
+func (d *tesseractDocument) OCRPage(ctx context.Context, page int) (OCRResult, error) {
 	if page < 1 {
 		return OCRResult{}, ErrPageOutOfRange
 	}
 
-	work, cleanup, err := spool(pdf)
-	if err != nil {
-		return OCRResult{}, err
-	}
-	defer cleanup()
+	n := strconv.Itoa(page)
+	prefix := filepath.Join(d.work.dir, "page-"+n)
 
-	prefix := filepath.Join(work.dir, "page")
-	if _, err := o.run(ctx, "pdftoppm",
+	if _, err := d.o.run(ctx, "pdftoppm",
 		"-png",
-		"-r", strconv.Itoa(o.dpi),
-		"-f", strconv.Itoa(page),
-		"-l", strconv.Itoa(page),
+		"-r", strconv.Itoa(d.o.dpi),
+		"-f", n,
+		"-l", n,
 		"-singlefile",
-		work.pdf, prefix,
+		d.work.pdf, prefix,
 	); err != nil {
 		return OCRResult{}, err
 	}
@@ -97,13 +135,19 @@ func (o *TesseractOCR) OCRPage(ctx context.Context, pdf io.Reader, page int) (OC
 	if _, err := os.Stat(img); err != nil {
 		return OCRResult{}, ErrPageOutOfRange
 	}
+	defer os.Remove(img)
 
-	out, err := o.run(ctx, "tesseract", img, "stdout", "tsv", "-l", o.langs)
+	out, err := d.o.run(ctx, "tesseract", img, "stdout", "tsv", "-l", d.o.langs)
 	if err != nil {
 		return OCRResult{}, err
 	}
 
 	return parseTesseractTSV(out)
+}
+
+func (d *tesseractDocument) Close() error {
+	d.cleanup()
+	return nil
 }
 
 func (o *TesseractOCR) run(ctx context.Context, name string, args ...string) ([]byte, error) {
@@ -118,6 +162,11 @@ func (o *TesseractOCR) run(ctx context.Context, name string, args ...string) ([]
 
 	ctx, cancel := context.WithTimeout(ctx, o.timeout)
 	defer cancel()
+
+	if o.nice > 0 {
+		args = append([]string{"-n", strconv.Itoa(o.nice), name}, args...)
+		name = "nice"
+	}
 
 	var stdout, stderr bytes.Buffer
 

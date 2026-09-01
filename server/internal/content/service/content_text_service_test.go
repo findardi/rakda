@@ -434,8 +434,65 @@ type fakeOCR struct {
 	ocrFn func(ctx context.Context, pdf io.Reader, page int) (render.OCRResult, error)
 }
 
-func (f fakeOCR) OCRPage(ctx context.Context, pdf io.Reader, page int) (render.OCRResult, error) {
-	return f.ocrFn(ctx, pdf, page)
+func (f fakeOCR) OpenOCR(pdf io.Reader) (render.OCRDocument, error) {
+	return fakeOCRDocument{fn: f.ocrFn, pdf: pdf}, nil
+}
+
+type fakeOCRDocument struct {
+	fn  func(ctx context.Context, pdf io.Reader, page int) (render.OCRResult, error)
+	pdf io.Reader
+}
+
+func (d fakeOCRDocument) OCRPage(ctx context.Context, page int) (render.OCRResult, error) {
+	return d.fn(ctx, d.pdf, page)
+}
+
+func (d fakeOCRDocument) Close() error {
+	return nil
+}
+
+func TestOCRSweeperOpensRenditionOncePerVersion(t *testing.T) {
+	versionID := "88888888-8888-8888-8888-888888888888"
+
+	repo := &textFakeRepo{
+		listPendingOCRFn: func(ctx context.Context, limit int32) ([]contentdb.ListPendingOCRPagesRow, error) {
+			return []contentdb.ListPendingOCRPagesRow{
+				ocrPendingRow(versionID, 1),
+				ocrPendingRow(versionID, 2),
+				ocrPendingRow(versionID, 3),
+			}, nil
+		},
+		setPageOCRResultFn:  func(ctx context.Context, arg contentdb.SetPageOCRResultParams) error { return nil },
+		setPageOCRFailureFn: func(ctx context.Context, arg contentdb.SetPageOCRFailureParams) error { return nil },
+	}
+
+	gets := 0
+	store := fakeStorage{
+		getFn: func(ctx context.Context, key string) (io.ReadCloser, error) {
+			gets++
+			return io.NopCloser(bytes.NewReader([]byte("rendition bytes"))), nil
+		},
+	}
+
+	pages := 0
+	ocr := fakeOCR{
+		ocrFn: func(ctx context.Context, pdf io.Reader, page int) (render.OCRResult, error) {
+			pages++
+			return render.OCRResult{Text: "halaman"}, nil
+		},
+	}
+
+	svc := NewContentService(repo, store, Viewer{
+		Renderer:      fakeRenderer{pageCountFn: func(ctx context.Context, pdf io.Reader) (int, error) { return 10, nil }},
+		TextExtractor: fakeTextExtractor{extractFn: func(ctx context.Context, pdf io.Reader) (string, error) { return "", nil }},
+		OCR:           ocr,
+		DPI:           150,
+	}, 0, nil, 2, ArchiveDeps{})
+
+	svc.sweepOCROnce(context.Background(), 10)
+
+	assert.Equal(t, 1, gets)
+	assert.Equal(t, 3, pages)
 }
 
 func ocrPendingRow(versionID string, pageNo int32) contentdb.ListPendingOCRPagesRow {

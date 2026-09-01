@@ -8,6 +8,8 @@ type ViewerConfig struct {
 	DPI               int
 	RenderTimeout     time.Duration
 	RenderConcurrency int
+	SweepConcurrency  int
+	SweepNice         int
 }
 
 func LoadViewerConfig() (ViewerConfig, error) {
@@ -26,7 +28,17 @@ func LoadViewerConfig() (ViewerConfig, error) {
 		return ViewerConfig{}, err
 	}
 
-	concurrency, err := GetEnvInt("VIEWER_RENDER_CONCURRENCY", 4)
+	concurrency, err := GetEnvInt("VIEWER_RENDER_CONCURRENCY", 2)
+	if err != nil {
+		return ViewerConfig{}, err
+	}
+
+	sweepConcurrency, err := GetEnvInt("VIEWER_SWEEP_CONCURRENCY", 1)
+	if err != nil {
+		return ViewerConfig{}, err
+	}
+
+	sweepNice, err := GetEnvInt("VIEWER_SWEEP_NICE", 10)
 	if err != nil {
 		return ViewerConfig{}, err
 	}
@@ -39,11 +51,21 @@ func LoadViewerConfig() (ViewerConfig, error) {
 		concurrency = 1
 	}
 
+	if sweepConcurrency <= 0 {
+		sweepConcurrency = 1
+	}
+
+	if sweepNice < 0 {
+		sweepNice = 0
+	}
+
 	return ViewerConfig{
 		GotenbergURL:      GetEnv("GOTENBERG_URL", "http://localhost:3000"),
 		ConvertTimeout:    convertTimeout,
 		DPI:               dpi,
 		RenderTimeout:     renderTimeout,
 		RenderConcurrency: concurrency,
+		SweepConcurrency:  sweepConcurrency,
+		SweepNice:         sweepNice,
 	}, nil
 }

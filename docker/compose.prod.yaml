@@ -23,6 +23,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    cpus: 1.0
     mem_limit: 1g
     restart: unless-stopped
     networks:
@@ -52,7 +53,9 @@ services:
       timeout: 5s
       retries: 5
       start_period: 15s
-    mem_limit: 1536m
+    cpus: 1.5
+    mem_limit: 2g
+    stop_grace_period: 90s
     restart: unless-stopped
     networks:
       rakda:
@@ -72,6 +75,7 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    cpus: 0.5
     mem_limit: 256m
     restart: unless-stopped
     networks:
@@ -100,6 +104,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    cpus: 0.25
     mem_limit: 128m
     restart: unless-stopped
     networks:

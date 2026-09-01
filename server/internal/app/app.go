@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -42,14 +43,15 @@ import (
 const defaultTrashRetention = 30 * 24 * time.Hour
 
 type App struct {
-	router         chi.Router
-	addr           string
-	reap           func(ctx context.Context)
-	sweep          func(ctx context.Context)
-	ocrSweep       func(ctx context.Context)
-	bboxSweep      func(ctx context.Context)
-	pageCacheSweep func(ctx context.Context)
-	archiveSweep   func(ctx context.Context)
+	router          chi.Router
+	addr            string
+	shutdownTimeout time.Duration
+	reap            func(ctx context.Context)
+	sweep           func(ctx context.Context)
+	ocrSweep        func(ctx context.Context)
+	bboxSweep       func(ctx context.Context)
+	pageCacheSweep  func(ctx context.Context)
+	archiveSweep    func(ctx context.Context)
 }
 
 func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.Storage, viewer contentservice.Viewer) *App {
@@ -154,6 +156,12 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 		archiveSweepInterval = time.Hour
 	}
 
+	shutdownTimeout, err := config.GetEnvDuration("SHUTDOWN_TIMEOUT", 60*time.Second)
+	if err != nil {
+		log.Printf("invalid SHUTDOWN_TIMEOUT, fallback to 60s: %v", err)
+		shutdownTimeout = 60 * time.Second
+	}
+
 	// Kosong = XFF tidak pernah dipercaya (perilaku aman: IP proxy, bukan IP
 	// yang bisa dipalsukan). Diisi CIDR subnet docker saat stack Traefik ditulis.
 	trustedProxies, err := config.GetEnvCIDRList("TRUSTED_PROXY_CIDRS", nil)
@@ -204,8 +212,9 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 	qaModule.RegisterRoutes(r)
 
 	return &App{
-		router: r,
-		addr:   addr,
+		router:          r,
+		addr:            addr,
+		shutdownTimeout: shutdownTimeout,
 		reap: func(ctx context.Context) {
 			contentSvc.RunReaper(ctx, reaperInterval)
 		},
@@ -228,15 +237,21 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 }
 
 func (a *App) Run() error {
-	reaperCtx, stopReaper := context.WithCancel(context.Background())
-	defer stopReaper()
+	bgCtx, stopBackground := context.WithCancel(context.Background())
+	defer stopBackground()
 
-	go a.reap(reaperCtx)
-	go a.sweep(reaperCtx)
-	go a.ocrSweep(reaperCtx)
-	go a.bboxSweep(reaperCtx)
-	go a.pageCacheSweep(reaperCtx)
-	go a.archiveSweep(reaperCtx)
+	var background sync.WaitGroup
+
+	for _, task := range []func(context.Context){
+		a.reap, a.sweep, a.ocrSweep, a.bboxSweep, a.pageCacheSweep, a.archiveSweep,
+	} {
+		background.Add(1)
+
+		go func() {
+			defer background.Done()
+			task(bgCtx)
+		}()
+	}
 
 	srv := &http.Server{
 		Addr:    a.addr,
@@ -261,10 +276,25 @@ func (a *App) Run() error {
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	<-quit
 
-	stopReaper()
+	stopBackground()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), a.shutdownTimeout)
 	defer cancel()
 
-	return srv.Shutdown(ctx)
+	drained := make(chan struct{})
+
+	go func() {
+		background.Wait()
+		close(drained)
+	}()
+
+	err := srv.Shutdown(ctx)
+
+	select {
+	case <-drained:
+	case <-ctx.Done():
+		log.Printf("shutdown: background tasks unfinished after %s", a.shutdownTimeout)
+	}
+
+	return err
 }
