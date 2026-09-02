@@ -114,10 +114,18 @@ func (m *MinioStorage) PresignedGet(ctx context.Context, key, filename string, e
 func (m *MinioStorage) Stat(ctx context.Context, key string) (size int64, contentType string, err error) {
 	info, err := m.client.StatObject(ctx, m.bucket, key, minio.GetObjectOptions{})
 	if err != nil {
+		if isNotFound(err) {
+			return 0, "", fmt.Errorf("stat object %s: %w", key, ErrNotFound)
+		}
+
 		return 0, "", fmt.Errorf("stat object: %w", err)
 	}
 
 	return info.Size, info.ContentType, nil
+}
+
+func isNotFound(err error) bool {
+	return minio.ToErrorResponse(err).Code == "NoSuchKey"
 }
 
 func (m *MinioStorage) Get(ctx context.Context, key string) (io.ReadCloser, error) {
@@ -145,7 +153,7 @@ func (m *MinioStorage) GetRange(ctx context.Context, key string, offset, length 
 }
 
 func (m *MinioStorage) Delete(ctx context.Context, key string) error {
-	if err := m.client.RemoveObject(ctx, m.bucket, key, minio.RemoveObjectOptions{}); err != nil {
+	if err := m.client.RemoveObject(ctx, m.bucket, key, minio.RemoveObjectOptions{}); err != nil && !isNotFound(err) {
 		return fmt.Errorf("delete object: %w", err)
 	}
 

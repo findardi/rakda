@@ -74,7 +74,7 @@ func (h *ContentHandler) DownloadJobArtifact(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	rc, err := h.svc.OpenDownloadJobRange(r.Context(), obj.Key, offset, length)
+	rc, err := h.svc.OpenDownloadJobRange(r.Context(), obj, offset, length)
 	if err != nil {
 		log.Printf("download job open range: %v", err)
 		response.Error(w, http.StatusInternalServerError, "internal server error", nil)
@@ -110,6 +110,8 @@ func writeDownloadJobError(w http.ResponseWriter, label string, err error) {
 		response.Error(w, http.StatusNotFound, err.Error(), nil)
 	case errors.Is(err, service.ErrDownloadJobNotReady):
 		response.Error(w, http.StatusConflict, err.Error(), nil)
+	case errors.Is(err, service.ErrDownloadJobLost):
+		response.Error(w, http.StatusGone, err.Error(), nil)
 	default:
 		log.Printf("%s internal error: %v", label, err)
 		response.Error(w, http.StatusInternalServerError, "internal server error", nil)

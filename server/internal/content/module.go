@@ -44,9 +44,9 @@ type Module struct {
 	storage    storage.Storage
 }
 
-func NewModule(pool *pgxpool.Pool, verifier middleware.TokenVerifier, store storage.Storage, viewer service.Viewer, trashRetention time.Duration, activity service.ActivityRecorder, stamp service.StampDeps, archive service.ArchiveDeps) *Module {
+func NewModule(pool *pgxpool.Pool, verifier middleware.TokenVerifier, store storage.Storage, viewer service.Viewer, trashRetention time.Duration, activity service.ActivityRecorder, stamp service.StampDeps, archive service.ArchiveDeps, caches service.CacheDeps) *Module {
 	r := repository.New(pool)
-	s := service.NewContentService(r, store, viewer, trashRetention, activity, stamp, archive)
+	s := service.NewContentService(r, store, viewer, trashRetention, activity, stamp, archive, caches)
 	h := handler.NewContentHandler(s)
 
 	mw := middleware.New(verifier, userStatusReader{repo: auth.New(pool)}, nil)

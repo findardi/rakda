@@ -13,6 +13,7 @@ import (
 	"github.com/findardi/rakda/server/internal/content/dto"
 	contentdb "github.com/findardi/rakda/server/internal/content/repository/sqlc"
 	"github.com/findardi/rakda/server/internal/platform/convert"
+	"github.com/findardi/rakda/server/internal/platform/diskcache"
 	"github.com/findardi/rakda/server/internal/platform/storage"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -99,6 +100,7 @@ var (
 	ErrWatermarkDownloadTooLarge = errors.New("document is too large to download as a watermarked copy, use the viewer")
 	ErrDownloadJobNotFound       = errors.New("download request not found")
 	ErrDownloadJobNotReady       = errors.New("download request is not ready yet")
+	ErrDownloadJobLost           = errors.New("download artifact is no longer available, request a new download")
 	ErrVersionTypeMismatch       = errors.New("version file type does not match the document")
 )
 
@@ -135,6 +137,16 @@ type ContentService struct {
 	archiveTTL     time.Duration
 	activityExport ActivityExporter
 	qaExport       QAExporter
+
+	renditions *diskcache.Cache
+	pages      *diskcache.Cache
+	downloads  *diskcache.Cache
+}
+
+type CacheDeps struct {
+	Renditions *diskcache.Cache
+	Pages      *diskcache.Cache
+	Downloads  *diskcache.Cache
 }
 
 type ArchiveDeps struct {
@@ -149,7 +161,7 @@ type StampDeps struct {
 	Async int
 }
 
-func NewContentService(repo ContentRepository, store storage.Storage, viewer Viewer, trashRetention time.Duration, activity ActivityRecorder, stamp StampDeps, archive ArchiveDeps) *ContentService {
+func NewContentService(repo ContentRepository, store storage.Storage, viewer Viewer, trashRetention time.Duration, activity ActivityRecorder, stamp StampDeps, archive ArchiveDeps, caches CacheDeps) *ContentService {
 	if stamp.Sync < 1 {
 		stamp.Sync = 1
 	}
@@ -175,6 +187,9 @@ func NewContentService(repo ContentRepository, store storage.Storage, viewer Vie
 		archiveTTL:     archive.TTL,
 		activityExport: archive.ActivityExport,
 		qaExport:       archive.QAExport,
+		renditions:     caches.Renditions,
+		pages:          caches.Pages,
+		downloads:      caches.Downloads,
 	}
 }
 

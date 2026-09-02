@@ -131,6 +131,10 @@ func (s *ContentService) reapOnce(ctx context.Context) {
 		log.Printf("reaper: purged %d folders, %d documents, aborted %d multipart uploads",
 			purgeFolders, purgeDocuments, aborted)
 	}
+
+	if evicted, freed := s.renditions.Sweep(0); evicted > 0 {
+		log.Printf("reaper: evicted %d cached renditions (%d bytes)", evicted, freed)
+	}
 }
 
 func (s *ContentService) deleteVersionBlobs(ctx context.Context, refs []blobRef) bool {
@@ -149,9 +153,25 @@ func (s *ContentService) deleteVersionBlobs(ctx context.Context, refs []blobRef)
 			log.Printf("reaper: delete page cache for version %s: %v", ref.versionID, err)
 			return false
 		}
+
+		s.dropCachedVersion(ref)
 	}
 
 	return true
+}
+
+func (s *ContentService) dropCachedVersion(ref blobRef) {
+	if err := s.renditions.Remove(ref.storageKey); err != nil {
+		log.Printf("reaper: drop cached blob %s: %v", ref.storageKey, err)
+	}
+
+	if _, err := s.renditions.RemovePrefix(renditionPrefix(ref.workspaceID, ref.versionID)); err != nil {
+		log.Printf("reaper: drop cached renditions for version %s: %v", ref.versionID, err)
+	}
+
+	if _, err := s.pages.RemovePrefix(pageCachePrefix(ref.workspaceID, ref.versionID)); err != nil {
+		log.Printf("reaper: drop cached pages for version %s: %v", ref.versionID, err)
+	}
 }
 
 // RunPageCacheSweeper menghapus PNG halaman yang lebih tua dari ttl. Ia hanya
@@ -174,6 +194,10 @@ func (s *ContentService) RunPageCacheSweeper(ctx context.Context, interval, ttl 
 }
 
 func (s *ContentService) sweepPageCacheOnce(ctx context.Context, ttl time.Duration) {
+	if evicted, freed := s.pages.Sweep(ttl); evicted > 0 {
+		log.Printf("page cache sweep: evicted %d local pages (%d bytes)", evicted, freed)
+	}
+
 	deleted, err := s.store.DeleteOlderThan(ctx, "page-cache/", ttl)
 	if err != nil {
 		log.Printf("page cache sweep: %v", err)

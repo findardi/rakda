@@ -98,7 +98,7 @@ func detectOCRLangs() (string, error) {
 }
 
 func (o *TesseractOCR) OpenOCR(pdf io.Reader) (OCRDocument, error) {
-	work, cleanup, err := spool(pdf)
+	work, cleanup, err := spoolPDF(pdf)
 	if err != nil {
 		return nil, err
 	}

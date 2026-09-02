@@ -72,6 +72,7 @@ type Querier interface {
 	MarkArchiveReady(ctx context.Context, arg MarkArchiveReadyParams) error
 	MarkDownloadJobFailed(ctx context.Context, arg MarkDownloadJobFailedParams) error
 	MarkDownloadJobReady(ctx context.Context, arg MarkDownloadJobReadyParams) error
+	MarkReadyDownloadJobLost(ctx context.Context, arg MarkReadyDownloadJobLostParams) error
 	MoveDocument(ctx context.Context, arg MoveDocumentParams) error
 	MoveFolder(ctx context.Context, arg MoveFolderParams) error
 	// The where-guard makes promotion atomic and idempotent: it only fires while

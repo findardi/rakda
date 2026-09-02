@@ -41,6 +41,12 @@ set status = 'failed',
     completed_at = now()
 where id = $1 and status = 'pending';
 
+-- name: MarkReadyDownloadJobLost :exec
+update document_download_jobs
+set status = 'failed',
+    error = $2
+where id = $1 and status = 'ready';
+
 -- name: ListStalePendingDownloadJobs :many
 select * from document_download_jobs
 where status = 'pending' and created_at < sqlc.arg(cutoff);

@@ -77,7 +77,7 @@ func newDownloadTestService(t *testing.T, repo *downloadFakeRepo) *ContentServic
 	return NewContentService(repo, store, Viewer{
 		Renderer: failingRenderer{},
 		DPI:      150,
-	}, 0, nil, StampDeps{Sync: 1, Async: 1}, ArchiveDeps{})
+	}, 0, nil, StampDeps{Sync: 1, Async: 1}, ArchiveDeps{}, CacheDeps{})
 }
 
 func downloadFixture(pageCount int32) *downloadFakeRepo {

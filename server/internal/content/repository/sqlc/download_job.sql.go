@@ -313,3 +313,20 @@ func (q *Queries) MarkDownloadJobReady(ctx context.Context, arg MarkDownloadJobR
 	)
 	return err
 }
+
+const markReadyDownloadJobLost = `-- name: MarkReadyDownloadJobLost :exec
+update document_download_jobs
+set status = 'failed',
+    error = $2
+where id = $1 and status = 'ready'
+`
+
+type MarkReadyDownloadJobLostParams struct {
+	ID    pgtype.UUID `json:"id"`
+	Error string      `json:"error"`
+}
+
+func (q *Queries) MarkReadyDownloadJobLost(ctx context.Context, arg MarkReadyDownloadJobLostParams) error {
+	_, err := q.db.Exec(ctx, markReadyDownloadJobLost, arg.ID, arg.Error)
+	return err
+}
