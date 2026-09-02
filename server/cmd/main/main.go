@@ -94,6 +94,24 @@ func main() {
 		log.Fatal(err)
 	}
 
+	downloadRenderer, err := render.NewPoppler(viewerCfg,
+		render.WithPopplerConcurrency(viewerCfg.DownloadConcurrency),
+		render.WithPopplerNice(viewerCfg.DownloadNice),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Konstruktor ContentService diam-diam memakai Renderer bila kolam unduhan
+	// nil; baris ini membuat wiring yang terlupa terlihat di journald.
+	log.Printf("viewer: poppler pools request=%d sweep=%d (nice %d) downloadjob=%d (nice %d)",
+		viewerCfg.RenderConcurrency, viewerCfg.SweepConcurrency, viewerCfg.SweepNice,
+		viewerCfg.DownloadConcurrency, viewerCfg.DownloadNice)
+
+	// Alamat ini harus bisa dijangkau dari dalam container api; `localhost`
+	// di sini adalah api sendiri, bukan host.
+	log.Printf("viewer: gotenberg %s (convert timeout %s)", viewerCfg.GotenbergURL, viewerCfg.ConvertTimeout)
+
 	ocrDPI, err := config.GetEnvInt("OCR_DPI", viewerCfg.DPI)
 	if err != nil {
 		log.Printf("invalid OCR_DPI, fallback to viewer DPI: %v", err)
@@ -126,13 +144,14 @@ func main() {
 	}
 
 	viewer := contentservice.Viewer{
-		Converter:     convert.NewGotenberg(viewerCfg),
-		Renderer:      renderer,
-		Watermark:     wm,
-		TextExtractor: sweepRenderer,
-		WordBoxes:     sweepRenderer,
-		OCR:           ocr,
-		DPI:           viewerCfg.DPI,
+		Converter:           convert.NewGotenberg(viewerCfg),
+		Renderer:            renderer,
+		DownloadJobRenderer: downloadRenderer,
+		Watermark:           wm,
+		TextExtractor:       sweepRenderer,
+		WordBoxes:           sweepRenderer,
+		OCR:                 ocr,
+		DPI:                 viewerCfg.DPI,
 	}
 
 	cacheCfg, err := config.LoadDiskCacheConfig()

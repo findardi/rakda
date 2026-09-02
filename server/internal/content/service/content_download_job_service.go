@@ -58,17 +58,42 @@ func (s *ContentService) startDownloadJob(ctx context.Context, workspaceID strin
 		return contentdb.DocumentDownloadJob{}, err
 	}
 
-	jobCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), downloadJobTimeout)
-
 	go func() {
-		defer cancel()
 		defer func() { <-s.stampAsyncSem }()
 
-		body, err := s.rasterWatermarkPDF(jobCtx, workspaceID, uuidString(version.ID), renditionKey, pageCount, mark)
-		s.storeDownloadJobResult(jobCtx, workspaceID, job, stampResult{body: body, err: err})
+		s.runDownloadJob(ctx, workspaceID, job, uuidString(version.ID), renditionKey, pageCount, mark,
+			downloadJobTimeout, downloadJobStoreTimeout)
 	}()
 
 	return job, nil
+}
+
+// runDownloadJob menjalankan satu perakitan antrean sampai tuntas, lepas dari
+// pembatalan ctx pemanggil. Raster dan store memakai konteks terpisah: bila
+// raster menghabiskan tenggatnya, penandaan gagal/siap tetap berjalan di
+// konteks hidup — dengan satu konteks bersama, baris tinggal `pending` sampai
+// sweeper stale menandainya gagal dengan pesan generik. rasterTimeout dan
+// storeTimeout adalah parameter (bukan konstanta paket) hanya agar tes bisa
+// mendorong tenggat raster kedaluwarsa dalam milidetik; produksi selalu
+// mengirim downloadJobTimeout dan downloadJobStoreTimeout, dan
+// downloadJobStaleAge harus tetap lebih besar dari jumlah keduanya.
+func (s *ContentService) runDownloadJob(ctx context.Context, workspaceID string, job contentdb.DocumentDownloadJob,
+	versionID, renditionKey string, pageCount int, mark watermark.Mark,
+	rasterTimeout, storeTimeout time.Duration) {
+	detached := context.WithoutCancel(ctx)
+
+	rasterCtx, cancelRaster := context.WithTimeout(detached, rasterTimeout)
+	defer cancelRaster()
+
+	body, err := s.rasterWatermarkPDF(rasterCtx, s.viewer.DownloadJobRenderer, workspaceID, versionID, renditionKey, pageCount, mark)
+	cancelRaster()
+
+	// Bentuk yang sama dengan reaper escalateDownload; sengaja tidak ditarik
+	// jadi helper — baru dua kejadian.
+	storeCtx, cancelStore := context.WithTimeout(detached, storeTimeout)
+	defer cancelStore()
+
+	s.storeDownloadJobResult(storeCtx, workspaceID, job, stampResult{body: body, err: err})
 }
 
 func (s *ContentService) escalateDownload(ctx context.Context, workspaceID string, doc contentdb.Document,

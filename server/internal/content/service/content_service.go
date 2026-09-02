@@ -175,6 +175,13 @@ func NewContentService(repo ContentRepository, store storage.Storage, viewer Vie
 		archive.TTL = 30 * 24 * time.Hour
 	}
 
+	// Berbagi kolam request adalah perilaku sebelum kolam unduhan ada, bukan
+	// rekomendasi: fallback ini untuk tes dan pemanggil lama. main.go selalu
+	// mengisinya dan mencatat ketiga kolam di log boot.
+	if viewer.DownloadJobRenderer == nil {
+		viewer.DownloadJobRenderer = viewer.Renderer
+	}
+
 	return &ContentService{
 		repo:           repo,
 		store:          store,

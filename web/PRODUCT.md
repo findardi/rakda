@@ -79,6 +79,11 @@ disalin, tidak dirakit ulang.
 Angka plafon dikirim server ke klien, tidak ditulis di kode web. Kalau batasnya
 berubah, UI ikut tanpa perlu disentuh.
 
+<<<<<<< Updated upstream
+=======
+<<<<<<< Updated upstream
+=======
+>>>>>>> Stashed changes
 ## Enkripsi at-rest
 
 Setiap objek di object storage — berkas sumber, rendition, cache halaman,
@@ -90,6 +95,18 @@ produksi ia menolak berjalan kalau bucket tidak terbukti terenkripsi, dan
 Batasnya harus dikatakan apa adanya. **Kunci dipegang provider penyimpanan**,
 bukan Rakda dan bukan pelanggan. Enkripsi ini menutup disk atau bucket yang
 jatuh ke tangan lain; ia tidak menutup provider yang membaca datanya sendiri.
+<<<<<<< Updated upstream
+=======
+
+Sejak Fase 17 server aplikasi juga menyimpan **salinan cache** di disk lokalnya
+— rendition, gambar halaman, dan artefak unduhan tertunda — supaya halaman
+tidak diambil ulang dari object storage setiap kali dibuka. Salinan itu bukan
+sumber data (hilang = diambil lagi dari object storage) dan dienkripsi
+AES-256-GCM dengan kunci yang **dipegang aplikasi**, bukan provider; disk VPS
+sendiri tidak terenkripsi. Artefak unduhan tertunda hidup 30 menit; bila
+salinannya sudah tidak ada saat diambil, panel unduhan menandai permintaan itu
+gagal dengan pesan untuk meminta unduhan baru — bukan berkas yang salah.
+>>>>>>> Stashed changes
 Salinan produk tidak boleh menyiratkan "hanya Anda yang bisa membaca", dan
 tidak boleh menyebut BYOK atau kunci per-ruangan — keduanya bukan bagian
 produk.
@@ -100,6 +117,10 @@ sadar; yang melindunginya hari ini adalah enkripsi volume provider database dan
 kontrol akses. Salinan produk tidak boleh mengklaim "dokumen terenkripsi di
 database".
 
+<<<<<<< Updated upstream
+=======
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
 ## Perlindungan layar
 
 Viewer meraster halaman dan membakar watermark per permintaan. Di atas itu,

@@ -253,7 +253,7 @@ func TestRasterWatermarkPDF_MixedSizesBatched(t *testing.T) {
 		assert.True(t, errors.Is(err, os.ErrNotExist), "run pdf removed after merge: %s", rf)
 	}
 
-	rc, err := svc.rasterWatermarkPDF(context.Background(), "w", "v", "rendition", len(layout), mark)
+	rc, err := svc.rasterWatermarkPDF(context.Background(), renderer, "w", "v", "rendition", len(layout), mark)
 	require.NoError(t, err)
 	full, err := io.ReadAll(rc)
 	require.NoError(t, rc.Close())

@@ -504,8 +504,12 @@ func (s *ContentService) DownloadDocument(ctx context.Context, workspaceID, docu
 	stampCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), downloadJobTimeout)
 	result := make(chan stampResult, 1)
 
+	// Jalur sinkron memakai kolam request tanpa nice — sengaja: pengguna
+	// menunggu di bawah syncDownloadBudget, dan kolam ter-nice hanya akan
+	// mendorong lebih banyak permintaan lewat anggaran itu ke eskalasi. Job
+	// eskalasi ikut di kolam ini karena Document-nya sudah terbuka di sini.
 	go func() {
-		body, err := s.rasterWatermarkPDF(stampCtx, workspaceID, uuidString(version.ID), renditionKey, pageCount, mark)
+		body, err := s.rasterWatermarkPDF(stampCtx, s.viewer.Renderer, workspaceID, uuidString(version.ID), renditionKey, pageCount, mark)
 		result <- stampResult{body: body, err: err}
 	}()
 
@@ -622,8 +626,17 @@ func (r *spooledReadCloser) rewind() error {
 // ImportImages masih menahan ~10 MB piksel per halaman dan dipertahankan
 // sampai byte/halaman pasca-JPEG diukur (U-62). Import berjalan bergantian,
 // bukan paralel.
+<<<<<<< Updated upstream
 func (s *ContentService) rasterWatermarkPDF(ctx context.Context, workspaceID, versionID, renditionKey string, pageCount int, mark watermark.Mark) (*spooledReadCloser, error) {
 	dir, err := os.MkdirTemp("", spool.Prefix+"wm-*")
+=======
+//
+// renderer adalah parameter karena dua kolam poppler melayani fungsi ini:
+// jalur sinkron dan eskalasi memakai Viewer.Renderer, job latar memakai
+// Viewer.DownloadJobRenderer yang ter-nice.
+func (s *ContentService) rasterWatermarkPDF(ctx context.Context, renderer render.Render, workspaceID, versionID, renditionKey string, pageCount int, mark watermark.Mark) (*spooledReadCloser, error) {
+	dir, err := os.MkdirTemp("", "rakda-wm-*")
+>>>>>>> Stashed changes
 	if err != nil {
 		return nil, fmt.Errorf("temp dir: %w", err)
 	}
@@ -642,7 +655,7 @@ func (s *ContentService) rasterWatermarkPDF(ctx context.Context, workspaceID, ve
 		return nil, fmt.Errorf("get rendition: %w", err)
 	}
 
-	doc, err := s.viewer.Renderer.Open(pdf)
+	doc, err := renderer.Open(pdf)
 	pdf.Close()
 	if err != nil {
 		removeAll()

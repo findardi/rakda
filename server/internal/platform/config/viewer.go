@@ -10,6 +10,12 @@ type ViewerConfig struct {
 	RenderConcurrency int
 	SweepConcurrency  int
 	SweepNice         int
+
+	// Kolam poppler job unduhan ber-watermark latar. Default 2 = stampWorkers
+	// di content/service (tidak bisa diimpor: render → config, service →
+	// render). Belum diukur di box 2 vCPU (U-70).
+	DownloadConcurrency int
+	DownloadNice        int
 }
 
 func LoadViewerConfig() (ViewerConfig, error) {
@@ -43,6 +49,16 @@ func LoadViewerConfig() (ViewerConfig, error) {
 		return ViewerConfig{}, err
 	}
 
+	downloadConcurrency, err := GetEnvInt("VIEWER_DOWNLOAD_CONCURRENCY", 2)
+	if err != nil {
+		return ViewerConfig{}, err
+	}
+
+	downloadNice, err := GetEnvInt("VIEWER_DOWNLOAD_NICE", 10)
+	if err != nil {
+		return ViewerConfig{}, err
+	}
+
 	if dpi <= 0 {
 		dpi = 150
 	}
@@ -59,13 +75,23 @@ func LoadViewerConfig() (ViewerConfig, error) {
 		sweepNice = 0
 	}
 
+	if downloadConcurrency <= 0 {
+		downloadConcurrency = 1
+	}
+
+	if downloadNice < 0 {
+		downloadNice = 0
+	}
+
 	return ViewerConfig{
-		GotenbergURL:      GetEnv("GOTENBERG_URL", "http://localhost:3000"),
-		ConvertTimeout:    convertTimeout,
-		DPI:               dpi,
-		RenderTimeout:     renderTimeout,
-		RenderConcurrency: concurrency,
-		SweepConcurrency:  sweepConcurrency,
-		SweepNice:         sweepNice,
+		GotenbergURL:        GetEnv("GOTENBERG_URL", "http://localhost:3000"),
+		ConvertTimeout:      convertTimeout,
+		DPI:                 dpi,
+		RenderTimeout:       renderTimeout,
+		RenderConcurrency:   concurrency,
+		SweepConcurrency:    sweepConcurrency,
+		SweepNice:           sweepNice,
+		DownloadConcurrency: downloadConcurrency,
+		DownloadNice:        downloadNice,
 	}, nil
 }

@@ -21,8 +21,16 @@ import (
 )
 
 type Viewer struct {
-	Converter     convert.Converter
-	Renderer      render.Render
+	Converter convert.Converter
+	Renderer  render.Render
+
+	// DownloadJobRenderer melayani job unduhan ber-watermark latar saja —
+	// kolam poppler ter-nice supaya pembaca viewer menang saat CPU berebut.
+	// Jalur sinkron (≤ asyncDownloadPageThreshold, pengguna menunggu di bawah
+	// syncDownloadBudget) dan job eskalasi (Document-nya sudah terbuka) tetap
+	// memakai Renderer. Nil → Renderer (lihat NewContentService).
+	DownloadJobRenderer render.Render
+
 	Watermark     watermark.Watermarker
 	TextExtractor render.TextExtractor
 	WordBoxes     render.WordBoxExtractor
@@ -304,6 +312,12 @@ func (s *ContentService) buildRendition(ctx context.Context, workspaceID string,
 
 func (s *ContentService) markRenditionFailed(ctx context.Context, versionID pgtype.UUID, cause error) error {
 	msg := cause.Error()
+
+	// Sebab aslinya hanya hidup di kolom rendition_error; tanpa baris ini
+	// log hanya memuat ErrRenditionFailed yang sudah dibungkus, dan diagnosis
+	// butuh psql ke DB (U-72).
+	log.Printf("rendition failed version %s: %s", uuidString(versionID), msg)
+
 	if err := s.repo.SetVersionRenditionFailure(ctx, contentdb.SetVersionRenditionFailureParams{
 		RenditionError: &msg,
 		ID:             versionID,
