@@ -292,17 +292,24 @@ update document_download_jobs
 set status = 'ready',
     object_key = $2,
     size_bytes = $3,
-    completed_at = now()
+    completed_at = now(),
+    expires_at = now() + $4::interval
 where id = $1 and status = 'pending'
 `
 
 type MarkDownloadJobReadyParams struct {
-	ID        pgtype.UUID `json:"id"`
-	ObjectKey string      `json:"object_key"`
-	SizeBytes int64       `json:"size_bytes"`
+	ID        pgtype.UUID     `json:"id"`
+	ObjectKey string          `json:"object_key"`
+	SizeBytes int64           `json:"size_bytes"`
+	Ttl       pgtype.Interval `json:"ttl"`
 }
 
 func (q *Queries) MarkDownloadJobReady(ctx context.Context, arg MarkDownloadJobReadyParams) error {
-	_, err := q.db.Exec(ctx, markDownloadJobReady, arg.ID, arg.ObjectKey, arg.SizeBytes)
+	_, err := q.db.Exec(ctx, markDownloadJobReady,
+		arg.ID,
+		arg.ObjectKey,
+		arg.SizeBytes,
+		arg.Ttl,
+	)
 	return err
 }

@@ -94,6 +94,20 @@ func newFaceSet() (*faceSet, error) {
 }
 
 func (w *ImageWatermark) Burn(src []byte, m Mark) ([]byte, error) {
+	page, err := w.BurnImage(src, m)
+	if err != nil {
+		return nil, err
+	}
+
+	var out bytes.Buffer
+	if err := png.Encode(&out, page); err != nil {
+		return nil, fmt.Errorf("encode page: %w", err)
+	}
+
+	return out.Bytes(), nil
+}
+
+func (w *ImageWatermark) BurnImage(src []byte, m Mark) (*image.RGBA, error) {
 	got := w.pool.Get()
 	fs, ok := got.(*faceSet)
 	if !ok {
@@ -116,12 +130,7 @@ func (w *ImageWatermark) Burn(src []byte, m Mark) ([]byte, error) {
 		rotateOnto(page, overlay, angleDegree)
 	}
 
-	var out bytes.Buffer
-	if err := png.Encode(&out, page); err != nil {
-		return nil, fmt.Errorf("encode page: %w", err)
-	}
-
-	return out.Bytes(), nil
+	return page, nil
 }
 
 func (fs *faceSet) tile(m Mark) *image.RGBA {

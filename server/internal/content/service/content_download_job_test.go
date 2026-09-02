@@ -77,7 +77,7 @@ func newDownloadTestService(t *testing.T, repo *downloadFakeRepo) *ContentServic
 	return NewContentService(repo, store, Viewer{
 		Renderer: failingRenderer{},
 		DPI:      150,
-	}, 0, nil, 1, ArchiveDeps{})
+	}, 0, nil, StampDeps{Sync: 1, Async: 1}, ArchiveDeps{})
 }
 
 func downloadFixture(pageCount int32) *downloadFakeRepo {
@@ -145,4 +145,28 @@ func TestDownloadDocumentRefusedInArchivedRoom(t *testing.T) {
 
 	require.ErrorIs(t, err, ErrContentForbidden)
 	assert.Len(t, repo.created, 0)
+}
+
+func TestDownloadDocumentQueuesAboveOldPageCap(t *testing.T) {
+	repo := downloadFixture(200)
+	svc := newDownloadTestService(t, repo)
+
+	res, err := svc.DownloadDocument(context.Background(),
+		"11111111-1111-1111-1111-111111111111",
+		"33333333-3333-3333-3333-333333333333",
+		"", guestActor(), watermark.Mark{Primary: "tamu@contoh.id"})
+
+	require.NoError(t, err)
+	require.NotErrorIs(t, err, ErrWatermarkDownloadTooLarge)
+	assert.NotEmpty(t, res.JobID)
+
+	created := <-repo.created
+	assert.Equal(t, int32(200), created.PageCount)
+}
+
+func TestDownloadJobSweeperNeverOutlivesARunningJob(t *testing.T) {
+	assert.Greater(t, downloadJobStaleAge, downloadJobTimeout+downloadJobStoreTimeout,
+		"sweeper akan menandai failed job yang masih berjalan")
+	assert.LessOrEqual(t, maxWatermarkDownloadPages, maxRenditionPages,
+		"plafon unduhan tidak boleh melewati plafon rendition")
 }

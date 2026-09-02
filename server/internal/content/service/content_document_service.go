@@ -1,11 +1,11 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"image"
+	"image/jpeg"
 	"io"
 	"log"
 	"os"
@@ -598,17 +598,21 @@ func (r *spooledReadCloser) size() (int64, error) {
 }
 
 // rasterWatermarkPDF merakit varian unduhan ber-watermark sebagai raster
-// ter-flatten (keputusan 9-g): tiap halaman dirender/ambil-cache → `Burn`
-// yang sama dengan viewer → rakit ulang jadi PDF. Tandanya adalah piksel,
-// jadi `pdfcpu watermark remove` tidak lagi bisa mencabutnya.
+// ter-flatten (keputusan 9-g): tiap halaman dirender/ambil-cache → `BurnImage`
+// yang sama dengan viewer → ditulis JPEG → rakit ulang jadi PDF. Tandanya
+// adalah piksel, jadi `pdfcpu watermark remove` tidak lagi bisa mencabutnya.
+//
+// Halaman ditulis JPEG, bukan PNG (16-h): ImportImages menempelkan byte JPEG
+// apa adanya sebagai DCTDecode, sedangkan PNG ia dekode lalu deflate ulang
+// sebagai RGB mentah tanpa predictor — itulah asal berkas 40× lipat.
 //
 // Geometri halaman dijaga lewat pengelompokan run: `ImportImages` memaksa satu
 // `PageDim` per panggilan (default A4), jadi halaman dikelompokkan jadi runs
 // berurutan berdimensi sama dan digabung berurutan dengan `MergeRaw`. Run juga
-// dipotong tiap `stampPagesPerRun` halaman (9.5-f): ImportImages menahan
-// piksel terdekompresi seluruh run di RAM (~10 MB/halaman), jadi puncaknya
-// diikat ke ukuran run, bukan ke panjang dokumen. Import berjalan bergantian,
-// bukan paralel — paralel berarti beberapa run di RAM sekaligus.
+// dipotong tiap `stampPagesPerRun` halaman (9.5-f); angka 25 lahir saat
+// ImportImages masih menahan ~10 MB piksel per halaman dan dipertahankan
+// sampai byte/halaman pasca-JPEG diukur (U-62). Import berjalan bergantian,
+// bukan paralel.
 func (s *ContentService) rasterWatermarkPDF(ctx context.Context, workspaceID, versionID, renditionKey string, pageCount int, mark watermark.Mark) (*spooledReadCloser, error) {
 	dir, err := os.MkdirTemp("", "rakda-wm-*")
 	if err != nil {
@@ -677,27 +681,23 @@ func (s *ContentService) burnPages(ctx context.Context, workspaceID, versionID s
 
 	for page := 1; page <= pageCount && gctx.Err() == nil; page++ {
 		g.Go(func() error {
-			png, err := s.pageForDownload(gctx, workspaceID, versionID, doc, page)
+			src, err := s.pageForDownload(gctx, workspaceID, versionID, doc, page)
 			if err != nil {
 				return fmt.Errorf("page %d: %w", page, err)
 			}
 
-			marked, err := s.viewer.Watermark.Burn(png, mark)
+			img, err := s.viewer.Watermark.BurnImage(src, mark)
 			if err != nil {
 				return fmt.Errorf("burn page %d: %w", page, err)
 			}
 
-			cfg, _, err := image.DecodeConfig(bytes.NewReader(marked))
-			if err != nil {
-				return fmt.Errorf("decode page %d: %w", page, err)
-			}
-
-			path := filepath.Join(pagesPath, fmt.Sprintf("p%04d.png", page))
-			if err := os.WriteFile(path, marked, 0o600); err != nil {
+			path := filepath.Join(pagesPath, fmt.Sprintf("p%04d.jpg", page))
+			if err := writeJPEG(path, img); err != nil {
 				return fmt.Errorf("write page %d: %w", page, err)
 			}
 
-			pages[page-1] = burnedPage{path: path, w: float64(cfg.Width), h: float64(cfg.Height)}
+			b := img.Bounds()
+			pages[page-1] = burnedPage{path: path, w: float64(b.Dx()), h: float64(b.Dy())}
 			return nil
 		})
 	}
@@ -707,6 +707,20 @@ func (s *ContentService) burnPages(ctx context.Context, workspaceID, versionID s
 	}
 
 	return pages, nil
+}
+
+func writeJPEG(path string, img image.Image) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return err
+	}
+
+	if err := jpeg.Encode(f, img, &jpeg.Options{Quality: downloadJPEGQuality}); err != nil {
+		f.Close()
+		return err
+	}
+
+	return f.Close()
 }
 
 type pageRun struct {

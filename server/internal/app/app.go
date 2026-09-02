@@ -131,6 +131,12 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 		pageCacheSweepInterval = time.Hour
 	}
 
+	downloadStampAsyncConcurrency, err := config.GetEnvInt("DOWNLOAD_STAMP_ASYNC_CONCURRENCY", 2)
+	if err != nil {
+		log.Printf("invalid DOWNLOAD_STAMP_ASYNC_CONCURRENCY, fallback to 2: %v", err)
+		downloadStampAsyncConcurrency = 2
+	}
+
 	downloadStampConcurrency, err := config.GetEnvInt("DOWNLOAD_STAMP_CONCURRENCY", 1)
 	if err != nil {
 		log.Printf("invalid DOWNLOAD_STAMP_CONCURRENCY, fallback to 1: %v", err)
@@ -180,7 +186,7 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 	activitysvc := activityservice.NewActivityService(activityrepo.New(pool))
 	authsvc := authservice.NewAuthService(authrepo.New(pool), otpGen, jwtGen, mailer, nil)
 	accessSvc := accessservice.NewAccessService(accessrepo.New(pool), mailer, authsvc, otpGen, webURL, activitysvc)
-	contentSvc := contentservice.NewContentService(contentrepo.New(pool), store, viewer, trashRetention, activitysvc, downloadStampConcurrency, contentservice.ArchiveDeps{
+	contentSvc := contentservice.NewContentService(contentrepo.New(pool), store, viewer, trashRetention, activitysvc, contentservice.StampDeps{Sync: downloadStampConcurrency, Async: downloadStampAsyncConcurrency}, contentservice.ArchiveDeps{
 		Concurrency: archiveConcurrency,
 		TTL:         archiveTTL,
 	})
@@ -194,7 +200,7 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 	workspaceModule := workspace.NewModule(pool, jwtGen, accessSvc, contentSvc, activitysvc)
 	accessModule := access.NewModule(pool, jwtGen, mailer, authsvc, otpGen, webURL, activitysvc)
 	invitationModule := invitation.NewModule(pool, jwtGen, activitysvc)
-	contentModule := content.NewModule(pool, jwtGen, store, viewer, trashRetention, activitysvc, downloadStampConcurrency, contentservice.ArchiveDeps{
+	contentModule := content.NewModule(pool, jwtGen, store, viewer, trashRetention, activitysvc, contentservice.StampDeps{Sync: downloadStampConcurrency, Async: downloadStampAsyncConcurrency}, contentservice.ArchiveDeps{
 		Concurrency:    archiveConcurrency,
 		TTL:            archiveTTL,
 		ActivityExport: activitysvc,

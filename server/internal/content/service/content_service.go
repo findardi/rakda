@@ -31,26 +31,29 @@ const (
 	maxUploadBytes     = 500 << 20
 	maxRenditionPages  = 750
 
-	// maxWatermarkDownloadPages: plafon unduhan varian ber-watermark
-	// (9.5-d, dinaikkan 9.5-f). Sejak import dibatch per stampPagesPerRun,
-	// RAM tidak lagi mengikuti jumlah halaman (~380 MB puncak untuk 60
-	// maupun 400 halaman); yang tersisa adalah batas waktu ~300 s dari
-	// timeout fetch proxy web. Diukur di dev 0,31 s/halaman dengan 2
-	// pekerja. ANGKA 150 BELUM TERVALIDASI untuk kotak rilis 2 vCPU /
-	// 8 GB dengan `cpus: 1.5` pada container api: stampWorkers=2 tidak
-	// lagi punya dua inti penuh. Lihat U-60. Jangan naikkan, dan turunkan
-	// bila pengukuran di kotak sasaran melewati 300 s.
-	maxWatermarkDownloadPages = 150
+	// maxWatermarkDownloadPages sama dengan maxRenditionPages sejak 16-g:
+	// plafon 150 lahir dari tembok 300 s proxy web, dan 16-f memindahkan
+	// perakitan panjang ke job latar sehingga tembok itu tidak lagi mengikat.
+	// RAM datar per run sejak 9.5-f (~380 MB di era PNG; pasca-16-h JPEG
+	// belum diukur ulang, U-62). Yang mengikat sekarang downloadJobTimeout
+	// dan kolam stampAsyncSem, bukan jumlah halaman.
+	maxWatermarkDownloadPages = maxRenditionPages
 	stampPagesPerRun          = 25
 	stampWorkers              = 2
+	downloadJPEGQuality       = 80
 
 	asyncDownloadPageThreshold = 100
 	syncDownloadBudget         = 30 * time.Second
 	downloadJobTTL             = 30 * time.Minute
-	downloadJobTimeout         = 20 * time.Minute
-	downloadJobStoreTimeout    = 5 * time.Minute
-	downloadJobStaleAge        = 15 * time.Minute
-	downloadJobListLimit       = 20
+	downloadJobTimeout         = 45 * time.Minute
+	downloadJobStoreTimeout    = 10 * time.Minute
+
+	// Relasi ditulis sebagai ekspresi, bukan angka: sweeper yang menandai
+	// job "terhenti" harus selalu lebih longgar daripada umur maksimal job
+	// yang masih sah, kalau tidak ia membunuh pekerjaan yang sedang jalan.
+	downloadJobStaleAge = downloadJobTimeout + downloadJobStoreTimeout + 5*time.Minute
+
+	downloadJobListLimit = 20
 
 	// asyncConvertTimeout bounds the detached conversion kicked off by a version
 	// upload or a rendition retry. Generous: gotenberg on a large deck is slow,
@@ -107,11 +110,18 @@ type ContentService struct {
 	activity       ActivityRecorder
 
 	// stampSem membatasi perakitan unduhan ber-watermark yang berjalan
-	// bersamaan (keputusan 9.5-d): ImportImages menahan piksel terdekompresi
-	// dalam RSS Go, jadi dua unduhan besar bersamaan bisa saling menjatuhkan
-	// di kotak 4 GB. Non-blocking: penuh → ErrDownloadBusy (429), tidak
-	// menunggu.
+	// bersamaan (keputusan 9.5-d): tiap perakitan menahan piksel halaman di
+	// BurnImage (2 pekerja) plus byte JPEG satu run, jadi dua unduhan besar
+	// bersamaan bisa saling menjatuhkan. Non-blocking: penuh → ErrDownloadBusy
+	// (429), tidak menunggu.
 	stampSem chan struct{}
+
+	// stampAsyncSem memisahkan perakitan job latar dari jalur request.
+	// Alasan slot=1 di 9.5-e adalah dua unduhan sama-sama molor ke arah
+	// tembok 300 s; tanpa tembok itu "lebih lambat" bukan lagi "gagal".
+	// Tetap pengali RAM (~380 MB per perakitan di era PNG; pasca-16-h belum
+	// diukur ulang, U-62).
+	stampAsyncSem chan struct{}
 
 	// convertSF menyatukan konversi rendition per version id: kick latar
 	// belakang (unggah versi / retry) dan pembuka viewer yang datang bersamaan
@@ -134,9 +144,17 @@ type ArchiveDeps struct {
 	QAExport       QAExporter
 }
 
-func NewContentService(repo ContentRepository, store storage.Storage, viewer Viewer, trashRetention time.Duration, activity ActivityRecorder, stampConcurrency int, archive ArchiveDeps) *ContentService {
-	if stampConcurrency < 1 {
-		stampConcurrency = 1
+type StampDeps struct {
+	Sync  int
+	Async int
+}
+
+func NewContentService(repo ContentRepository, store storage.Storage, viewer Viewer, trashRetention time.Duration, activity ActivityRecorder, stamp StampDeps, archive ArchiveDeps) *ContentService {
+	if stamp.Sync < 1 {
+		stamp.Sync = 1
+	}
+	if stamp.Async < 1 {
+		stamp.Async = 1
 	}
 	if archive.Concurrency < 1 {
 		archive.Concurrency = 1
@@ -151,7 +169,8 @@ func NewContentService(repo ContentRepository, store storage.Storage, viewer Vie
 		viewer:         viewer,
 		trashRetention: trashRetention,
 		activity:       activity,
-		stampSem:       make(chan struct{}, stampConcurrency),
+		stampSem:       make(chan struct{}, stamp.Sync),
+		stampAsyncSem:  make(chan struct{}, stamp.Async),
 		archiveSem:     make(chan struct{}, archive.Concurrency),
 		archiveTTL:     archive.TTL,
 		activityExport: archive.ActivityExport,

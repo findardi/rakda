@@ -30,7 +30,8 @@ update document_download_jobs
 set status = 'ready',
     object_key = $2,
     size_bytes = $3,
-    completed_at = now()
+    completed_at = now(),
+    expires_at = now() + sqlc.arg(ttl)::interval
 where id = $1 and status = 'pending';
 
 -- name: MarkDownloadJobFailed :exec

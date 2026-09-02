@@ -62,18 +62,21 @@ tidak bisa dihapus dengan alat PDF apa pun (stamp vektor pdfcpu yang bisa
 dicabut satu perintah — `pdfcpu watermark remove` — telah dihapus). Harga yang
 dibayar terang-terangan: berkas unduhan ber-watermark **kehilangan lapisan
 teks** (tak bisa diseleksi, disalin, di-Ctrl+F, atau dibaca pembaca layar),
-ukurannya membengkak, dan CPU dibayar tiap unduhan karena tandanya unik per
-permintaan. Pemegang `can_download_original` menerima PDF tanpa tanda dan tanpa
+ukurannya jauh lebih besar dari rendition bersih karena tiap halaman menjadi
+gambar (JPEG kualitas 80 sejak 16-h; teks padat terukur ±0,5 MB per halaman di
+laptop dev), dan CPU dibayar tiap unduhan karena tandanya unik per permintaan. Pemegang `can_download_original` menerima PDF tanpa tanda dan tanpa
 perubahan — keputusan produk, bukan celah teknis.
 
-**Unduhan ber-watermark dibatasi 150 halaman.** Di atas itu tombol unduhnya mati
-dan menjelaskan alasannya dengan dua angka — batasnya, dan jumlah halaman
-dokumen itu — lalu mengarahkan ke viewer. Batas ini ongkos, bukan izin:
-merakit PDF raster menahan sekitar 10 MB piksel per halaman, dan proxy web
-memutus permintaan di 300 detik. Pemegang `can_download_original` tidak kena
-batas ini sama sekali — berkasnya cuma disalin, tidak dirakit ulang.
+**Unduhan ber-watermark dibatasi di plafon rendition, 750 halaman** — batas yang
+sama yang menentukan apakah dokumen bisa dibuka di viewer, jadi praktis semua
+yang bisa dibaca bisa diunduh. Angka 150 yang berlaku sampai 16-g lahir dari
+proxy web yang memutus permintaan di 300 detik; sejak 16-f perakitan yang
+melewati anggaran 30 detik berpindah ke job latar dan artefaknya diambil dari
+panel unduhan, jadi tembok itu tidak lagi mengikat. Pemegang
+`can_download_original` tidak kena batas ini sama sekali — berkasnya cuma
+disalin, tidak dirakit ulang.
 
-Angka 150 dikirim server ke klien, tidak ditulis di kode web. Kalau batasnya
+Angka plafon dikirim server ke klien, tidak ditulis di kode web. Kalau batasnya
 berubah, UI ikut tanpa perlu disentuh.
 
 ## Perlindungan layar

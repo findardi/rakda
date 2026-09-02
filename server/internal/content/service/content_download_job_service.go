@@ -45,14 +45,14 @@ func (s *ContentService) startDownloadJob(ctx context.Context, workspaceID strin
 	}
 
 	select {
-	case s.stampSem <- struct{}{}:
+	case s.stampAsyncSem <- struct{}{}:
 	default:
 		return contentdb.DocumentDownloadJob{}, ErrDownloadBusy
 	}
 
 	job, err := s.createDownloadJobRow(ctx, doc, version, pageCount, actor)
 	if err != nil {
-		<-s.stampSem
+		<-s.stampAsyncSem
 		return contentdb.DocumentDownloadJob{}, err
 	}
 
@@ -60,7 +60,7 @@ func (s *ContentService) startDownloadJob(ctx context.Context, workspaceID strin
 
 	go func() {
 		defer cancel()
-		defer func() { <-s.stampSem }()
+		defer func() { <-s.stampAsyncSem }()
 
 		body, err := s.rasterWatermarkPDF(jobCtx, workspaceID, uuidString(version.ID), renditionKey, pageCount, mark)
 		s.storeDownloadJobResult(jobCtx, workspaceID, job, stampResult{body: body, err: err})
@@ -136,7 +136,7 @@ func (s *ContentService) createDownloadJobRow(ctx context.Context, doc contentdb
 		DocumentName: doc.Name,
 		VersionNo:    version.VersionNo,
 		PageCount:    int32(pageCount),
-		ExpiresAt:    pgtype.Timestamptz{Time: time.Now().Add(downloadJobTTL), Valid: true},
+		ExpiresAt:    pgtype.Timestamptz{Time: time.Now().Add(downloadJobStaleAge + downloadJobTTL), Valid: true},
 	})
 	if err != nil {
 		return contentdb.DocumentDownloadJob{}, fmt.Errorf("create download job: %w", err)
@@ -170,6 +170,7 @@ func (s *ContentService) storeDownloadJobResult(ctx context.Context, workspaceID
 		ID:        job.ID,
 		ObjectKey: key,
 		SizeBytes: size,
+		Ttl:       pgtype.Interval{Microseconds: downloadJobTTL.Microseconds(), Valid: true},
 	}); err != nil {
 		log.Printf("download job %s: mark ready: %v", uuidString(job.ID), err)
 		_ = s.store.Delete(ctx, key)
