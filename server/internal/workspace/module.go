@@ -38,9 +38,9 @@ type Module struct {
 	repo    *repository.Repository
 }
 
-func NewModule(pool *pgxpool.Pool, verifier middleware.TokenVerifier, access service.AccessService, content service.ContentProvisioner) *Module {
+func NewModule(pool *pgxpool.Pool, verifier middleware.TokenVerifier, access service.AccessService, content service.ContentProvisioner, activity service.ActivityRecorder) *Module {
 	r := repository.New(pool)
-	s := service.NewWorkspaceService(r, access, content)
+	s := service.NewWorkspaceService(r, access, content, activity)
 	h := handler.NewWorkspaceHandler(s)
 
 	mw := middleware.New(verifier, userStatusReader{repo: auth.New(pool)}, nil)
@@ -81,6 +81,7 @@ func (m *Module) RegisterRoutes(r chi.Router) {
 
 		r.Group(func(r chi.Router) {
 			r.Get("/{workspaceID}", m.handler.GetWorkspace)
+			r.Get("/{workspaceID}/summary", m.handler.GetWorkspaceSummary)
 
 			r.Group(func(r chi.Router) {
 				r.Use(m.mw.RequireOwner("workspaceID", m.workspaceOwner))

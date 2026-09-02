@@ -1,0 +1,17 @@
+http:
+  routers:
+    web:
+      # GANTI example.com dengan domain produksi — samakan dengan ORIGIN
+      # (.env.prod.web) dan WEB_URL (.env.prod.api)
+      rule: Host(`app.example.com`)
+      entryPoints:
+        - websecure
+      service: web
+      tls:
+        certResolver: le
+  services:
+    web:
+      loadBalancer:
+        servers:
+          # IP statis service web — network tanpa aardvark, nama tidak resolve
+          - url: http://172.29.0.11:3000

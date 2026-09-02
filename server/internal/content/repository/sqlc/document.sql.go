@@ -359,10 +359,12 @@ func (q *Queries) ListDocumentsByFolder(ctx context.Context, folderID pgtype.UUI
 }
 
 const listExpiredTrashDocuments = `-- name: ListExpiredTrashDocuments :many
-select id, workspace_id, name from documents
-where deleted_at is not null
-and deleted_root_folder_id is null
-and deleted_at < $1
+select d.id, d.workspace_id, d.name from documents d
+join workspaces w on w.id = d.workspace_id
+where d.deleted_at is not null
+and d.deleted_root_folder_id is null
+and d.deleted_at < $1
+and w.status <> 'archive'
 `
 
 type ListExpiredTrashDocumentsRow struct {

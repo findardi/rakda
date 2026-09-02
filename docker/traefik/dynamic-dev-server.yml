@@ -1,0 +1,17 @@
+http:
+  routers:
+    web:
+      # GANTI dev.example.com dengan domain server dev — samakan dengan ORIGIN
+      # (.env.dev.web) dan WEB_URL (.env.dev.api)
+      rule: Host(`dev.example.com`)
+      entryPoints:
+        - websecure
+      service: web
+      tls:
+        certResolver: le
+  services:
+    web:
+      loadBalancer:
+        servers:
+          # IP statis service web — network tanpa aardvark, nama tidak resolve
+          - url: http://172.30.0.11:3000

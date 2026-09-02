@@ -21,20 +21,51 @@ import (
 type PopplerRenderer struct {
 	dpi     int
 	timeout time.Duration
+	nice    int
 	sem     chan struct{}
 }
 
-func NewPoppler(cfg config.ViewerConfig) (*PopplerRenderer, error) {
-	for _, bin := range []string{"pdfinfo", "pdftoppm", "pdftotext"} {
+type PopplerOption func(*popplerOptions)
+
+type popplerOptions struct {
+	concurrency int
+	nice        int
+}
+
+func WithPopplerConcurrency(n int) PopplerOption {
+	return func(o *popplerOptions) { o.concurrency = n }
+}
+
+func WithPopplerNice(n int) PopplerOption {
+	return func(o *popplerOptions) { o.nice = n }
+}
+
+func NewPoppler(cfg config.ViewerConfig, opts ...PopplerOption) (*PopplerRenderer, error) {
+	o := popplerOptions{concurrency: cfg.RenderConcurrency}
+	for _, opt := range opts {
+		opt(&o)
+	}
+
+	bins := []string{"pdfinfo", "pdftoppm", "pdftotext"}
+	if o.nice > 0 {
+		bins = append(bins, "nice")
+	}
+
+	for _, bin := range bins {
 		if _, err := exec.LookPath(bin); err != nil {
 			return nil, fmt.Errorf("poppler: %s not found in PATH: %w", bin, err)
 		}
 	}
 
+	if o.concurrency < 1 {
+		o.concurrency = 1
+	}
+
 	return &PopplerRenderer{
 		dpi:     cfg.DPI,
 		timeout: cfg.RenderTimeout,
-		sem:     make(chan struct{}, cfg.RenderConcurrency),
+		nice:    o.nice,
+		sem:     make(chan struct{}, o.concurrency),
 	}, nil
 }
 
@@ -186,6 +217,11 @@ func (p *PopplerRenderer) run(ctx context.Context, name string, args ...string) 
 	ctx, cancel := context.WithTimeout(ctx, p.timeout)
 	defer cancel()
 
+	if p.nice > 0 {
+		args = append([]string{"-n", strconv.Itoa(p.nice), name}, args...)
+		name = "nice"
+	}
+
 	var stdout, stderr bytes.Buffer
 
 	cmd := exec.CommandContext(ctx, name, args...)
@@ -220,32 +256,44 @@ func (p *PopplerRenderer) ExtractText(ctx context.Context, pdf io.Reader) (strin
 	return string(out), nil
 }
 
-// ExtractWordBoxes memulangkan koordinat kata untuk satu halaman PDF
-// berteks asli (pdftotext -bbox), dinormalkan ke pecahan 0..1.
-func (p *PopplerRenderer) ExtractWordBoxes(ctx context.Context, pdf io.Reader, page int) ([]Word, error) {
-	if page < 1 {
-		return nil, ErrPageOutOfRange
-	}
-
+func (p *PopplerRenderer) OpenWordBoxes(pdf io.Reader) (WordBoxDocument, error) {
 	work, cleanup, err := spool(pdf)
 	if err != nil {
 		return nil, err
 	}
-	defer cleanup()
+
+	return &popplerWordBoxes{p: p, work: work, cleanup: cleanup}, nil
+}
+
+type popplerWordBoxes struct {
+	p       *PopplerRenderer
+	work    spooled
+	cleanup func()
+}
+
+func (d *popplerWordBoxes) ExtractWordBoxes(ctx context.Context, page int) ([]Word, error) {
+	if page < 1 {
+		return nil, ErrPageOutOfRange
+	}
 
 	n := strconv.Itoa(page)
 
-	out, err := p.run(ctx, "pdftotext",
+	out, err := d.p.run(ctx, "pdftotext",
 		"-bbox",
 		"-f", n,
 		"-l", n,
-		work.pdf, "-",
+		d.work.pdf, "-",
 	)
 	if err != nil {
 		return nil, err
 	}
 
 	return parseWordBoxes(out)
+}
+
+func (d *popplerWordBoxes) Close() error {
+	d.cleanup()
+	return nil
 }
 
 // parseWordBoxes membaca keluaran `pdftotext -bbox`: satu halaman dalam

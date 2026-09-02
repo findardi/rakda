@@ -52,6 +52,24 @@ type Document struct {
 	StagedVersionID     pgtype.UUID        `json:"staged_version_id"`
 }
 
+type DocumentDownloadJob struct {
+	ID           pgtype.UUID        `json:"id"`
+	WorkspaceID  pgtype.UUID        `json:"workspace_id"`
+	DocumentID   pgtype.UUID        `json:"document_id"`
+	VersionID    pgtype.UUID        `json:"version_id"`
+	RequestedBy  pgtype.UUID        `json:"requested_by"`
+	DocumentName string             `json:"document_name"`
+	VersionNo    int32              `json:"version_no"`
+	PageCount    int32              `json:"page_count"`
+	Status       string             `json:"status"`
+	ObjectKey    string             `json:"object_key"`
+	SizeBytes    int64              `json:"size_bytes"`
+	Error        string             `json:"error"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	CompletedAt  pgtype.Timestamptz `json:"completed_at"`
+	ExpiresAt    pgtype.Timestamptz `json:"expires_at"`
+}
+
 type DocumentPageText struct {
 	VersionID  pgtype.UUID        `json:"version_id"`
 	PageNo     int32              `json:"page_no"`
@@ -187,6 +205,23 @@ type Workspace struct {
 	Status      string             `json:"status"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type WorkspaceArchive struct {
+	ID              pgtype.UUID        `json:"id"`
+	WorkspaceID     pgtype.UUID        `json:"workspace_id"`
+	RequestedBy     pgtype.UUID        `json:"requested_by"`
+	RequestedByName string             `json:"requested_by_name"`
+	Status          string             `json:"status"`
+	ObjectKey       string             `json:"object_key"`
+	SizeBytes       int64              `json:"size_bytes"`
+	ChecksumSha256  string             `json:"checksum_sha256"`
+	DocumentCount   int32              `json:"document_count"`
+	MissingCount    int32              `json:"missing_count"`
+	Error           string             `json:"error"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	CompletedAt     pgtype.Timestamptz `json:"completed_at"`
+	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
 }
 
 type WorkspaceGroup struct {

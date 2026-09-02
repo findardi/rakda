@@ -229,7 +229,7 @@
 
 <!-- Create / Edit -->
 <dialog bind:this={formDialog} class="modal" aria-labelledby="group-form-title">
-	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+	<div class="modal-box max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
 		<h2 id="group-form-title" class="text-lg font-semibold tracking-[-0.01em]">
 			{editing ? t('group.edit.title') : t('group.create.title')}
 		</h2>
@@ -268,7 +268,7 @@
 				rows={3}
 			/>
 
-			<div class="mt-1 flex justify-end gap-2">
+			<div class="mt-1 flex flex-wrap justify-end gap-2">
 				<Button type="button" variant="ghost" onclick={() => formDialog?.close()}>
 					{t('group.cancel')}
 				</Button>
@@ -289,7 +289,7 @@
 
 <!-- Delete confirm -->
 <dialog bind:this={deleteDialog} class="modal" aria-labelledby="group-delete-title">
-	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+	<div class="modal-box max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
 		<h2 id="group-delete-title" class="text-lg font-semibold tracking-[-0.01em]">
 			{t('group.delete.title')}
 		</h2>
@@ -307,7 +307,7 @@
 			method="POST"
 			action="?/delete"
 			use:enhance={submitDelete}
-			class="mt-5 flex justify-end gap-2"
+			class="mt-5 flex flex-wrap justify-end gap-2"
 		>
 			<input type="hidden" name="groupId" value={pending?.id ?? ''} />
 			<Button type="button" variant="ghost" onclick={() => deleteDialog?.close()}>

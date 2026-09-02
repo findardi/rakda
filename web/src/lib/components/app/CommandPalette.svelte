@@ -193,7 +193,7 @@
 	aria-label={t('app.search.title')}
 >
 	<div
-		class="mt-14 w-full max-w-xl rounded-box border border-base-content/10 bg-base-100 shadow-lg sm:mx-auto"
+		class="mt-14 w-[calc(100%-1.5rem)] max-w-xl justify-self-center rounded-box border border-base-content/10 bg-base-100 shadow-lg"
 	>
 		<!-- Input row -->
 		<div class="flex items-center gap-3 border-b border-base-content/10 px-4">

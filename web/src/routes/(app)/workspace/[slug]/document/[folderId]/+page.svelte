@@ -4,13 +4,15 @@
 	import { resolve } from '$app/paths';
 	import { navigating, page } from '$app/state';
 	import type { ActionResult, SubmitFunction } from '@sveltejs/kit';
-	import { normalizeRole } from '$lib/access/roles';
+	import { normalizeRole, roomWritableFrom } from '$lib/access/roles';
 	import { DocumentVersions } from '$lib/components/app';
 	import { Alert, Button, showToast } from '$lib/components/common';
 	import { DOCUMENT_MIME, filesFrom, treeFromInput } from '$lib/dnd';
 	import { downloadRendition } from '$lib/download';
+	import { downloadJobs } from '$lib/download/jobs.svelte';
 	import { formatBytes, formatDate, formatDateTime } from '$lib/format';
 	import { t } from '$lib/i18n';
+	import { recordFolderVisit } from '$lib/recents';
 	import { findNode } from '$lib/tree';
 	import type { DocumentData, FolderTreeNode } from '$lib/types/content';
 	import type { MyAccessWorkspace } from '$lib/types/workspace';
@@ -49,10 +51,12 @@
 	const access = $derived((page.data as { access?: MyAccessWorkspace }).access);
 	const perms = $derived(access?.permissions ?? []);
 	const role = $derived(normalizeRole(access?.role ?? ''));
-	const canUpload = $derived(perms.includes('document:upload') && !forbidden);
+	const writable = $derived(roomWritableFrom(page.data));
+	const canUpload = $derived(perms.includes('document:upload') && !forbidden && writable);
+	// Reading survives the archive freeze; only writes are refused.
 	const canDownload = $derived(perms.includes('document:download') && role !== 'guest');
 	// Picking a folder creates subfolders, so it needs more than upload rights.
-	const canCreate = $derived(perms.includes('folder:create') && !forbidden);
+	const canCreate = $derived(perms.includes('folder:create') && !forbidden && writable);
 
 	const downloading = new SvelteSet<string>();
 	const downloadAbort = new AbortController();
@@ -66,10 +70,18 @@
 			downloadAbort.signal
 		);
 		downloading.delete(doc.id);
-		if (!outcome.ok) showToast(outcome.message, 'error');
+		if (!outcome.ok) {
+			showToast(outcome.message, 'error');
+			return;
+		}
+
+		if (outcome.queued) {
+			downloadJobs.track(outcome.jobId);
+			showToast(t('doc.dl.queued'));
+		}
 	}
-	const canDelete = $derived(perms.includes('document:delete'));
-	const canEditDoc = $derived(perms.includes('document:edit'));
+	const canDelete = $derived(perms.includes('document:delete') && writable);
+	const canEditDoc = $derived(perms.includes('document:edit') && writable);
 	// Version history is owner/admin upstream regardless of `document:view`, so a
 	// guest never sees the disclosure rather than opening it into a 403.
 	const canSeeVersions = $derived(role === 'owner' || role === 'admin');
@@ -193,6 +205,10 @@
 	const roleLabel = $derived(t(ROLE_KEY[role]));
 
 	const folder = $derived(findNode(folders, folderId));
+
+	$effect(() => {
+		if (folder) recordFolderVisit(workspace.id, { id: folder.id, name: folder.name });
+	});
 
 	// The load blocks on the server, so the outgoing folder's list would sit
 	// frozen on screen until the new one lands. Show the shape instead, and name
@@ -985,7 +1001,7 @@
 </section>
 
 <dialog bind:this={moveDialog} class="modal" aria-labelledby="doc-move-title">
-	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+	<div class="modal-box max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
 		<h2 id="doc-move-title" class="text-lg font-semibold tracking-[-0.01em]">
 			{t('doc.docs.move.title')}
 		</h2>
@@ -1017,7 +1033,7 @@
 				{/each}
 			</select>
 
-			<div class="mt-6 flex justify-end gap-2">
+			<div class="mt-6 flex flex-wrap justify-end gap-2">
 				<Button type="button" variant="ghost" onclick={() => moveDialog?.close()}>
 					{t('doc.cancel')}
 				</Button>
@@ -1033,7 +1049,7 @@
 </dialog>
 
 <dialog bind:this={deleteDialog} class="modal" aria-labelledby="doc-delete-title">
-	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+	<div class="modal-box max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
 		<h2 id="doc-delete-title" class="text-lg font-semibold tracking-[-0.01em]">
 			{t('doc.docs.delete.title')}
 		</h2>
@@ -1058,7 +1074,7 @@
 			method="POST"
 			action="?/deleteDocument"
 			use:enhance={submitDelete}
-			class="mt-6 flex justify-end gap-2"
+			class="mt-6 flex flex-wrap justify-end gap-2"
 		>
 			<input type="hidden" name="documentId" value={deleting?.id ?? ''} />
 			<Button type="button" variant="ghost" onclick={() => deleteDialog?.close()}>
@@ -1075,7 +1091,7 @@
 </dialog>
 
 <dialog bind:this={bulkDialog} class="modal" aria-labelledby="doc-bulk-delete-title">
-	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+	<div class="modal-box max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
 		<h2 id="doc-bulk-delete-title" class="text-lg font-semibold tracking-[-0.01em]">
 			{t('doc.select.docsTitle')}
 		</h2>
@@ -1091,7 +1107,7 @@
 			method="POST"
 			action="?/bulkDeleteDocuments"
 			use:enhance={submitBulkDelete}
-			class="mt-6 flex justify-end gap-2"
+			class="mt-6 flex flex-wrap justify-end gap-2"
 		>
 			{#each [...selectedDocs] as id (id)}
 				<input type="hidden" name="documentId" value={id} />

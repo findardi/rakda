@@ -5,6 +5,7 @@ import type {
 	CompleteUploadPayload,
 	CompleteVersionPayload,
 	DocumentData,
+	DownloadJobData,
 	DownloadLimitsData,
 	InitMultipartData,
 	InitMultipartPayload,
@@ -70,7 +71,7 @@ export function downloadDocument(
 ): Promise<Response> {
 	return fetch(
 		`${API_URL}${documentsBase(workspaceId)}/${documentId}/download${versionQuery(versionId)}`,
-		{ headers: { authorization: `Bearer ${token}` } }
+		{ headers: upstreamHeaders(token) }
 	);
 }
 
@@ -105,7 +106,7 @@ export function fetchViewPage(
 ): Promise<Response> {
 	return fetch(
 		`${API_URL}${documentsBase(workspaceId)}/${documentId}/pages/${page}${versionQuery(versionId)}`,
-		{ headers: { authorization: `Bearer ${token}` } }
+		{ headers: upstreamHeaders(token) }
 	);
 }
 
@@ -260,4 +261,33 @@ export function bulkDeleteDocuments(
 		{ document_ids: documentIds },
 		token
 	);
+}
+
+export function listDownloadJobs(
+	token: string,
+	workspaceId: string
+): Promise<ApiResult<DownloadJobData[]>> {
+	return get<DownloadJobData[]>(`/content/workspaces/${workspaceId}/download-jobs`, token);
+}
+
+export function getDownloadJob(
+	token: string,
+	workspaceId: string,
+	jobId: string
+): Promise<ApiResult<DownloadJobData>> {
+	return get<DownloadJobData>(`/content/workspaces/${workspaceId}/download-jobs/${jobId}`, token);
+}
+
+export function downloadJobArtifact(
+	token: string,
+	workspaceId: string,
+	jobId: string,
+	range?: string | null
+): Promise<Response> {
+	const headers = upstreamHeaders(token);
+	if (range) headers.range = range;
+
+	return fetch(`${API_URL}/content/workspaces/${workspaceId}/download-jobs/${jobId}/download`, {
+		headers
+	});
 }

@@ -9,7 +9,10 @@ export interface DownloadTarget {
 	fallbackName: string;
 }
 
-export type DownloadOutcome = { ok: true } | { ok: false; message: string };
+export type DownloadOutcome =
+	| { ok: true; queued?: false }
+	| { ok: true; queued: true; jobId: string }
+	| { ok: false; message: string };
 
 export function renditionFilename(disposition: string | null, fallbackName: string): string {
 	const m = disposition?.match(/filename="?([^";]+)"?/);
@@ -56,6 +59,14 @@ export async function downloadRendition(
 	if (!res.ok) {
 		const body = (await res.json().catch(() => null)) as { message?: string } | null;
 		return { ok: false, message: downloadErrorMessage(res, body) };
+	}
+
+	if (res.status === 202) {
+		const body = (await res.json().catch(() => null)) as { data?: { job_id?: string } } | null;
+		const jobId = body?.data?.job_id;
+		if (!jobId) return { ok: false, message: t('err.generic') };
+
+		return { ok: true, queued: true, jobId };
 	}
 
 	let blob: Blob;

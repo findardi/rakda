@@ -2,11 +2,15 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 
+	activityservice "github.com/findardi/rakda/server/internal/activity/service"
+	"github.com/findardi/rakda/server/internal/platform/permission"
 	"github.com/findardi/rakda/server/internal/workspace/dto"
 	workspacedb "github.com/findardi/rakda/server/internal/workspace/repository/sqlc"
 	"github.com/jackc/pgx/v5"
@@ -15,10 +19,33 @@ import (
 )
 
 const (
-	StatusPrepare = "prepare"
-	StatusActive  = "active"
-	StatusArchive = "archive"
+	StatusPrepare = permission.RoomPrepare
+	StatusActive  = permission.RoomActive
+	StatusArchive = permission.RoomArchive
 )
+
+const OwnedWorkspaceLimit = 3
+
+var statusTransitions = map[string][]string{
+	StatusPrepare: {StatusActive, StatusArchive},
+	StatusActive:  {StatusArchive},
+	StatusArchive: {StatusActive},
+}
+
+func canTransition(from, to string) bool {
+	for _, allowed := range statusTransitions[from] {
+		if allowed == to {
+			return true
+		}
+	}
+	return false
+}
+
+type Actor struct {
+	UserID string
+	Name   string
+	Role   string
+}
 
 var (
 	ErrWorkspaceNameTaken    = errors.New("workspace name already taken")
@@ -26,29 +53,52 @@ var (
 	ErrWorkspaceNotFound     = errors.New("workspace not found")
 	ErrWorkspaceExceedLimits = errors.New("workspace exceeds limit")
 	ErrInvalidStatus         = errors.New("invalid workspace status")
+	ErrStatusTransition      = errors.New("workspace status transition not allowed")
+	ErrWorkspaceArchived     = errors.New("workspace is archived")
+	ErrWorkspaceForbidden    = errors.New("workspace access denied")
 )
 
 var slugInvalidChars = regexp.MustCompile(`[^a-z0-9]+`)
 
 type WorkspaceService struct {
-	repo    WorkspaceRepository
-	access  AccessService
-	content ContentProvisioner
+	repo     WorkspaceRepository
+	access   AccessService
+	content  ContentProvisioner
+	activity ActivityRecorder
 }
 
-func NewWorkspaceService(repo WorkspaceRepository, access AccessService, content ContentProvisioner) *WorkspaceService {
+func NewWorkspaceService(repo WorkspaceRepository, access AccessService, content ContentProvisioner, activity ActivityRecorder) *WorkspaceService {
 	return &WorkspaceService{
-		repo:    repo,
-		access:  access,
-		content: content,
+		repo:     repo,
+		access:   access,
+		content:  content,
+		activity: activity,
 	}
 }
 
-func (s *WorkspaceService) slugify(name string) string {
+func workspaceResponse(w workspacedb.Workspace) dto.WorkspaceResponse {
+	return dto.WorkspaceResponse{
+		ID:          uuidString(w.ID),
+		OwnerID:     uuidString(w.OwnerID),
+		Name:        w.Name,
+		Slug:        w.Slug,
+		Description: deref(w.Description),
+		Status:      w.Status,
+		CreatedAt:   w.CreatedAt.Time,
+		UpdatedAt:   w.UpdatedAt.Time,
+	}
+}
+
+func (s *WorkspaceService) slugBase(name string) string {
 	slug := strings.ToLower(name)
 	slug = slugInvalidChars.ReplaceAllString(slug, "-")
-	slug = strings.Trim(slug, "-")
-	return slug
+	return strings.Trim(slug, "-")
+}
+
+func (s *WorkspaceService) slugify(name string) string {
+	randomID := make([]byte, 4)
+	_, _ = rand.Read(randomID)
+	return s.slugBase(name) + "-" + hex.EncodeToString(randomID)
 }
 
 func uuidString(u pgtype.UUID) string {
@@ -89,22 +139,22 @@ func (s *WorkspaceService) CreateWorkspace(ctx context.Context, req dto.Workspac
 		return dto.WorkspaceResponse{}, fmt.Errorf("parse owner id: %w", err)
 	}
 
-	slug := s.slugify(req.Name)
-	if slug == "" {
+	if s.slugBase(req.Name) == "" {
 		return dto.WorkspaceResponse{}, ErrWorkspaceNameInvalid
 	}
+	slug := s.slugify(req.Name)
 
 	cuurentWorkspace, err := s.repo.GetWorkspacesByOwner(ctx, uid)
 	if err != nil {
 		return dto.WorkspaceResponse{}, fmt.Errorf("check current workspace: %w", err)
 	}
-	if len(cuurentWorkspace) >= 3 {
+	if len(cuurentWorkspace) >= OwnedWorkspaceLimit {
 		return dto.WorkspaceResponse{}, ErrWorkspaceExceedLimits
 	}
 
-	if _, err := s.repo.GetWorkspaceBySlugAndOwner(ctx, workspacedb.GetWorkspaceBySlugAndOwnerParams{
+	if _, err := s.repo.GetWorkspaceByNameAndOwner(ctx, workspacedb.GetWorkspaceByNameAndOwnerParams{
 		OwnerID: uid,
-		Slug:    slug,
+		Name:    req.Name,
 	}); err == nil {
 		return dto.WorkspaceResponse{}, ErrWorkspaceNameTaken
 	}
@@ -154,20 +204,23 @@ func (s *WorkspaceService) CreateWorkspace(ctx context.Context, req dto.Workspac
 	}, nil
 }
 
-func (s *WorkspaceService) GetWorkspaces(ctx context.Context, userID string) ([]dto.WorkspaceResponse, error) {
-	workspaces := []dto.WorkspaceResponse{}
+func (s *WorkspaceService) GetWorkspaces(ctx context.Context, userID string) (dto.WorkspaceListResponse, error) {
+	res := dto.WorkspaceListResponse{
+		Workspaces: []dto.WorkspaceResponse{},
+		OwnedLimit: OwnedWorkspaceLimit,
+	}
 
 	var uid pgtype.UUID
 	if err := uid.Scan(userID); err != nil {
-		return workspaces, fmt.Errorf("parse user id: %w", err)
+		return res, fmt.Errorf("parse user id: %w", err)
 	}
 
-	workspace, err := s.repo.GetWorkspaces(ctx, uid)
+	rows, err := s.repo.GetWorkspaces(ctx, uid)
 	if err != nil {
-		return workspaces, fmt.Errorf("get workspaces: %w", err)
+		return res, fmt.Errorf("get workspaces: %w", err)
 	}
 
-	for _, w := range workspace {
+	for _, w := range rows {
 		work := dto.WorkspaceResponse{
 			ID:          uuidString(w.ID),
 			OwnerID:     uuidString(w.OwnerID),
@@ -177,12 +230,20 @@ func (s *WorkspaceService) GetWorkspaces(ctx context.Context, userID string) ([]
 			Status:      w.Status,
 			CreatedAt:   w.CreatedAt.Time,
 			UpdatedAt:   w.UpdatedAt.Time,
+			Role:        w.RoleName,
+		}
+		if w.LastActivityAt.Valid {
+			t := w.LastActivityAt.Time
+			work.LastActivityAt = &t
+		}
+		if w.RoleName == permission.RoleOwner {
+			res.OwnedCount++
 		}
 
-		workspaces = append(workspaces, work)
+		res.Workspaces = append(res.Workspaces, work)
 	}
 
-	return workspaces, nil
+	return res, nil
 }
 
 func (s *WorkspaceService) GetWorkspacesByOwner(ctx context.Context, userID string) ([]dto.WorkspaceResponse, error) {
@@ -216,13 +277,19 @@ func (s *WorkspaceService) GetWorkspacesByOwner(ctx context.Context, userID stri
 	return workspaces, nil
 }
 
-func (s *WorkspaceService) GetWorkspace(ctx context.Context, workspaceID string) (dto.WorkspaceResponse, error) {
-	var uid pgtype.UUID
+func (s *WorkspaceService) GetWorkspace(ctx context.Context, workspaceID, actorID string) (dto.WorkspaceResponse, error) {
+	var uid, aid pgtype.UUID
 	if err := uid.Scan(workspaceID); err != nil {
 		return dto.WorkspaceResponse{}, fmt.Errorf("parse workspace id: %w", err)
 	}
+	if err := aid.Scan(actorID); err != nil {
+		return dto.WorkspaceResponse{}, fmt.Errorf("parse actor id: %w", err)
+	}
 
-	workspace, err := s.repo.GetWorkspaceByID(ctx, uid)
+	workspace, err := s.repo.GetWorkspaceForMember(ctx, workspacedb.GetWorkspaceForMemberParams{
+		WorkspaceID: uid,
+		UserID:      aid,
+	})
 
 	if errors.Is(err, pgx.ErrNoRows) {
 		return dto.WorkspaceResponse{}, ErrWorkspaceNotFound
@@ -242,30 +309,101 @@ func (s *WorkspaceService) GetWorkspace(ctx context.Context, workspaceID string)
 	}, nil
 }
 
-func (s *WorkspaceService) UpdateStatusWorkspace(ctx context.Context, req dto.WorkspaceUpdateStatusRequest) error {
+func (s *WorkspaceService) GetWorkspaceSummary(ctx context.Context, workspaceID, actorID string) (dto.WorkspaceSummaryResponse, error) {
+	var wid, aid pgtype.UUID
+	if err := wid.Scan(workspaceID); err != nil {
+		return dto.WorkspaceSummaryResponse{}, fmt.Errorf("parse workspace id: %w", err)
+	}
+	if err := aid.Scan(actorID); err != nil {
+		return dto.WorkspaceSummaryResponse{}, fmt.Errorf("parse actor id: %w", err)
+	}
+
+	role, err := s.repo.GetMemberRoleName(ctx, workspacedb.GetMemberRoleNameParams{
+		WorkspaceID: wid,
+		UserID:      aid,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return dto.WorkspaceSummaryResponse{}, ErrWorkspaceNotFound
+	} else if err != nil {
+		return dto.WorkspaceSummaryResponse{}, fmt.Errorf("get member role: %w", err)
+	}
+
+	if role != permission.RoleOwner && role != permission.RoleAdmin {
+		return dto.WorkspaceSummaryResponse{}, ErrWorkspaceForbidden
+	}
+
+	row, err := s.repo.GetWorkspaceSummary(ctx, wid)
+	if err != nil {
+		return dto.WorkspaceSummaryResponse{}, fmt.Errorf("get workspace summary: %w", err)
+	}
+
+	return dto.WorkspaceSummaryResponse{
+		DocumentCount: row.DocumentCount,
+		FolderCount:   row.FolderCount,
+		GuestCount:    row.GuestCount,
+	}, nil
+}
+
+func (s *WorkspaceService) UpdateStatusWorkspace(ctx context.Context, req dto.WorkspaceUpdateStatusRequest, actor Actor) (dto.WorkspaceResponse, error) {
 	if !isValidStatus(req.Status) {
-		return ErrInvalidStatus
+		return dto.WorkspaceResponse{}, ErrInvalidStatus
 	}
 
 	var uid pgtype.UUID
 	if err := uid.Scan(req.ID); err != nil {
-		return fmt.Errorf("parse workspace id: %w", err)
+		return dto.WorkspaceResponse{}, fmt.Errorf("parse workspace id: %w", err)
 	}
 
-	if _, err := s.repo.GetWorkspaceByID(ctx, uid); errors.Is(err, pgx.ErrNoRows) {
-		return ErrWorkspaceNotFound
+	current, err := s.repo.GetWorkspaceByID(ctx, uid)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return dto.WorkspaceResponse{}, ErrWorkspaceNotFound
 	} else if err != nil {
-		return fmt.Errorf("get workspace: %w", err)
+		return dto.WorkspaceResponse{}, fmt.Errorf("get workspace: %w", err)
 	}
 
-	if err := s.repo.UpdateWorkspaceStatus(ctx, workspacedb.UpdateWorkspaceStatusParams{
-		ID:     uid,
-		Status: req.Status,
-	}); err != nil {
-		return fmt.Errorf("update status: %w", err)
+	if !canTransition(current.Status, req.Status) {
+		return dto.WorkspaceResponse{}, ErrStatusTransition
 	}
 
-	return nil
+	var updated workspacedb.Workspace
+	err = s.repo.ExecTx(ctx, func(q *workspacedb.Queries, tx pgx.Tx) error {
+		w, err := q.UpdateWorkspaceStatus(ctx, workspacedb.UpdateWorkspaceStatusParams{
+			ID:         uid,
+			Status:     req.Status,
+			FromStatus: current.Status,
+		})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrStatusTransition
+		}
+		if err != nil {
+			return fmt.Errorf("update status: %w", err)
+		}
+
+		if err := s.activity.RecordTx(ctx, tx, activityservice.Entry{
+			WorkspaceID: req.ID,
+			ActorID:     actor.UserID,
+			ActorName:   actor.Name,
+			ActorRole:   actor.Role,
+			Action:      activityservice.ActionWorkspaceStatusChanged,
+			TargetType:  activityservice.TargetWorkspace,
+			TargetID:    req.ID,
+			TargetName:  w.Name,
+			Metadata: map[string]any{
+				"from": current.Status,
+				"to":   req.Status,
+			},
+		}); err != nil {
+			return err
+		}
+
+		updated = w
+		return nil
+	})
+	if err != nil {
+		return dto.WorkspaceResponse{}, err
+	}
+
+	return workspaceResponse(updated), nil
 }
 
 func (s *WorkspaceService) UpdateWorkspace(ctx context.Context, req dto.WorkspaceUpdateRequest) (dto.WorkspaceResponse, error) {
@@ -274,9 +412,27 @@ func (s *WorkspaceService) UpdateWorkspace(ctx context.Context, req dto.Workspac
 		return dto.WorkspaceResponse{}, fmt.Errorf("parse workspace id: %w", err)
 	}
 
-	slug := s.slugify(req.Name)
-	if slug == "" {
-		return dto.WorkspaceResponse{}, ErrWorkspaceNameInvalid
+	current, err := s.repo.GetWorkspaceByID(ctx, uid)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return dto.WorkspaceResponse{}, ErrWorkspaceNotFound
+	} else if err != nil {
+		return dto.WorkspaceResponse{}, fmt.Errorf("get workspace: %w", err)
+	}
+
+	slug := current.Slug
+	if req.Name != current.Name {
+		if s.slugBase(req.Name) == "" {
+			return dto.WorkspaceResponse{}, ErrWorkspaceNameInvalid
+		}
+
+		if _, err := s.repo.GetWorkspaceByNameAndOwner(ctx, workspacedb.GetWorkspaceByNameAndOwnerParams{
+			OwnerID: current.OwnerID,
+			Name:    req.Name,
+		}); err == nil {
+			return dto.WorkspaceResponse{}, ErrWorkspaceNameTaken
+		}
+
+		slug = s.slugify(req.Name)
 	}
 
 	var desc *string
@@ -318,10 +474,15 @@ func (s *WorkspaceService) DeleteWorkspace(ctx context.Context, workspaceID stri
 		return fmt.Errorf("parse workspace id: %w", err)
 	}
 
-	if _, err := s.repo.GetWorkspaceByID(ctx, uid); errors.Is(err, pgx.ErrNoRows) {
+	current, err := s.repo.GetWorkspaceByID(ctx, uid)
+	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrWorkspaceNotFound
 	} else if err != nil {
 		return fmt.Errorf("get workspace: %w", err)
+	}
+
+	if current.Status == StatusArchive {
+		return ErrWorkspaceArchived
 	}
 
 	if err := s.repo.DeleteWorkspace(ctx, uid); err != nil {

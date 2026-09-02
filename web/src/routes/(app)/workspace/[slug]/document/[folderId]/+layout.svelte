@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
+	import { roomWritableFrom } from '$lib/access/roles';
 	import { t } from '$lib/i18n';
 	import type { MyAccessWorkspace } from '$lib/types/workspace';
 	import type { LayoutProps } from './$types';
@@ -11,7 +12,7 @@
 	const folderId = $derived(page.params.folderId!);
 
 	const perms = $derived((page.data as { access?: MyAccessWorkspace }).access?.permissions ?? []);
-	const canAssign = $derived(perms.includes('group:assign'));
+	const canAssign = $derived(perms.includes('group:assign') && roomWritableFrom(page.data));
 
 	const docsHref = $derived(
 		resolve('/(app)/workspace/[slug]/document/[folderId]', { slug, folderId })

@@ -26,10 +26,13 @@ type TextExtractor interface {
 	ExtractText(ctx context.Context, pdf io.Reader) (string, error)
 }
 
-// WordBoxExtractor memulangkan koordinat kata per halaman (pdftotext -bbox),
-// dipakai bersama kolom jsonb yang sama dengan hasil OCR.
 type WordBoxExtractor interface {
-	ExtractWordBoxes(ctx context.Context, pdf io.Reader, page int) ([]Word, error)
+	OpenWordBoxes(pdf io.Reader) (WordBoxDocument, error)
+}
+
+type WordBoxDocument interface {
+	ExtractWordBoxes(ctx context.Context, page int) ([]Word, error)
+	Close() error
 }
 
 // Word — satu kata dengan koordinat dinormalkan ke pecahan 0..1 terhadap
@@ -50,5 +53,10 @@ type OCRResult struct {
 }
 
 type OCR interface {
-	OCRPage(ctx context.Context, pdf io.Reader, page int) (OCRResult, error)
+	OpenOCR(pdf io.Reader) (OCRDocument, error)
+}
+
+type OCRDocument interface {
+	OCRPage(ctx context.Context, page int) (OCRResult, error)
+	Close() error
 }

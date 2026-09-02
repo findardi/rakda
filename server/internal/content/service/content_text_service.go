@@ -10,6 +10,7 @@ import (
 	"time"
 
 	contentdb "github.com/findardi/rakda/server/internal/content/repository/sqlc"
+	"github.com/findardi/rakda/server/internal/platform/render"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -216,13 +217,12 @@ func (s *ContentService) sweepOCROnce(ctx context.Context, batch int) {
 	}
 
 	done, failed := 0, 0
-	for _, p := range pending {
-		if err := s.ocrPage(ctx, p); err != nil {
-			log.Printf("ocr sweep: page %s#%d: %v", uuidString(p.VersionID), p.PageNo, err)
-			failed++
-			continue
-		}
-		done++
+	groups := groupPagesByVersion(pending, func(r contentdb.ListPendingOCRPagesRow) pgtype.UUID { return r.VersionID })
+
+	for _, group := range groups {
+		d, f := s.ocrVersion(ctx, group)
+		done += d
+		failed += f
 	}
 
 	if done > 0 || failed > 0 {
@@ -230,18 +230,47 @@ func (s *ContentService) sweepOCROnce(ctx context.Context, batch int) {
 	}
 }
 
-func (s *ContentService) ocrPage(ctx context.Context, row contentdb.ListPendingOCRPagesRow) error {
-	if row.RenditionKey == nil {
-		return fmt.Errorf("%w: no rendition for page", ErrOCRFailed)
+func (s *ContentService) ocrVersion(ctx context.Context, rows []contentdb.ListPendingOCRPagesRow) (int, int) {
+	head := rows[0]
+	if head.RenditionKey == nil {
+		log.Printf("ocr sweep: version %s: no rendition", uuidString(head.VersionID))
+		return 0, len(rows)
 	}
 
-	pdf, err := s.store.Get(ctx, *row.RenditionKey)
+	pdf, err := s.store.Get(ctx, *head.RenditionKey)
 	if err != nil {
-		return fmt.Errorf("get rendition: %w", err)
+		log.Printf("ocr sweep: get rendition %s: %v", uuidString(head.VersionID), err)
+		return 0, len(rows)
 	}
 	defer pdf.Close()
 
-	res, err := s.viewer.OCR.OCRPage(ctx, pdf, int(row.PageNo))
+	doc, err := s.viewer.OCR.OpenOCR(pdf)
+	if err != nil {
+		log.Printf("ocr sweep: open rendition %s: %v", uuidString(head.VersionID), err)
+		return 0, len(rows)
+	}
+	defer doc.Close()
+
+	done, failed := 0, 0
+	for _, row := range rows {
+		if ctx.Err() != nil {
+			break
+		}
+
+		if err := s.ocrPage(ctx, doc, row); err != nil {
+			log.Printf("ocr sweep: page %s#%d: %v", uuidString(row.VersionID), row.PageNo, err)
+			failed++
+			continue
+		}
+
+		done++
+	}
+
+	return done, failed
+}
+
+func (s *ContentService) ocrPage(ctx context.Context, doc render.OCRDocument, row contentdb.ListPendingOCRPagesRow) error {
+	res, err := doc.OCRPage(ctx, int(row.PageNo))
 	if err != nil {
 		return s.markPageOCRFailed(ctx, row.VersionID, row.PageNo, err)
 	}
@@ -303,13 +332,12 @@ func (s *ContentService) sweepBBoxOnce(ctx context.Context, batch int) {
 	}
 
 	done, failed := 0, 0
-	for _, p := range pending {
-		if err := s.bboxPage(ctx, p); err != nil {
-			log.Printf("bbox sweep: page %s#%d: %v", uuidString(p.VersionID), p.PageNo, err)
-			failed++
-			continue
-		}
-		done++
+	groups := groupPagesByVersion(pending, func(r contentdb.ListPendingWordBoxesRow) pgtype.UUID { return r.VersionID })
+
+	for _, group := range groups {
+		d, f := s.bboxVersion(ctx, group)
+		done += d
+		failed += f
 	}
 
 	if done > 0 || failed > 0 {
@@ -317,18 +345,62 @@ func (s *ContentService) sweepBBoxOnce(ctx context.Context, batch int) {
 	}
 }
 
-func (s *ContentService) bboxPage(ctx context.Context, row contentdb.ListPendingWordBoxesRow) error {
-	if row.RenditionKey == nil {
-		return fmt.Errorf("%w: no rendition for page", ErrTextExtractionFailed)
+func (s *ContentService) bboxVersion(ctx context.Context, rows []contentdb.ListPendingWordBoxesRow) (int, int) {
+	head := rows[0]
+	if head.RenditionKey == nil {
+		log.Printf("bbox sweep: version %s: no rendition", uuidString(head.VersionID))
+		return 0, len(rows)
 	}
 
-	pdf, err := s.store.Get(ctx, *row.RenditionKey)
+	pdf, err := s.store.Get(ctx, *head.RenditionKey)
 	if err != nil {
-		return fmt.Errorf("get rendition: %w", err)
+		log.Printf("bbox sweep: get rendition %s: %v", uuidString(head.VersionID), err)
+		return 0, len(rows)
 	}
 	defer pdf.Close()
 
-	words, err := s.viewer.WordBoxes.ExtractWordBoxes(ctx, pdf, int(row.PageNo))
+	doc, err := s.viewer.WordBoxes.OpenWordBoxes(pdf)
+	if err != nil {
+		log.Printf("bbox sweep: open rendition %s: %v", uuidString(head.VersionID), err)
+		return 0, len(rows)
+	}
+	defer doc.Close()
+
+	done, failed := 0, 0
+	for _, row := range rows {
+		if ctx.Err() != nil {
+			break
+		}
+
+		if err := s.bboxPage(ctx, doc, row); err != nil {
+			log.Printf("bbox sweep: page %s#%d: %v", uuidString(row.VersionID), row.PageNo, err)
+			failed++
+			continue
+		}
+
+		done++
+	}
+
+	return done, failed
+}
+
+func groupPagesByVersion[T any](rows []T, versionID func(T) pgtype.UUID) [][]T {
+	var groups [][]T
+
+	for _, row := range rows {
+		if n := len(groups); n > 0 && versionID(groups[n-1][0]) == versionID(row) {
+			groups[n-1] = append(groups[n-1], row)
+			continue
+		}
+
+		groups = append(groups, []T{row})
+	}
+
+	return groups
+}
+
+func (s *ContentService) bboxPage(ctx context.Context, doc render.WordBoxDocument, row contentdb.ListPendingWordBoxesRow) error {
+	words, err := doc.ExtractWordBoxes(ctx, int(row.PageNo))
 	if err != nil {
 		// Catat error lewat kolom ocr_error/ocr_at dan tutup kandidat dengan
 		// words='[]' — "sekali gagal tidak diulang" (pola 9-b/9-e).

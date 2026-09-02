@@ -31,6 +31,13 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 		error(upstream.status || 500, upstream.statusText || t('err.generic'));
 	}
 
+	if (upstream.status === 202) {
+		return new Response(upstream.body, {
+			status: 202,
+			headers: { 'content-type': 'application/json', 'cache-control': 'no-store' }
+		});
+	}
+
 	return new Response(upstream.body, {
 		status: 200,
 		headers: {

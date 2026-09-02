@@ -13,6 +13,7 @@ import (
 	"github.com/findardi/rakda/server/internal/content/dto"
 	contentdb "github.com/findardi/rakda/server/internal/content/repository/sqlc"
 	"github.com/findardi/rakda/server/internal/platform/convert"
+	"github.com/findardi/rakda/server/internal/platform/permission"
 	"github.com/findardi/rakda/server/internal/platform/render"
 	"github.com/findardi/rakda/server/internal/platform/watermark"
 	"github.com/jackc/pgx/v5"
@@ -68,6 +69,15 @@ func (s *ContentService) resolveViewAccess(ctx context.Context, workspaceID, fol
 	row, err := s.resolveFolderAccess(ctx, workspaceID, folderID, actor)
 	if err != nil {
 		return viewAccess{}, err
+	}
+
+	if actor.RoomStatus == permission.RoomArchive {
+		return viewAccess{
+			canView:             row.CanView,
+			canDownload:         false,
+			canDownloadOriginal: false,
+			canWatermark:        true,
+		}, nil
 	}
 
 	return viewAccess{

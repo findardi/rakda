@@ -12,14 +12,26 @@ select * from workspaces where owner_id = $1;
 select * from workspaces 
 where owner_id = $1 and slug = $2;
 
+-- name: GetWorkspaceByNameAndOwner :one
+select * from workspaces 
+where owner_id = $1 and name = $2;
+
 -- name: GetWorkspaceByID :one
 select * from workspaces where id = $1;
 
--- name: UpdateWorkspaceStatus :exec
+-- name: GetWorkspaceForMember :one
+select w.* from workspaces w
+join workspace_members m on m.workspace_id = w.id
+where w.id = sqlc.arg(workspace_id)
+  and m.user_id = sqlc.arg(user_id)
+  and m.status = 'active';
+
+-- name: UpdateWorkspaceStatus :one
 update workspaces set 
-    status = $2,
+    status = sqlc.arg(status),
     updated_at = now()
-where id = $1;
+where id = sqlc.arg(id) and status = sqlc.arg(from_status)
+returning *;
 
 -- name: UpdateWorkspace :one
 update workspaces set
@@ -33,9 +45,37 @@ returning *;
 -- name: DeleteWorkspace :exec
 delete from workspaces where id = $1;
 
+-- name: GetMemberRoleName :one
+select r.name from workspace_members m
+join workspace_roles r on r.id = m.role_id
+where m.workspace_id = sqlc.arg(workspace_id)
+  and m.user_id = sqlc.arg(user_id)
+  and m.status = 'active';
+
+-- name: GetWorkspaceSummary :one
+select
+    (select count(*) from documents d
+        where d.workspace_id = sqlc.arg(workspace_id) and d.deleted_at is null) as document_count,
+    (select count(*) from folders f
+        where f.workspace_id = sqlc.arg(workspace_id) and f.deleted_at is null) as folder_count,
+    (select count(*) from workspace_members m
+        join workspace_roles r on r.id = m.role_id
+        where m.workspace_id = sqlc.arg(workspace_id)
+          and m.status = 'active'
+          and r.name = 'guest') as guest_count;
+
 -- name: GetWorkspaces :many
-select w.* from workspaces w
-left join
-    workspace_members wm on wm.workspace_id = w.id
-where 
-    wm.user_id = $1;
+select
+    w.*,
+    r.name as role_name,
+    (
+        select max(a.created_at)
+        from activity_logs a
+        where a.workspace_id = w.id
+    )::timestamptz as last_activity_at
+from workspaces w
+join workspace_members wm on wm.workspace_id = w.id
+join workspace_roles r on r.id = wm.role_id
+where wm.user_id = sqlc.arg(user_id)
+  and wm.status = 'active'
+order by last_activity_at desc nulls last, w.created_at desc, w.id;

@@ -118,7 +118,10 @@ export const en: Record<keyof Dict, string> = {
 	'ws.title': 'Data rooms',
 	'ws.create': 'Create data room',
 	'ws.count': '{n} data rooms',
-	'ws.limitReached': 'You have reached the limit of 3 data rooms as an owner.',
+	'ws.limitReached':
+		'You have reached the limit of {limit} data rooms as an owner. Archived rooms count too.',
+	'ws.lastActivity': 'Last activity',
+	'ws.switcher.open': 'Switch data room',
 	'ws.created': 'Data room "{name}" created.',
 	'ws.loadError': 'Could not load data rooms. Try reloading the page.',
 	'ws.empty.title': 'No data rooms yet',
@@ -138,7 +141,7 @@ export const en: Record<keyof Dict, string> = {
 	'ws.dialog.submitting': 'Creating…',
 	'ws.err.nameTaken': 'That data room name is already taken.',
 	'ws.err.nameInvalid': 'Name must contain a letter or number.',
-	'ws.err.limit': 'Maximum of 3 data rooms per account.',
+	'ws.err.limit': 'You have reached the owned data room limit.',
 	'ws.err.invalidStatus': 'Invalid status.',
 
 	// Workspace detail (/workspace/[slug])
@@ -159,10 +162,79 @@ export const en: Record<keyof Dict, string> = {
 	'ws.status.prepare': 'Preparing',
 	'ws.status.active': 'Active',
 	'ws.status.archive': 'Archived',
-	'ws.status.hint.prepare': 'The room is still being prepared — not yet shared externally.',
-	'ws.status.hint.active': 'The room is active — parties with access can open it.',
-	'ws.status.hint.archive': 'The room is archived — read-only, kept for audit.',
+	'ws.status.hint.prepare': 'The room is still being prepared. Guests cannot open it yet.',
+	'ws.status.hint.active': 'The room is active. Parties with access can open it.',
+	'ws.status.hint.archive':
+		'The room is archived. Its contents are read-only for every role, including the owner.',
 	'ws.status.updated': 'Data room status updated.',
+
+	// Room lifecycle
+	'room.readOnly.strip': 'This room is archived. Read-only for every role.',
+	'room.notOpen.title': 'Room not open yet',
+	'room.notOpen.body':
+		'The owner is still preparing this data room. You can open it once the room is activated.',
+	'room.activate.title': 'Open the room to guests',
+	'room.activate.body':
+		'Guests cannot open this room yet. Open it once the folder structure and group permissions are ready.',
+	'room.activate.submit': 'Open room',
+	'room.activate.submitCount': 'Open room ({n} guests gain access)',
+	'room.activate.confirmBody':
+		'Guests who have already joined get access immediately, following their group permissions.',
+	'room.activate.warning': 'An opened room cannot return to Preparing.',
+	'room.archive.open': 'Archive',
+	'room.archive.title': 'Archive data room',
+	'room.archive.body':
+		'The room becomes read-only for every role, including you. Guests can still read, but downloads are turned off and every page carries a watermark.',
+	'room.archive.caveat':
+		'Pages already cached in a guest browser cannot be pulled back. The archive can be reopened at any time.',
+	'room.archive.submit': 'Archive room',
+	'room.archive.submitCount': 'Archive room ({n} guests lose downloads)',
+	'room.unarchive.submit': 'Reopen room',
+	'room.delete.blocked': 'An archived room cannot be deleted. Reopen the room first.',
+	'room.archive.exportHint':
+		'You can build an archive package at any time, before or after the room is archived.',
+
+	// Archive packages
+	'archive.title': 'Archive packages',
+	'archive.body':
+		'One ZIP holding a PDF of every document, an index, and the audit trail. Assembled in the background and kept for 30 days; a ZIP you have downloaded stays valid.',
+	'archive.create': 'Build archive package',
+	'archive.queued': 'The archive package is being assembled.',
+	'archive.empty': 'No archive packages yet.',
+	'archive.download': 'Download',
+	'archive.delete': 'Delete',
+	'archive.delete.title': 'Delete archive package',
+	'archive.delete.warning':
+		'The archive package from {date} is removed from the server and can no longer be downloaded. You can build a new package at any time.',
+	'archive.delete.submit': 'Delete package',
+	'archive.documents': '{n} documents',
+	'archive.missing': '{n} not included',
+	'archive.expires': 'expires {date}',
+	'archive.status.pending': 'Assembling',
+	'archive.status.ready': 'Ready',
+	'archive.status.failed': 'Failed',
+	'archive.err.pending': 'An archive package is already being assembled for this room.',
+	'archive.err.busy': 'The server is assembling another archive package. Try again shortly.',
+	'archive.err.notFound': 'Archive package not found.',
+	'archive.err.notReady': 'The archive package is not ready to download yet.',
+
+	// Overview
+	'ws.overview.summary': 'Overview',
+	'ws.overview.quick.documents': 'Documents',
+	'ws.overview.quick.members': 'Guests',
+	'ws.overview.quick.invite': 'Invite guests',
+	'ws.overview.quick.activity': 'Activity',
+	'ws.overview.count.documents': '{n} documents',
+	'ws.overview.count.folders': '{n} folders',
+	'ws.overview.count.guests': '{n} guests',
+	'ws.overview.recentActivity': 'Recent activity',
+	'ws.overview.recentActivity.empty': 'No activity in this room yet.',
+	'ws.overview.seeAll': 'See all activity',
+	'ws.overview.recents': 'Recently visited',
+	'ws.overview.recents.folders': 'Folders',
+	'ws.overview.recents.documents': 'Documents',
+	'ws.overview.recents.empty': 'Folders and documents you open will appear here.',
+	'ws.overview.recents.device': 'Stored in this browser.',
 
 	// Edit room
 	'ws.edit.open': 'Edit',
@@ -215,6 +287,10 @@ export const en: Record<keyof Dict, string> = {
 	'err.invalidOtp': 'The OTP code is incorrect or expired.',
 	'err.forbidden': 'You do not have permission for this action.',
 	'err.forbiddenContent': 'Your group has not been given access to this content.',
+	'err.roomArchived': 'This room is archived. Changes cannot be saved.',
+	'err.roomNotOpen': 'The room is not open to guests yet.',
+	'err.roomTransition': 'That status change is not allowed.',
+	'err.conflict': 'The request conflicts with the current state.',
 
 	// management access
 	'ma.title': 'Access management',
@@ -423,6 +499,18 @@ export const en: Record<keyof Dict, string> = {
 		'Another watermarked download is in progress. Try again in a moment — or use the viewer to read now.',
 	'doc.docs.err.downloadTooLarge':
 		'The document exceeds the page limit for watermarked downloads. Read it in the viewer.',
+	'doc.dl.title': 'Pending downloads',
+	'doc.dl.preparing': '{n} download being prepared',
+	'doc.dl.ready': '{n} download ready',
+	'doc.dl.pages': '{n} pages · watermarking',
+	'doc.dl.save': 'Save',
+	'doc.dl.dismiss': 'Dismiss',
+	'doc.dl.expiryHint': 'Download links last 30 minutes, then are removed from the server.',
+	'doc.dl.queued':
+		'This document takes a while to watermark. You will be notified in the download panel when it is ready — no need to wait on this page.',
+	'doc.dl.err.gone': 'This download has expired. Request it again from the document.',
+	'doc.dl.err.notReady': 'This download is still being prepared.',
+
 	'doc.docs.noAccess.title': 'This folder is not shared with you',
 	'doc.docs.noAccess.body':
 		'Your group has not been given access to this folder. Ask the room owner to open it up to your group.',
@@ -512,6 +600,10 @@ export const en: Record<keyof Dict, string> = {
 	'doc.view.failed.retryErr': 'Could not restart preparation. Try again.',
 	'doc.view.failed.noPerm': 'Ask a room manager to prepare it again.',
 	'doc.view.emptyPages': 'This document has no pages to display.',
+	'doc.view.small.title': 'This screen is too small to read documents',
+	'doc.view.small.body':
+		'The document viewer needs a reading area at least the size of a tablet. Open it from a device with a larger screen, or enlarge the browser window.',
+	'doc.view.small.back': 'Back to the document list',
 	'doc.view.curtain.title': 'Document content hidden',
 	'doc.view.curtain.hint': 'Return to this window to continue reading.',
 	'doc.view.print.title': 'Document content is not printed',
@@ -600,6 +692,7 @@ export const en: Record<keyof Dict, string> = {
 	'activity.group.group': 'Groups',
 	'activity.group.access': 'Folder access',
 	'activity.group.qa': 'Q&A',
+	'activity.group.room': 'Room',
 
 	'activity.action.folder_created': 'created the folder “{target}”',
 	'activity.action.folder_created_bulk': 'added {count} folders at once',
@@ -648,6 +741,8 @@ export const en: Record<keyof Dict, string> = {
 	'activity.action.question_reopened': 'reopened the question “{target}”',
 	'activity.action.faq_published': 'published the FAQ “{target}”',
 	'activity.action.qa_settings_changed': 'changed the Q&A settings of group “{target}”',
+	'activity.action.workspace_status_changed': 'changed the room status from {from} to {to}',
+	'activity.action.archive_exported': 'built the archive package “{target}”',
 
 	'activity.label.folder_created': 'Folder created',
 	'activity.label.folder_renamed': 'Folder renamed',
@@ -688,6 +783,8 @@ export const en: Record<keyof Dict, string> = {
 	'activity.label.question_reopened': 'Question reopened',
 	'activity.label.faq_published': 'FAQ published',
 	'activity.label.qa_settings_changed': 'Q&A settings changed',
+	'activity.label.workspace_status_changed': 'Room status changed',
+	'activity.label.archive_exported': 'Archive package built',
 
 	'activity.link.open': 'Open “{name}”',
 	'activity.link.readers': 'View reading activity',

@@ -37,12 +37,43 @@ func main() {
 		log.Fatal(err)
 	}
 
+	if minioCfg.RequireEncryption && !minioCfg.SslMode {
+		log.Fatal("MINIO_REQUIRE_ENCRYPTION=true menuntut MINIO_SSL_MODE=true")
+	}
+
+	if err := store.EnsureEncryption(context.Background()); err != nil {
+		log.Printf("storage: gagal menyetel enkripsi bucket, status tetap diperiksa: %v", err)
+	}
+
+	switch algo, err := store.EncryptionStatus(context.Background()); {
+	case err != nil:
+		if minioCfg.RequireEncryption {
+			log.Fatalf("MINIO_REQUIRE_ENCRYPTION=true tetapi status enkripsi bucket tidak bisa ditentukan: %v", err)
+		}
+		log.Printf("storage: status enkripsi bucket tidak bisa ditentukan: %v", err)
+	case algo == "":
+		if minioCfg.RequireEncryption {
+			log.Fatalf("MINIO_REQUIRE_ENCRYPTION=true tetapi bucket %q tidak terenkripsi at-rest", minioCfg.BucketName)
+		}
+		log.Printf("storage: bucket %q TIDAK terenkripsi at-rest", minioCfg.BucketName)
+	default:
+		log.Printf("storage: bucket %q terenkripsi at-rest (%s)", minioCfg.BucketName, algo)
+	}
+
 	viewerCfg, err := config.LoadViewerConfig()
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	renderer, err := render.NewPoppler(viewerCfg)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	sweepRenderer, err := render.NewPoppler(viewerCfg,
+		render.WithPopplerConcurrency(viewerCfg.SweepConcurrency),
+		render.WithPopplerNice(viewerCfg.SweepNice),
+	)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -59,7 +90,16 @@ func main() {
 		ocrConcurrency = 1
 	}
 
-	ocr, err := render.NewTesseract(ocrDPI, viewerCfg.RenderTimeout, ocrConcurrency)
+	ocrNice, err := config.GetEnvInt("OCR_NICE", 10)
+	if err != nil {
+		log.Printf("invalid OCR_NICE, fallback to 10: %v", err)
+		ocrNice = 10
+	}
+
+	ocr, err := render.NewTesseract(ocrDPI, viewerCfg.RenderTimeout,
+		render.WithOCRConcurrency(ocrConcurrency),
+		render.WithOCRNice(ocrNice),
+	)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -73,8 +113,8 @@ func main() {
 		Converter:     convert.NewGotenberg(viewerCfg),
 		Renderer:      renderer,
 		Watermark:     wm,
-		TextExtractor: renderer,
-		WordBoxes:     renderer,
+		TextExtractor: sweepRenderer,
+		WordBoxes:     sweepRenderer,
 		OCR:           ocr,
 		DPI:           viewerCfg.DPI,
 	}

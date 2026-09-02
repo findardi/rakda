@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { downloadJobs } from '$lib/download/jobs.svelte';
 	import { tick } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { applyAction, deserialize, enhance } from '$app/forms';
@@ -16,6 +17,7 @@
 		hasDirectory,
 		readTree
 	} from '$lib/dnd';
+	import { roomWritableFrom } from '$lib/access/roles';
 	import { t } from '$lib/i18n';
 	import { findNode } from '$lib/tree';
 	import type { FolderTreeNode } from '$lib/types/content';
@@ -27,6 +29,7 @@
 	let { data, children }: LayoutProps = $props();
 	const folders = $derived(data.folders);
 	const workspace = $derived(data.workspace);
+	$effect(() => downloadJobs.bind(workspace.id));
 	const noAccess = $derived(data.noAccess);
 
 	const ROOT = '';
@@ -43,12 +46,15 @@
 	const rowHref = (folderId: string) => (onAccess ? accessHref(folderId) : docHref(folderId));
 
 	const perms = $derived((page.data as { access?: MyAccessWorkspace }).access?.permissions ?? []);
-	const canCreate = $derived(perms.includes('folder:create'));
-	const canEdit = $derived(perms.includes('folder:edit'));
-	const canDelete = $derived(perms.includes('folder:delete'));
-	const canUpload = $derived(perms.includes('document:upload'));
-	const canEditDoc = $derived(perms.includes('document:edit'));
-	const canAssign = $derived(perms.includes('group:assign'));
+	// An archived room is frozen for every role: the server answers 423, so the
+	// controls that would trigger it are not offered.
+	const writable = $derived(roomWritableFrom(page.data));
+	const canCreate = $derived(perms.includes('folder:create') && writable);
+	const canEdit = $derived(perms.includes('folder:edit') && writable);
+	const canDelete = $derived(perms.includes('folder:delete') && writable);
+	const canUpload = $derived(perms.includes('document:upload') && writable);
+	const canEditDoc = $derived(perms.includes('document:edit') && writable);
+	const canAssign = $derived(perms.includes('group:assign') && writable);
 	const canAct = $derived(canCreate || canEdit || canDelete || canAssign);
 
 	const defaultFolder = $derived(folders.find((f) => f.is_default) ?? null);
@@ -1466,7 +1472,7 @@
 
 <!-- Move -->
 <dialog bind:this={moveDialog} class="modal" aria-labelledby="folder-move-title">
-	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+	<div class="modal-box max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
 		<h2 id="folder-move-title" class="text-lg font-semibold tracking-[-0.01em]">
 			{t('doc.move.title')}
 		</h2>
@@ -1495,7 +1501,7 @@
 				{/each}
 			</select>
 
-			<div class="mt-6 flex justify-end gap-2">
+			<div class="mt-6 flex flex-wrap justify-end gap-2">
 				<Button type="button" variant="ghost" onclick={() => moveDialog?.close()}>
 					{t('doc.cancel')}
 				</Button>
@@ -1512,7 +1518,7 @@
 
 <!-- Delete -->
 <dialog bind:this={deleteDialog} class="modal" aria-labelledby="folder-delete-title">
-	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+	<div class="modal-box max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
 		<h2 id="folder-delete-title" class="text-lg font-semibold tracking-[-0.01em]">
 			{t('doc.delete.title')}
 		</h2>
@@ -1549,7 +1555,7 @@
 				placeholder={deleting?.name ?? ''}
 				autocomplete="off"
 			/>
-			<div class="mt-1 flex justify-end gap-2">
+			<div class="mt-1 flex flex-wrap justify-end gap-2">
 				<Button type="button" variant="ghost" onclick={() => deleteDialog?.close()}>
 					{t('doc.cancel')}
 				</Button>
@@ -1565,7 +1571,7 @@
 </dialog>
 
 <dialog bind:this={bulkDialog} class="modal" aria-labelledby="folder-bulk-delete-title">
-	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+	<div class="modal-box max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
 		<h2 id="folder-bulk-delete-title" class="text-lg font-semibold tracking-[-0.01em]">
 			{t('doc.select.foldersTitle')}
 		</h2>
@@ -1581,7 +1587,7 @@
 			method="POST"
 			action="{actionBase}?/bulkDelete"
 			use:enhance={submitBulkDelete}
-			class="mt-6 flex justify-end gap-2"
+			class="mt-6 flex flex-wrap justify-end gap-2"
 		>
 			{#each [...selectedFolders] as id (id)}
 				<input type="hidden" name="folderId" value={id} />
@@ -1600,7 +1606,7 @@
 </dialog>
 
 <dialog bind:this={templateDialog} class="modal" aria-labelledby="folder-template-title">
-	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+	<div class="modal-box max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
 		<h2 id="folder-template-title" class="text-lg font-semibold tracking-[-0.01em]">
 			{t('tpl.title')}
 		</h2>

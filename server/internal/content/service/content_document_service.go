@@ -1,16 +1,17 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"image"
+	"image/jpeg"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
 	activityservice "github.com/findardi/rakda/server/internal/activity/service"
 	"github.com/findardi/rakda/server/internal/content/dto"
@@ -93,6 +94,13 @@ func (s *ContentService) CompletedUpload(ctx context.Context, req dto.CompleteUp
 	if err := validateStorageKey(req.StorageKey, req.WorkspaceID, req.FolderID); err != nil {
 		return dto.DocumentResponse{}, err
 	}
+
+	name, ok := validateNodeName(req.Name)
+	if !ok {
+		_ = s.store.Delete(ctx, req.StorageKey)
+		return dto.DocumentResponse{}, ErrDocumentNameInvalid
+	}
+	req.Name = name
 
 	if err := assertUploadable(req.Name); err != nil {
 		_ = s.store.Delete(ctx, req.StorageKey)
@@ -430,65 +438,107 @@ func (s *ContentService) ListVersions(ctx context.Context, workspaceID, document
 	return vers, nil
 }
 
-func (s *ContentService) DownloadDocument(ctx context.Context, workspaceID, documentID, versionID string, actor Actor, mark watermark.Mark) (io.ReadCloser, string, error) {
+type DownloadResult struct {
+	Body     io.ReadCloser
+	FileName string
+	JobID    string
+}
+
+func (s *ContentService) DownloadDocument(ctx context.Context, workspaceID, documentID, versionID string, actor Actor, mark watermark.Mark) (DownloadResult, error) {
 	doc, err := s.getDocumentScoped(ctx, workspaceID, documentID)
 	if err != nil {
-		return nil, "", err
+		return DownloadResult{}, err
 	}
 
 	access, err := s.resolveViewAccess(ctx, workspaceID, uuidString(doc.FolderID), actor)
 	if err != nil {
-		return nil, "", err
+		return DownloadResult{}, err
 	}
 
 	clean := access.canDownloadOriginal
 	if !clean && !access.canDownload {
-		return nil, "", ErrContentForbidden
+		return DownloadResult{}, ErrContentForbidden
 	}
 
 	version, err := s.resolveRequestVersion(ctx, doc, versionID, actor)
 	if err != nil {
-		return nil, "", err
+		return DownloadResult{}, err
 	}
 
 	renditionKey, pageCount, err := s.ensureRendition(ctx, workspaceID, doc, version)
 	if err != nil {
-		return nil, "", err
+		return DownloadResult{}, err
 	}
-
-	variant := "clean"
-	var body io.ReadCloser
 
 	if clean {
 		src, err := s.store.Get(ctx, renditionKey)
 		if err != nil {
-			return nil, "", fmt.Errorf("get rendition: %w", err)
-		}
-		body = src
-	} else {
-		if pageCount > maxWatermarkDownloadPages {
-			return nil, "", fmt.Errorf("%w: %d pages, max %d", ErrWatermarkDownloadTooLarge, pageCount, maxWatermarkDownloadPages)
+			return DownloadResult{}, fmt.Errorf("get rendition: %w", err)
 		}
 
-		select {
-		case s.stampSem <- struct{}{}:
-			defer func() { <-s.stampSem }()
-		default:
-			return nil, "", ErrDownloadBusy
-		}
+		s.recordDownload(ctx, workspaceID, doc, version, actor, "clean")
 
-		body, err = s.rasterWatermarkPDF(ctx, workspaceID, uuidString(version.ID), renditionKey, pageCount, mark)
-		if err != nil {
-			return nil, "", fmt.Errorf("%w: %v", ErrStampFailed, err)
-		}
-		variant = "watermarked"
+		return DownloadResult{Body: src, FileName: downloadName(doc.Name)}, nil
 	}
 
+	if pageCount > maxWatermarkDownloadPages {
+		return DownloadResult{}, fmt.Errorf("%w: %d pages, max %d", ErrWatermarkDownloadTooLarge, pageCount, maxWatermarkDownloadPages)
+	}
+
+	if pageCount > asyncDownloadPageThreshold {
+		job, err := s.startDownloadJob(ctx, workspaceID, doc, version, pageCount, renditionKey, actor, mark)
+		if err != nil {
+			return DownloadResult{}, err
+		}
+
+		return DownloadResult{JobID: uuidString(job.ID)}, nil
+	}
+
+	select {
+	case s.stampSem <- struct{}{}:
+	default:
+		return DownloadResult{}, ErrDownloadBusy
+	}
+
+	stampCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), downloadJobTimeout)
+	result := make(chan stampResult, 1)
+
+	go func() {
+		body, err := s.rasterWatermarkPDF(stampCtx, workspaceID, uuidString(version.ID), renditionKey, pageCount, mark)
+		result <- stampResult{body: body, err: err}
+	}()
+
+	budget := time.NewTimer(syncDownloadBudget)
+	defer budget.Stop()
+
+	select {
+	case res := <-result:
+		cancel()
+		<-s.stampSem
+
+		if res.err != nil {
+			return DownloadResult{}, fmt.Errorf("%w: %v", ErrStampFailed, res.err)
+		}
+
+		s.recordDownload(ctx, workspaceID, doc, version, actor, "watermarked")
+
+		return DownloadResult{Body: res.body, FileName: downloadName(doc.Name)}, nil
+
+	case <-budget.C:
+		job, err := s.escalateDownload(ctx, workspaceID, doc, version, pageCount, actor, result, cancel)
+		if err != nil {
+			return DownloadResult{}, err
+		}
+
+		return DownloadResult{JobID: uuidString(job.ID)}, nil
+	}
+}
+
+func (s *ContentService) recordDownload(ctx context.Context, workspaceID string, doc contentdb.Document,
+	version contentdb.DocumentVersion, actor Actor, variant string) {
 	s.activity.Record(ctx, s.activityEntry(workspaceID, actor,
 		activityservice.ActionDocumentDownloaded, activityservice.TargetDocument,
-		documentID, doc.Name, map[string]any{"version_no": version.VersionNo, "variant": variant}))
-
-	return body, downloadName(doc.Name), nil
+		uuidString(doc.ID), doc.Name, map[string]any{"version_no": version.VersionNo, "variant": variant}))
 }
 
 func (s *ContentService) RetryRendition(ctx context.Context, workspaceID, documentID, versionID string, actor Actor) error {
@@ -538,19 +588,32 @@ func (r *spooledReadCloser) Close() error {
 	return err
 }
 
+func (r *spooledReadCloser) size() (int64, error) {
+	fi, err := r.file.Stat()
+	if err != nil {
+		return 0, fmt.Errorf("stat watermarked pdf: %w", err)
+	}
+
+	return fi.Size(), nil
+}
+
 // rasterWatermarkPDF merakit varian unduhan ber-watermark sebagai raster
-// ter-flatten (keputusan 9-g): tiap halaman dirender/ambil-cache → `Burn`
-// yang sama dengan viewer → rakit ulang jadi PDF. Tandanya adalah piksel,
-// jadi `pdfcpu watermark remove` tidak lagi bisa mencabutnya.
+// ter-flatten (keputusan 9-g): tiap halaman dirender/ambil-cache → `BurnImage`
+// yang sama dengan viewer → ditulis JPEG → rakit ulang jadi PDF. Tandanya
+// adalah piksel, jadi `pdfcpu watermark remove` tidak lagi bisa mencabutnya.
+//
+// Halaman ditulis JPEG, bukan PNG (16-h): ImportImages menempelkan byte JPEG
+// apa adanya sebagai DCTDecode, sedangkan PNG ia dekode lalu deflate ulang
+// sebagai RGB mentah tanpa predictor — itulah asal berkas 40× lipat.
 //
 // Geometri halaman dijaga lewat pengelompokan run: `ImportImages` memaksa satu
 // `PageDim` per panggilan (default A4), jadi halaman dikelompokkan jadi runs
 // berurutan berdimensi sama dan digabung berurutan dengan `MergeRaw`. Run juga
-// dipotong tiap `stampPagesPerRun` halaman (9.5-f): ImportImages menahan
-// piksel terdekompresi seluruh run di RAM (~10 MB/halaman), jadi puncaknya
-// diikat ke ukuran run, bukan ke panjang dokumen. Import berjalan bergantian,
-// bukan paralel — paralel berarti beberapa run di RAM sekaligus.
-func (s *ContentService) rasterWatermarkPDF(ctx context.Context, workspaceID, versionID, renditionKey string, pageCount int, mark watermark.Mark) (io.ReadCloser, error) {
+// dipotong tiap `stampPagesPerRun` halaman (9.5-f); angka 25 lahir saat
+// ImportImages masih menahan ~10 MB piksel per halaman dan dipertahankan
+// sampai byte/halaman pasca-JPEG diukur (U-62). Import berjalan bergantian,
+// bukan paralel.
+func (s *ContentService) rasterWatermarkPDF(ctx context.Context, workspaceID, versionID, renditionKey string, pageCount int, mark watermark.Mark) (*spooledReadCloser, error) {
 	dir, err := os.MkdirTemp("", "rakda-wm-*")
 	if err != nil {
 		return nil, fmt.Errorf("temp dir: %w", err)
@@ -618,27 +681,23 @@ func (s *ContentService) burnPages(ctx context.Context, workspaceID, versionID s
 
 	for page := 1; page <= pageCount && gctx.Err() == nil; page++ {
 		g.Go(func() error {
-			png, err := s.pageForDownload(gctx, workspaceID, versionID, doc, page)
+			src, err := s.pageForDownload(gctx, workspaceID, versionID, doc, page)
 			if err != nil {
 				return fmt.Errorf("page %d: %w", page, err)
 			}
 
-			marked, err := s.viewer.Watermark.Burn(png, mark)
+			img, err := s.viewer.Watermark.BurnImage(src, mark)
 			if err != nil {
 				return fmt.Errorf("burn page %d: %w", page, err)
 			}
 
-			cfg, _, err := image.DecodeConfig(bytes.NewReader(marked))
-			if err != nil {
-				return fmt.Errorf("decode page %d: %w", page, err)
-			}
-
-			path := filepath.Join(pagesPath, fmt.Sprintf("p%04d.png", page))
-			if err := os.WriteFile(path, marked, 0o600); err != nil {
+			path := filepath.Join(pagesPath, fmt.Sprintf("p%04d.jpg", page))
+			if err := writeJPEG(path, img); err != nil {
 				return fmt.Errorf("write page %d: %w", page, err)
 			}
 
-			pages[page-1] = burnedPage{path: path, w: float64(cfg.Width), h: float64(cfg.Height)}
+			b := img.Bounds()
+			pages[page-1] = burnedPage{path: path, w: float64(b.Dx()), h: float64(b.Dy())}
 			return nil
 		})
 	}
@@ -648,6 +707,20 @@ func (s *ContentService) burnPages(ctx context.Context, workspaceID, versionID s
 	}
 
 	return pages, nil
+}
+
+func writeJPEG(path string, img image.Image) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return err
+	}
+
+	if err := jpeg.Encode(f, img, &jpeg.Options{Quality: downloadJPEGQuality}); err != nil {
+		f.Close()
+		return err
+	}
+
+	return f.Close()
 }
 
 type pageRun struct {
@@ -932,6 +1005,12 @@ func (s *ContentService) InitMultipart(ctx context.Context, req dto.InitMultipar
 	if err := s.assertFolderInWorkspace(ctx, req.WorkspaceID, req.FolderID); err != nil {
 		return dto.InitMultipartResponse{}, err
 	}
+
+	name, ok := validateNodeName(req.Name)
+	if !ok {
+		return dto.InitMultipartResponse{}, ErrDocumentNameInvalid
+	}
+	req.Name = name
 
 	if err := assertUploadable(req.Name); err != nil {
 		return dto.InitMultipartResponse{}, err

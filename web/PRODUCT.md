@@ -62,18 +62,21 @@ tidak bisa dihapus dengan alat PDF apa pun (stamp vektor pdfcpu yang bisa
 dicabut satu perintah — `pdfcpu watermark remove` — telah dihapus). Harga yang
 dibayar terang-terangan: berkas unduhan ber-watermark **kehilangan lapisan
 teks** (tak bisa diseleksi, disalin, di-Ctrl+F, atau dibaca pembaca layar),
-ukurannya membengkak, dan CPU dibayar tiap unduhan karena tandanya unik per
-permintaan. Pemegang `can_download_original` menerima PDF tanpa tanda dan tanpa
+ukurannya jauh lebih besar dari rendition bersih karena tiap halaman menjadi
+gambar (JPEG kualitas 80 sejak 16-h; teks padat terukur ±0,5 MB per halaman di
+laptop dev), dan CPU dibayar tiap unduhan karena tandanya unik per permintaan. Pemegang `can_download_original` menerima PDF tanpa tanda dan tanpa
 perubahan — keputusan produk, bukan celah teknis.
 
-**Unduhan ber-watermark dibatasi 150 halaman.** Di atas itu tombol unduhnya mati
-dan menjelaskan alasannya dengan dua angka — batasnya, dan jumlah halaman
-dokumen itu — lalu mengarahkan ke viewer. Batas ini ongkos, bukan izin:
-merakit PDF raster menahan sekitar 10 MB piksel per halaman, dan proxy web
-memutus permintaan di 300 detik. Pemegang `can_download_original` tidak kena
-batas ini sama sekali — berkasnya cuma disalin, tidak dirakit ulang.
+**Unduhan ber-watermark dibatasi di plafon rendition, 750 halaman** — batas yang
+sama yang menentukan apakah dokumen bisa dibuka di viewer, jadi praktis semua
+yang bisa dibaca bisa diunduh. Angka 150 yang berlaku sampai 16-g lahir dari
+proxy web yang memutus permintaan di 300 detik; sejak 16-f perakitan yang
+melewati anggaran 30 detik berpindah ke job latar dan artefaknya diambil dari
+panel unduhan, jadi tembok itu tidak lagi mengikat. Pemegang
+`can_download_original` tidak kena batas ini sama sekali — berkasnya cuma
+disalin, tidak dirakit ulang.
 
-Angka 150 dikirim server ke klien, tidak ditulis di kode web. Kalau batasnya
+Angka plafon dikirim server ke klien, tidak ditulis di kode web. Kalau batasnya
 berubah, UI ikut tanpa perlu disentuh.
 
 ## Perlindungan layar
@@ -108,6 +111,79 @@ bisa memaksakannya dan tidak bisa melihat siapa yang memakainya.
 Frasa **"proteksi screenshot" dilarang**. Yang melindungi sungguhan tetap
 tiga hal: viewer raster tanpa lapisan teks, watermark yang dibakar dan tidak
 bisa dilucuti, dan jejak audit yang menamai pembacanya.
+
+## Folder template
+
+Galeri 5 template struktur bawaan (Due diligence M&A, Fundraising,
+Transaksi properti, Audit & pelaporan, Legal & litigasi) — differentiator
+"setup tanpa training"; tidak satu pun benchmark punya galeri serupa.
+Aturan yang mengikat salinan UI:
+
+- **Additive, tidak pernah mengganti.** Salinan harus mengatakan template
+  "ditambahkan", bukan "menggantikan"; ruangan yang sudah berstruktur
+  mendapat kalimat peringatan + tombol ber-angka ("Terapkan — N folder
+  baru"). Friction menginformasikan, tidak pernah melarang — template
+  kedua di ruangan campuran adalah kasus sah.
+- Nama folder **tanpa prefiks angka** — nomor tampil dihitung dari urutan;
+  jangan pernah menuliskan "01" di nama.
+- Nama & deskripsi template datang dari server (dwibahasa); web tidak
+  menyimpan salinannya.
+- Jalur pulang selalu disebut: folder tak diinginkan dihapus ke Sampah
+  (**30 hari**, `TRASH_RETENTION`; angkanya datang dari server, jangan ditulis
+  ulang di web), bisa bulk lewat mode pilih. Di ruangan berstatus **Arsip**
+  penyapu Sampah dibekukan — isinya tidak pernah musnah selama ruangan diarsipkan.
+
+## Siklus hidup ruangan
+
+Ruang data punya tiga keadaan, dan salinan UI-nya sudah lama menjanjikannya —
+sejak 2026-08-27 janji itu benar-benar ditegakkan.
+
+- **Persiapan** — ruangan internal. Pemilik dan admin bekerja penuh; **tamu belum
+  bisa masuk sama sekali**. Ini bukan formalitas: grup bawaan sudah memegang izin
+  lihat atas folder `General` sejak ruangan lahir, dan setiap tamu yang menerima
+  undangan otomatis masuk grup itu — tanpa Persiapan, tamu pertama langsung
+  melihat apa pun yang sudah terlanjur dijatuhkan. Ruangan baru selalu lahir di
+  sini, dan halaman ikhtisar menyediakan tombol membuka ruang.
+- **Aktif** — tanpa batasan.
+- **Arsip** — beku untuk **semua** peran termasuk pemilik, tapi **tetap terbaca**
+  oleh semua peran. Tamu turun menjadi hanya-lihat: unduhan mati dan halaman
+  selalu ber-watermark. Menyunting apa pun ditolak dengan alasan yang jelas,
+  bukan galat mentah.
+
+Salinan yang mengikat:
+
+- Arsip **reversibel** — jangan pernah menuliskannya seperti penghapusan.
+  Konfirmasinya memakai pola proyek ini (kalimat peringatan + tombol ber-angka),
+  bukan ketik-nama milik tombol hapus.
+- Jangan menjanjikan "akses dicabut seketika". Halaman yang sudah ter-cache di
+  peramban tamu tidak bisa ditarik kembali.
+- Ruangan arsip **tidak bisa dihapus** sebelum diaktifkan lagi. Itu disengaja:
+  menghapus ruangan memusnahkan seluruh jejak auditnya, jadi "disimpan untuk
+  audit" harus benar secara struktural, bukan bergantung kehati-hatian.
+
+## Ekspor & arsip
+
+Tiga ekspor CSV yang sudah lama ada — linimasa aktivitas, engagement per dokumen,
+dan Q&A — plus **paket arsip** sejak 2026-08-27.
+
+Paket arsip adalah berkas ZIP berisi seluruh dokumen ruangan (versi yang sedang
+disajikan, sebagai PDF bersih) ditambah pohon foldernya, indeks yang bisa diklik,
+dan jejak auditnya. Ia dibuat di latar, bukan diunduh langsung: ruangan besar
+butuh waktu, dan menunggu di halaman akan gagal di koneksi lambat.
+
+Salinan yang mengikat:
+
+- Sebut **"paket arsip"**, bukan "backup" — ini serah-terima saat deal tutup,
+  bukan cadangan berkala.
+- Paket berumur **30 hari** lalu dihapus; ZIP yang sudah diunduh berlaku
+  selamanya. Bedanya harus jelas di layar.
+- Nomor folder ikut ditulis ke dalam nama berkas di dalam ZIP, karena sebuah ZIP
+  kehilangan urutan begitu lepas dari aplikasi. Nomor itu tetap tidak pernah
+  disimpan di basis data.
+- Dokumen yang gagal disiapkan **disebut jumlahnya**, tidak dihilangkan diam-diam.
+- Jangan menjanjikan paket sebagai potret detik pengarsipan — isinya adalah
+  ruangan pada stempel waktu ekspor, dan indeksnya yang membuktikan.
+
 
 ## Q&A
 

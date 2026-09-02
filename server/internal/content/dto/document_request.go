@@ -10,7 +10,7 @@ type CompleteUploadRequest struct {
 	WorkspaceID string `json:"-"`
 	FolderID    string `json:"-"`
 	UploadedBy  string `json:"-"`
-	Name        string `json:"name" validate:"required"`
+	Name        string `json:"name" validate:"required,max=200"`
 	StorageKey  string `json:"storage_key" validate:"required"`
 }
 
@@ -55,7 +55,7 @@ type CompleteMultipartRequest struct {
 	FolderID    string          `json:"-"`
 	UploadedBy  string          `json:"-"`
 	UploadID    string          `json:"upload_id" validate:"required"`
-	Name        string          `json:"name" validate:"required"`
+	Name        string          `json:"name" validate:"required,max=200"`
 	StorageKey  string          `json:"storage_key" validate:"required"`
 	ContentType string          `json:"content_type"`
 	Parts       []MultipartPart `json:"parts" validate:"required,min=1,dive"`
@@ -64,7 +64,7 @@ type CompleteMultipartRequest struct {
 type InitMultipartRequest struct {
 	WorkspaceID string `json:"-"`
 	FolderID    string `json:"-"`
-	Name        string `json:"name" validate:"required"`
+	Name        string `json:"name" validate:"required,max=200"`
 	Size        int64  `json:"size" validate:"required,gt=0"`
 }
 

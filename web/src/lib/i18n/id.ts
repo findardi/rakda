@@ -114,7 +114,10 @@ export const id = {
 	'ws.title': 'Ruang data',
 	'ws.create': 'Buat ruang data',
 	'ws.count': '{n} ruang data',
-	'ws.limitReached': 'Anda sudah mencapai batas 3 ruang data sebagai pemilik.',
+	'ws.limitReached':
+		'Anda sudah mencapai batas {limit} ruang data sebagai pemilik. Ruang arsip ikut dihitung.',
+	'ws.lastActivity': 'Aktivitas terakhir',
+	'ws.switcher.open': 'Ganti ruang data',
 	'ws.created': 'Ruang data "{name}" dibuat.',
 	'ws.loadError': 'Gagal memuat ruang data. Coba muat ulang halaman.',
 	'ws.empty.title': 'Belum ada ruang data',
@@ -134,7 +137,7 @@ export const id = {
 	'ws.dialog.submitting': 'Membuat…',
 	'ws.err.nameTaken': 'Nama ruang data sudah dipakai.',
 	'ws.err.nameInvalid': 'Nama harus mengandung huruf atau angka.',
-	'ws.err.limit': 'Maksimal 3 ruang data per akun.',
+	'ws.err.limit': 'Batas ruang data sebagai pemilik sudah tercapai.',
 	'ws.err.invalidStatus': 'Status tidak valid.',
 
 	// Workspace detail (/workspace/[slug])
@@ -155,10 +158,79 @@ export const id = {
 	'ws.status.prepare': 'Persiapan',
 	'ws.status.active': 'Aktif',
 	'ws.status.archive': 'Arsip',
-	'ws.status.hint.prepare': 'Ruang masih disiapkan — belum dibagikan ke pihak luar.',
-	'ws.status.hint.active': 'Ruang aktif — pihak dengan akses dapat membukanya.',
-	'ws.status.hint.archive': 'Ruang diarsipkan — hanya-baca, disimpan untuk audit.',
+	'ws.status.hint.prepare': 'Ruang masih disiapkan. Tamu belum dapat membukanya.',
+	'ws.status.hint.active': 'Ruang aktif. Pihak dengan akses dapat membukanya.',
+	'ws.status.hint.archive':
+		'Ruang diarsipkan. Isi terkunci hanya-baca untuk semua peran, termasuk pemilik.',
 	'ws.status.updated': 'Status ruang data diperbarui.',
+
+	// Room lifecycle
+	'room.readOnly.strip': 'Ruang diarsipkan. Hanya-baca untuk semua peran.',
+	'room.notOpen.title': 'Ruang belum dibuka',
+	'room.notOpen.body':
+		'Pemilik masih menyiapkan ruang data ini. Anda dapat membukanya setelah ruang diaktifkan.',
+	'room.activate.title': 'Buka ruang untuk tamu',
+	'room.activate.body':
+		'Tamu belum dapat membuka ruang ini. Buka setelah struktur folder dan izin grup siap.',
+	'room.activate.submit': 'Buka ruang',
+	'room.activate.submitCount': 'Buka ruang ({n} tamu mendapat akses)',
+	'room.activate.confirmBody':
+		'Tamu yang sudah bergabung langsung mendapat akses sesuai izin grupnya.',
+	'room.activate.warning': 'Ruang yang sudah dibuka tidak dapat kembali ke status Persiapan.',
+	'room.archive.open': 'Arsipkan',
+	'room.archive.title': 'Arsipkan ruang data',
+	'room.archive.body':
+		'Ruang menjadi hanya-baca untuk semua peran, termasuk Anda. Tamu tetap dapat membaca, tetapi unduhan dimatikan dan setiap halaman diberi watermark.',
+	'room.archive.caveat':
+		'Halaman yang sudah tersimpan di peramban tamu tidak dapat ditarik kembali. Arsip dapat dibuka kembali kapan saja.',
+	'room.archive.submit': 'Arsipkan ruang',
+	'room.archive.submitCount': 'Arsipkan ruang ({n} tamu kehilangan unduhan)',
+	'room.unarchive.submit': 'Buka kembali ruang',
+	'room.delete.blocked': 'Ruang arsip tidak dapat dihapus. Buka kembali ruang lebih dulu.',
+	'room.archive.exportHint':
+		'Anda dapat membuat paket arsip kapan saja, sebelum maupun sesudah ruang diarsipkan.',
+
+	// Archive packages
+	'archive.title': 'Paket arsip',
+	'archive.body':
+		'Satu berkas ZIP berisi PDF setiap dokumen, indeks, dan jejak audit. Dirakit di latar belakang dan disimpan 30 hari; ZIP yang sudah Anda unduh tetap berlaku.',
+	'archive.create': 'Buat paket arsip',
+	'archive.queued': 'Paket arsip sedang dirakit.',
+	'archive.empty': 'Belum ada paket arsip.',
+	'archive.download': 'Unduh',
+	'archive.delete': 'Hapus',
+	'archive.delete.title': 'Hapus paket arsip',
+	'archive.delete.warning':
+		'Paket arsip {date} dihapus dari server dan tidak dapat diunduh lagi. Anda dapat membuat paket baru kapan saja.',
+	'archive.delete.submit': 'Hapus paket',
+	'archive.documents': '{n} dokumen',
+	'archive.missing': '{n} tidak disertakan',
+	'archive.expires': 'kedaluwarsa {date}',
+	'archive.status.pending': 'Sedang dirakit',
+	'archive.status.ready': 'Siap',
+	'archive.status.failed': 'Gagal',
+	'archive.err.pending': 'Masih ada paket arsip yang sedang dirakit untuk ruang ini.',
+	'archive.err.busy': 'Server sedang merakit paket arsip lain. Coba lagi sebentar.',
+	'archive.err.notFound': 'Paket arsip tidak ditemukan.',
+	'archive.err.notReady': 'Paket arsip belum siap diunduh.',
+
+	// Overview
+	'ws.overview.summary': 'Ringkasan',
+	'ws.overview.quick.documents': 'Dokumen',
+	'ws.overview.quick.members': 'Tamu',
+	'ws.overview.quick.invite': 'Undang tamu',
+	'ws.overview.quick.activity': 'Aktivitas',
+	'ws.overview.count.documents': '{n} dokumen',
+	'ws.overview.count.folders': '{n} folder',
+	'ws.overview.count.guests': '{n} tamu',
+	'ws.overview.recentActivity': 'Aktivitas terakhir',
+	'ws.overview.recentActivity.empty': 'Belum ada aktivitas di ruang ini.',
+	'ws.overview.seeAll': 'Lihat semua aktivitas',
+	'ws.overview.recents': 'Terakhir dikunjungi',
+	'ws.overview.recents.folders': 'Folder',
+	'ws.overview.recents.documents': 'Dokumen',
+	'ws.overview.recents.empty': 'Folder dan dokumen yang Anda buka akan muncul di sini.',
+	'ws.overview.recents.device': 'Tersimpan di peramban ini.',
 
 	// Edit room
 	'ws.edit.open': 'Edit',
@@ -210,6 +282,10 @@ export const id = {
 	'err.invalidOtp': 'Kode OTP salah atau kedaluwarsa.',
 	'err.forbidden': 'Anda tidak punya izin untuk tindakan ini.',
 	'err.forbiddenContent': 'Grup Anda tidak diberi akses ke konten ini.',
+	'err.roomArchived': 'Ruang diarsipkan. Perubahan tidak dapat disimpan.',
+	'err.roomNotOpen': 'Ruang belum dibuka untuk tamu.',
+	'err.roomTransition': 'Perubahan status itu tidak diizinkan.',
+	'err.conflict': 'Permintaan bentrok dengan keadaan saat ini.',
 
 	// management access
 	'ma.title': 'Manajemen akses',
@@ -418,6 +494,18 @@ export const id = {
 		'Unduhan dengan watermark lain sedang diproses. Coba lagi beberapa saat, atau baca dokumen di viewer.',
 	'doc.docs.err.downloadTooLarge':
 		'Dokumen melebihi batas halaman unduhan dengan watermark. Baca dokumen di viewer.',
+	'doc.dl.title': 'Unduhan tertunda',
+	'doc.dl.preparing': '{n} unduhan sedang disiapkan',
+	'doc.dl.ready': '{n} unduhan siap',
+	'doc.dl.pages': '{n} halaman · sedang di-watermark',
+	'doc.dl.save': 'Simpan',
+	'doc.dl.dismiss': 'Tutup',
+	'doc.dl.expiryHint': 'Tautan unduhan berlaku 30 menit, lalu dihapus dari server.',
+	'doc.dl.queued':
+		'Dokumen ini butuh waktu untuk di-watermark. Anda akan diberi tahu di panel unduhan saat siap — tidak perlu menunggu di halaman ini.',
+	'doc.dl.err.gone': 'Unduhan ini sudah kedaluwarsa. Minta ulang dari dokumennya.',
+	'doc.dl.err.notReady': 'Unduhan ini masih disiapkan.',
+
 	'doc.docs.noAccess.title': 'Folder ini tidak dibagikan ke Anda',
 	'doc.docs.noAccess.body':
 		'Grup Anda tidak diberi akses ke folder ini. Minta pemilik ruang membukanya untuk grup Anda.',
@@ -508,6 +596,10 @@ export const id = {
 	'doc.view.failed.retryErr': 'Gagal memulai penyiapan ulang. Coba lagi.',
 	'doc.view.failed.noPerm': 'Minta pengelola ruangan menyiapkannya ulang.',
 	'doc.view.emptyPages': 'Dokumen ini tidak punya halaman untuk ditampilkan.',
+	'doc.view.small.title': 'Layar terlalu kecil untuk membaca dokumen',
+	'doc.view.small.body':
+		'Viewer dokumen membutuhkan area baca setidaknya seukuran tablet. Buka dari perangkat berlayar lebih lebar, atau perbesar jendela peramban.',
+	'doc.view.small.back': 'Kembali ke daftar dokumen',
 	'doc.view.curtain.title': 'Isi dokumen disembunyikan',
 	'doc.view.curtain.hint': 'Kembali ke jendela ini untuk melanjutkan membaca.',
 	'doc.view.print.title': 'Isi dokumen tidak dicetak',
@@ -596,6 +688,7 @@ export const id = {
 	'activity.group.group': 'Grup',
 	'activity.group.access': 'Akses folder',
 	'activity.group.qa': 'Q&A',
+	'activity.group.room': 'Ruang',
 
 	'activity.action.folder_created': 'membuat folder “{target}”',
 	'activity.action.folder_created_bulk': 'menambahkan {count} folder sekaligus',
@@ -644,6 +737,8 @@ export const id = {
 	'activity.action.question_reopened': 'membuka lagi pertanyaan “{target}”',
 	'activity.action.faq_published': 'menerbitkan FAQ “{target}”',
 	'activity.action.qa_settings_changed': 'mengubah setelan Q&A grup “{target}”',
+	'activity.action.workspace_status_changed': 'mengubah status ruang dari {from} menjadi {to}',
+	'activity.action.archive_exported': 'membuat paket arsip “{target}”',
 
 	'activity.label.folder_created': 'Folder dibuat',
 	'activity.label.folder_renamed': 'Folder diganti nama',
@@ -684,6 +779,8 @@ export const id = {
 	'activity.label.question_reopened': 'Pertanyaan dibuka lagi',
 	'activity.label.faq_published': 'FAQ diterbitkan',
 	'activity.label.qa_settings_changed': 'Setelan Q&A diubah',
+	'activity.label.workspace_status_changed': 'Status ruang diubah',
+	'activity.label.archive_exported': 'Paket arsip dibuat',
 
 	'activity.link.open': 'Buka “{name}”',
 	'activity.link.readers': 'Lihat aktivitas baca',

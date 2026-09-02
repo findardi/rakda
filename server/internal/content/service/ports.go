@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"io"
 
 	activityservice "github.com/findardi/rakda/server/internal/activity/service"
 	contentdb "github.com/findardi/rakda/server/internal/content/repository/sqlc"
@@ -85,8 +86,45 @@ type ContentRepository interface {
 	SearchAllContentPages(ctx context.Context, arg contentdb.SearchAllContentPagesParams) ([]contentdb.SearchAllContentPagesRow, error)
 	SearchVisibleContentPages(ctx context.Context, arg contentdb.SearchVisibleContentPagesParams) ([]contentdb.SearchVisibleContentPagesRow, error)
 
+	CreateArchive(ctx context.Context, arg contentdb.CreateArchiveParams) (contentdb.WorkspaceArchive, error)
+	SetArchiveObjectKey(ctx context.Context, arg contentdb.SetArchiveObjectKeyParams) error
+	GetArchive(ctx context.Context, arg contentdb.GetArchiveParams) (contentdb.WorkspaceArchive, error)
+	ListArchives(ctx context.Context, workspaceID pgtype.UUID) ([]contentdb.WorkspaceArchive, error)
+	CountPendingArchives(ctx context.Context, workspaceID pgtype.UUID) (int32, error)
+	MarkArchiveReady(ctx context.Context, arg contentdb.MarkArchiveReadyParams) error
+	MarkArchiveFailed(ctx context.Context, arg contentdb.MarkArchiveFailedParams) error
+	DeleteArchive(ctx context.Context, arg contentdb.DeleteArchiveParams) error
+	ListExpiredArchives(ctx context.Context) ([]contentdb.ListExpiredArchivesRow, error)
+	ListStalePendingArchives(ctx context.Context, cutoff pgtype.Timestamptz) ([]contentdb.ListStalePendingArchivesRow, error)
+
+	CreateDownloadJob(ctx context.Context, arg contentdb.CreateDownloadJobParams) (contentdb.DocumentDownloadJob, error)
+	GetDownloadJob(ctx context.Context, id pgtype.UUID) (contentdb.DocumentDownloadJob, error)
+	GetPendingDownloadJob(ctx context.Context, arg contentdb.GetPendingDownloadJobParams) (contentdb.DocumentDownloadJob, error)
+	ListDownloadJobsForUser(ctx context.Context, arg contentdb.ListDownloadJobsForUserParams) ([]contentdb.DocumentDownloadJob, error)
+	MarkDownloadJobReady(ctx context.Context, arg contentdb.MarkDownloadJobReadyParams) error
+	MarkDownloadJobFailed(ctx context.Context, arg contentdb.MarkDownloadJobFailedParams) error
+	ListStalePendingDownloadJobs(ctx context.Context, cutoff pgtype.Timestamptz) ([]contentdb.DocumentDownloadJob, error)
+	ListExpiredDownloadJobs(ctx context.Context) ([]contentdb.DocumentDownloadJob, error)
+	DeleteDownloadJob(ctx context.Context, id pgtype.UUID) error
+	ListArchiveFolders(ctx context.Context, workspaceID pgtype.UUID) ([]contentdb.ListArchiveFoldersRow, error)
+	ListArchiveDocuments(ctx context.Context, workspaceID pgtype.UUID) ([]contentdb.ListArchiveDocumentsRow, error)
+	ListArchiveMembers(ctx context.Context, workspaceID pgtype.UUID) ([]contentdb.ListArchiveMembersRow, error)
+	ListFolderAccessMatrix(ctx context.Context, workspaceID pgtype.UUID) ([]contentdb.ListFolderAccessMatrixRow, error)
+	GetWorkspaceSlugForArchive(ctx context.Context, id pgtype.UUID) (string, error)
+
 	ExecTx(ctx context.Context, fn func(*contentdb.Queries) error) error
 	ExecTxTx(ctx context.Context, fn func(*contentdb.Queries, pgx.Tx) error) error
+}
+
+// ActivityExporter dan QAExporter dideklarasikan sebagai port, bukan impor
+// langsung, karena qa/service sudah bergantung pada ContentService lewat
+// ContentAccessChecker — impor balik akan jadi siklus.
+type ActivityExporter interface {
+	ExportActivityCSV(ctx context.Context, w io.Writer, workspaceID, role string) error
+}
+
+type QAExporter interface {
+	ExportQuestionsCSV(ctx context.Context, w io.Writer, workspaceID, userID, name, email, role string) error
 }
 
 type ActivityRecorder interface {

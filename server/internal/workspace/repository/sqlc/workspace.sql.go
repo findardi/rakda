@@ -58,12 +58,58 @@ func (q *Queries) DeleteWorkspace(ctx context.Context, id pgtype.UUID) error {
 	return err
 }
 
+const getMemberRoleName = `-- name: GetMemberRoleName :one
+select r.name from workspace_members m
+join workspace_roles r on r.id = m.role_id
+where m.workspace_id = $1
+  and m.user_id = $2
+  and m.status = 'active'
+`
+
+type GetMemberRoleNameParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	UserID      pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) GetMemberRoleName(ctx context.Context, arg GetMemberRoleNameParams) (string, error) {
+	row := q.db.QueryRow(ctx, getMemberRoleName, arg.WorkspaceID, arg.UserID)
+	var name string
+	err := row.Scan(&name)
+	return name, err
+}
+
 const getWorkspaceByID = `-- name: GetWorkspaceByID :one
 select id, owner_id, name, slug, description, status, created_at, updated_at from workspaces where id = $1
 `
 
 func (q *Queries) GetWorkspaceByID(ctx context.Context, id pgtype.UUID) (Workspace, error) {
 	row := q.db.QueryRow(ctx, getWorkspaceByID, id)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.Name,
+		&i.Slug,
+		&i.Description,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getWorkspaceByNameAndOwner = `-- name: GetWorkspaceByNameAndOwner :one
+select id, owner_id, name, slug, description, status, created_at, updated_at from workspaces 
+where owner_id = $1 and name = $2
+`
+
+type GetWorkspaceByNameAndOwnerParams struct {
+	OwnerID pgtype.UUID `json:"owner_id"`
+	Name    string      `json:"name"`
+}
+
+func (q *Queries) GetWorkspaceByNameAndOwner(ctx context.Context, arg GetWorkspaceByNameAndOwnerParams) (Workspace, error) {
+	row := q.db.QueryRow(ctx, getWorkspaceByNameAndOwner, arg.OwnerID, arg.Name)
 	var i Workspace
 	err := row.Scan(
 		&i.ID,
@@ -104,23 +150,100 @@ func (q *Queries) GetWorkspaceBySlugAndOwner(ctx context.Context, arg GetWorkspa
 	return i, err
 }
 
-const getWorkspaces = `-- name: GetWorkspaces :many
+const getWorkspaceForMember = `-- name: GetWorkspaceForMember :one
 select w.id, w.owner_id, w.name, w.slug, w.description, w.status, w.created_at, w.updated_at from workspaces w
-left join
-    workspace_members wm on wm.workspace_id = w.id
-where 
-    wm.user_id = $1
+join workspace_members m on m.workspace_id = w.id
+where w.id = $1
+  and m.user_id = $2
+  and m.status = 'active'
 `
 
-func (q *Queries) GetWorkspaces(ctx context.Context, userID pgtype.UUID) ([]Workspace, error) {
+type GetWorkspaceForMemberParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	UserID      pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) GetWorkspaceForMember(ctx context.Context, arg GetWorkspaceForMemberParams) (Workspace, error) {
+	row := q.db.QueryRow(ctx, getWorkspaceForMember, arg.WorkspaceID, arg.UserID)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.Name,
+		&i.Slug,
+		&i.Description,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getWorkspaceSummary = `-- name: GetWorkspaceSummary :one
+select
+    (select count(*) from documents d
+        where d.workspace_id = $1 and d.deleted_at is null) as document_count,
+    (select count(*) from folders f
+        where f.workspace_id = $1 and f.deleted_at is null) as folder_count,
+    (select count(*) from workspace_members m
+        join workspace_roles r on r.id = m.role_id
+        where m.workspace_id = $1
+          and m.status = 'active'
+          and r.name = 'guest') as guest_count
+`
+
+type GetWorkspaceSummaryRow struct {
+	DocumentCount int64 `json:"document_count"`
+	FolderCount   int64 `json:"folder_count"`
+	GuestCount    int64 `json:"guest_count"`
+}
+
+func (q *Queries) GetWorkspaceSummary(ctx context.Context, workspaceID pgtype.UUID) (GetWorkspaceSummaryRow, error) {
+	row := q.db.QueryRow(ctx, getWorkspaceSummary, workspaceID)
+	var i GetWorkspaceSummaryRow
+	err := row.Scan(&i.DocumentCount, &i.FolderCount, &i.GuestCount)
+	return i, err
+}
+
+const getWorkspaces = `-- name: GetWorkspaces :many
+select
+    w.id, w.owner_id, w.name, w.slug, w.description, w.status, w.created_at, w.updated_at,
+    r.name as role_name,
+    (
+        select max(a.created_at)
+        from activity_logs a
+        where a.workspace_id = w.id
+    )::timestamptz as last_activity_at
+from workspaces w
+join workspace_members wm on wm.workspace_id = w.id
+join workspace_roles r on r.id = wm.role_id
+where wm.user_id = $1
+  and wm.status = 'active'
+order by last_activity_at desc nulls last, w.created_at desc, w.id
+`
+
+type GetWorkspacesRow struct {
+	ID             pgtype.UUID        `json:"id"`
+	OwnerID        pgtype.UUID        `json:"owner_id"`
+	Name           string             `json:"name"`
+	Slug           string             `json:"slug"`
+	Description    *string            `json:"description"`
+	Status         string             `json:"status"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	RoleName       string             `json:"role_name"`
+	LastActivityAt pgtype.Timestamptz `json:"last_activity_at"`
+}
+
+func (q *Queries) GetWorkspaces(ctx context.Context, userID pgtype.UUID) ([]GetWorkspacesRow, error) {
 	rows, err := q.db.Query(ctx, getWorkspaces, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Workspace
+	var items []GetWorkspacesRow
 	for rows.Next() {
-		var i Workspace
+		var i GetWorkspacesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OwnerID,
@@ -130,6 +253,8 @@ func (q *Queries) GetWorkspaces(ctx context.Context, userID pgtype.UUID) ([]Work
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.RoleName,
+			&i.LastActivityAt,
 		); err != nil {
 			return nil, err
 		}
@@ -212,19 +337,32 @@ func (q *Queries) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams
 	return i, err
 }
 
-const updateWorkspaceStatus = `-- name: UpdateWorkspaceStatus :exec
+const updateWorkspaceStatus = `-- name: UpdateWorkspaceStatus :one
 update workspaces set 
-    status = $2,
+    status = $1,
     updated_at = now()
-where id = $1
+where id = $2 and status = $3
+returning id, owner_id, name, slug, description, status, created_at, updated_at
 `
 
 type UpdateWorkspaceStatusParams struct {
-	ID     pgtype.UUID `json:"id"`
-	Status string      `json:"status"`
+	Status     string      `json:"status"`
+	ID         pgtype.UUID `json:"id"`
+	FromStatus string      `json:"from_status"`
 }
 
-func (q *Queries) UpdateWorkspaceStatus(ctx context.Context, arg UpdateWorkspaceStatusParams) error {
-	_, err := q.db.Exec(ctx, updateWorkspaceStatus, arg.ID, arg.Status)
-	return err
+func (q *Queries) UpdateWorkspaceStatus(ctx context.Context, arg UpdateWorkspaceStatusParams) (Workspace, error) {
+	row := q.db.QueryRow(ctx, updateWorkspaceStatus, arg.Status, arg.ID, arg.FromStatus)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.Name,
+		&i.Slug,
+		&i.Description,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

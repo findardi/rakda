@@ -31,16 +31,29 @@ const (
 	maxUploadBytes     = 500 << 20
 	maxRenditionPages  = 750
 
-	// maxWatermarkDownloadPages: plafon unduhan varian ber-watermark
-	// (9.5-d, dinaikkan 9.5-f). Sejak import dibatch per stampPagesPerRun,
-	// RAM tidak lagi mengikuti jumlah halaman (~380 MB puncak untuk 60
-	// maupun 400 halaman); yang tersisa adalah batas waktu ~300 s dari
-	// timeout fetch proxy web. Diukur di dev 0,31 s/halaman dengan 2
-	// pekerja; dengan asumsi kotak sasaran 4 vCPU sampai 4× lebih lambat,
-	// 150 halaman ≈ 190 s. Naikkan hanya setelah diukur di kotak sasaran.
-	maxWatermarkDownloadPages = 150
+	// maxWatermarkDownloadPages sama dengan maxRenditionPages sejak 16-g:
+	// plafon 150 lahir dari tembok 300 s proxy web, dan 16-f memindahkan
+	// perakitan panjang ke job latar sehingga tembok itu tidak lagi mengikat.
+	// RAM datar per run sejak 9.5-f (~380 MB di era PNG; pasca-16-h JPEG
+	// belum diukur ulang, U-62). Yang mengikat sekarang downloadJobTimeout
+	// dan kolam stampAsyncSem, bukan jumlah halaman.
+	maxWatermarkDownloadPages = maxRenditionPages
 	stampPagesPerRun          = 25
 	stampWorkers              = 2
+	downloadJPEGQuality       = 80
+
+	asyncDownloadPageThreshold = 100
+	syncDownloadBudget         = 30 * time.Second
+	downloadJobTTL             = 30 * time.Minute
+	downloadJobTimeout         = 45 * time.Minute
+	downloadJobStoreTimeout    = 10 * time.Minute
+
+	// Relasi ditulis sebagai ekspresi, bukan angka: sweeper yang menandai
+	// job "terhenti" harus selalu lebih longgar daripada umur maksimal job
+	// yang masih sah, kalau tidak ia membunuh pekerjaan yang sedang jalan.
+	downloadJobStaleAge = downloadJobTimeout + downloadJobStoreTimeout + 5*time.Minute
+
+	downloadJobListLimit = 20
 
 	// asyncConvertTimeout bounds the detached conversion kicked off by a version
 	// upload or a rendition retry. Generous: gotenberg on a large deck is slow,
@@ -71,6 +84,7 @@ var (
 	ErrBulkTooManyFolders        = errors.New("too many folders in one request")
 	ErrBulkTooDeep               = errors.New("folder tree in request is too deep")
 	ErrFolderNameInvalid         = errors.New("folder name is invalid")
+	ErrDocumentNameInvalid       = errors.New("document name is invalid")
 	ErrInvalidStorageKey         = errors.New("storage key does not belong to this folder")
 	ErrUploadTooLarge            = errors.New("file is too large")
 	ErrInvalidPartNumber         = errors.New("invalid part number")
@@ -83,6 +97,8 @@ var (
 	ErrOCRFailed                 = errors.New("ocr failed")
 	ErrDownloadBusy              = errors.New("too many watermarked downloads in progress, retry later")
 	ErrWatermarkDownloadTooLarge = errors.New("document is too large to download as a watermarked copy, use the viewer")
+	ErrDownloadJobNotFound       = errors.New("download request not found")
+	ErrDownloadJobNotReady       = errors.New("download request is not ready yet")
 	ErrVersionTypeMismatch       = errors.New("version file type does not match the document")
 )
 
@@ -94,21 +110,57 @@ type ContentService struct {
 	activity       ActivityRecorder
 
 	// stampSem membatasi perakitan unduhan ber-watermark yang berjalan
-	// bersamaan (keputusan 9.5-d): ImportImages menahan piksel terdekompresi
-	// dalam RSS Go, jadi dua unduhan besar bersamaan bisa saling menjatuhkan
-	// di kotak 4 GB. Non-blocking: penuh → ErrDownloadBusy (429), tidak
-	// menunggu.
+	// bersamaan (keputusan 9.5-d): tiap perakitan menahan piksel halaman di
+	// BurnImage (2 pekerja) plus byte JPEG satu run, jadi dua unduhan besar
+	// bersamaan bisa saling menjatuhkan. Non-blocking: penuh → ErrDownloadBusy
+	// (429), tidak menunggu.
 	stampSem chan struct{}
+
+	// stampAsyncSem memisahkan perakitan job latar dari jalur request.
+	// Alasan slot=1 di 9.5-e adalah dua unduhan sama-sama molor ke arah
+	// tembok 300 s; tanpa tembok itu "lebih lambat" bukan lagi "gagal".
+	// Tetap pengali RAM (~380 MB per perakitan di era PNG; pasca-16-h belum
+	// diukur ulang, U-62).
+	stampAsyncSem chan struct{}
 
 	// convertSF menyatukan konversi rendition per version id: kick latar
 	// belakang (unggah versi / retry) dan pembuka viewer yang datang bersamaan
 	// berbagi satu kerja gotenberg, bukan dua.
 	convertSF singleflight.Group
+
+	// archiveSem membatasi perakitan arsip yang berjalan bersamaan. Berbeda
+	// dari stampSem: yang dibatasi di sini bandwidth dan koneksi storage, bukan
+	// RAM piksel. Non-blocking: penuh -> ErrArchiveBusy (429).
+	archiveSem     chan struct{}
+	archiveTTL     time.Duration
+	activityExport ActivityExporter
+	qaExport       QAExporter
 }
 
-func NewContentService(repo ContentRepository, store storage.Storage, viewer Viewer, trashRetention time.Duration, activity ActivityRecorder, stampConcurrency int) *ContentService {
-	if stampConcurrency < 1 {
-		stampConcurrency = 1
+type ArchiveDeps struct {
+	Concurrency    int
+	TTL            time.Duration
+	ActivityExport ActivityExporter
+	QAExport       QAExporter
+}
+
+type StampDeps struct {
+	Sync  int
+	Async int
+}
+
+func NewContentService(repo ContentRepository, store storage.Storage, viewer Viewer, trashRetention time.Duration, activity ActivityRecorder, stamp StampDeps, archive ArchiveDeps) *ContentService {
+	if stamp.Sync < 1 {
+		stamp.Sync = 1
+	}
+	if stamp.Async < 1 {
+		stamp.Async = 1
+	}
+	if archive.Concurrency < 1 {
+		archive.Concurrency = 1
+	}
+	if archive.TTL <= 0 {
+		archive.TTL = 30 * 24 * time.Hour
 	}
 
 	return &ContentService{
@@ -117,7 +169,12 @@ func NewContentService(repo ContentRepository, store storage.Storage, viewer Vie
 		viewer:         viewer,
 		trashRetention: trashRetention,
 		activity:       activity,
-		stampSem:       make(chan struct{}, stampConcurrency),
+		stampSem:       make(chan struct{}, stamp.Sync),
+		stampAsyncSem:  make(chan struct{}, stamp.Async),
+		archiveSem:     make(chan struct{}, archive.Concurrency),
+		archiveTTL:     archive.TTL,
+		activityExport: archive.ActivityExport,
+		qaExport:       archive.QAExport,
 	}
 }
 
@@ -187,6 +244,31 @@ func clampPosition(pos, max int32) int32 {
 	return pos
 }
 
+const maxNodeNameLength = 200
+
+// validateNodeName adalah aturan yang selama ini hanya dijaga jalur bulk. Nama
+// ber-`/` atau `..` bisa masuk lewat CreateFolder tunggal, rename, dan unggah,
+// lalu jadi masalah orang lain saat diekspor ke ZIP (13-b).
+func validateNodeName(name string) (string, bool) {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" || len(trimmed) > maxNodeNameLength {
+		return "", false
+	}
+	if strings.ContainsAny(trimmed, `/\`) {
+		return "", false
+	}
+	if trimmed == "." || trimmed == ".." {
+		return "", false
+	}
+	for _, r := range trimmed {
+		if r < 0x20 || r == 0x7f {
+			return "", false
+		}
+	}
+
+	return trimmed, true
+}
+
 func validateBulkNodes(nodes []dto.BulkFolderNode, depth int) (int, error) {
 	if depth > maxFolderDepth {
 		return 0, ErrBulkTooDeep
@@ -194,8 +276,7 @@ func validateBulkNodes(nodes []dto.BulkFolderNode, depth int) (int, error) {
 
 	total := 0
 	for _, n := range nodes {
-		name := strings.TrimSpace(n.Name)
-		if name == "" || strings.ContainsAny(name, `/\`) {
+		if _, ok := validateNodeName(n.Name); !ok {
 			return 0, ErrFolderNameInvalid
 		}
 
@@ -274,6 +355,11 @@ func downloadName(name string) string {
 }
 
 func (s *ContentService) CreateFolder(ctx context.Context, req dto.CreateFolderRequest, actor Actor) (dto.FolderResponse, error) {
+	name, ok := validateNodeName(req.Name)
+	if !ok {
+		return dto.FolderResponse{}, ErrFolderNameInvalid
+	}
+	req.Name = name
 
 	var wID, pID, cID pgtype.UUID
 
@@ -568,6 +654,12 @@ func buildFolderTree(childrenOf map[string][]contentdb.Folder, parentKey, prefix
 }
 
 func (s *ContentService) RenameFolder(ctx context.Context, req dto.RenameFolderRequest, actor Actor) (dto.FolderResponse, error) {
+	name, ok := validateNodeName(req.Name)
+	if !ok {
+		return dto.FolderResponse{}, ErrFolderNameInvalid
+	}
+	req.Name = name
+
 	var fID pgtype.UUID
 	if err := fID.Scan(req.FolderID); err != nil {
 		return dto.FolderResponse{}, fmt.Errorf("folder id parse: %w", err)

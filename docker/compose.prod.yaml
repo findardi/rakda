@@ -1,0 +1,131 @@
+# Server prod memakai Podman ROOTFUL (rootless menghilangkan IP sumber di
+# rootlessport → rantai XFF kolaps). Auto-update = systemd timer di
+# docker/systemd/ (podman compose pull + up -d), bukan Watchtower.
+name: rakda
+
+networks:
+  rakda:
+    # aardvark-dns 1.4 (Ubuntu noble) tidak meneruskan query DNS eksternal —
+    # pola sama dengan server dev: network dibuat manual TANPA aardvark,
+    # sekali, sebelum up pertama:
+    #   sudo podman network create --subnet 172.29.0.0/24 --disable-dns rakda-net
+    # Nama service tidak di-resolve — alamat internal memakai IP statis.
+    # 14-b: nilai TRUSTED_PROXY_CIDRS = /32 traefik (.10) + web (.11).
+    external: true
+    name: rakda-net
+
+services:
+  gotenberg:
+    image: gotenberg/gotenberg:8.36
+    command: ['gotenberg', '--api-timeout=150s']
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://localhost:3000/health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    cpus: 1.0
+    mem_limit: 1g
+    restart: unless-stopped
+    networks:
+      rakda:
+        ipv4_address: 172.29.0.13
+
+  api:
+    # CI push ke main menerbitkan tag ini; server pull, tidak build (14-e).
+    image: ghcr.io/findardi/rakda-api:main
+    build:
+      context: ../server
+      dockerfile: ../docker/server.Dockerfile
+      target: runtime
+    env_file:
+      - .env.prod.api
+    # aardvark-dns 1.4 meneruskan query eksternal ke stub 127.0.0.53 host —
+    # upstream eksplisit; nama internal tetap dilayani aardvark lebih dulu
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    depends_on:
+      gotenberg:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:8080/check']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    cpus: 1.5
+    mem_limit: 2g
+    stop_grace_period: 90s
+    restart: unless-stopped
+    networks:
+      rakda:
+        ipv4_address: 172.29.0.12
+
+  web:
+    image: ghcr.io/findardi/rakda-web:main
+    build:
+      context: ../web
+      dockerfile: ../docker/web.Dockerfile
+    env_file:
+      - .env.prod.web
+    environment:
+      # Traefik meng-append tepat satu hop XFF; XFF_DEPTH=1 mengambil hop itu
+      ADDRESS_HEADER: x-forwarded-for
+      XFF_DEPTH: '1'
+    depends_on:
+      api:
+        condition: service_healthy
+    cpus: 0.5
+    mem_limit: 256m
+    restart: unless-stopped
+    networks:
+      rakda:
+        ipv4_address: 172.29.0.11
+
+  traefik:
+    image: traefik:v3.7
+    # DNS eksternal untuk ACME (validasi Let's Encrypt)
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./traefik/traefik-prod.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic-prod.yml:/etc/traefik/dynamic.yml:ro
+      # satu-satunya state di compose prod: sertifikat ACME
+      - letsencrypt:/letsencrypt
+    depends_on:
+      web:
+        condition: service_started
+    healthcheck:
+      test: ['CMD', 'traefik', 'healthcheck', '--ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    cpus: 0.25
+    mem_limit: 128m
+    restart: unless-stopped
+    networks:
+      rakda:
+        ipv4_address: 172.29.0.10
+
+  migrate:
+    image: ghcr.io/findardi/rakda-migrate:main
+    build:
+      context: ../server
+      dockerfile: ../docker/server.Dockerfile
+      target: migrate
+    profiles:
+      - tools
+    env_file:
+      - .env.prod.api
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    networks:
+      - rakda
+
+volumes:
+  letsencrypt:

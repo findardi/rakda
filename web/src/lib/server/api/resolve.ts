@@ -5,5 +5,5 @@ import { getWorkspaces } from './workspace';
 export async function resolveWorkspaceId(token: string, slug: string): Promise<string | null> {
 	const list = await getWorkspaces(token);
 	if (!list.ok) return null;
-	return list.data.find((w) => w.slug === slug)?.id ?? null;
+	return list.data.workspaces.find((w) => w.slug === slug)?.id ?? null;
 }

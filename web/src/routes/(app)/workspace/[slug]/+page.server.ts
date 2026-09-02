@@ -1,13 +1,43 @@
 import { fail, redirect } from '@sveltejs/kit';
+import { canManageAccess } from '$lib/access/roles';
 import {
+	createArchive,
+	deleteArchive,
 	deleteWorkspace,
 	getWorkspaces,
+	getWorkspaceSummary,
+	listActivity,
+	listArchives,
 	updateWorkspace,
 	updateWorkspaceStatus
 } from '$lib/server/api';
 import { t } from '$lib/i18n';
 import type { WorkspaceStatus } from '$lib/types/workspace';
-import type { Actions } from './$types';
+import type { Actions, PageServerLoad } from './$types';
+
+// Summary (counts, manager-only 403 for guests), the recent-activity strip, and
+// the archive list all belong to owner/admin; guests get none of them and their
+// "recently visited" lives in localStorage, never on the server. The archive
+// confirmation reuses summary.guest_count for its counted button.
+export const load: PageServerLoad = async ({ locals, parent }) => {
+	const { access, workspace } = await parent();
+	if (!locals.session) return { guestCount: 0, archives: [], summary: null, recentActivity: [] };
+
+	const isManager = canManageAccess(access.role);
+
+	const [summary, archives, activity] = await Promise.all([
+		isManager ? getWorkspaceSummary(locals.session, workspace.id) : null,
+		isManager ? listArchives(locals.session, workspace.id) : null,
+		isManager ? listActivity(locals.session, workspace.id, { limit: 5 }) : null
+	]);
+
+	return {
+		summary: summary?.ok ? summary.data : null,
+		guestCount: summary?.ok ? summary.data.guest_count : 0,
+		archives: archives?.ok ? archives.data : [],
+		recentActivity: activity?.ok ? activity.data.items : []
+	};
+};
 
 const STATUSES: WorkspaceStatus[] = ['prepare', 'active', 'archive'];
 
@@ -15,7 +45,7 @@ const STATUSES: WorkspaceStatus[] = ['prepare', 'active', 'archive'];
 async function resolveId(session: string, slug: string): Promise<string | null> {
 	const list = await getWorkspaces(session);
 	if (!list.ok) return null;
-	return list.data.find((w) => w.slug === slug)?.id ?? null;
+	return list.data.workspaces.find((w) => w.slug === slug)?.id ?? null;
 }
 
 export const actions: Actions = {
@@ -71,6 +101,42 @@ export const actions: Actions = {
 			redirect(303, `/workspace/${res.data.slug}`);
 		}
 		return { updated: res.data };
+	},
+
+	createArchive: async ({ locals, params }) => {
+		if (!locals.session) redirect(303, '/login');
+
+		const id = await resolveId(locals.session, params.slug);
+		if (!id) return fail(404, { message: t('ws.detail.notFound') });
+
+		const res = await createArchive(locals.session, id);
+		if (!res.ok) {
+			if (res.status === 401) redirect(303, '/login');
+			if (res.status === 409) return fail(409, { message: t('archive.err.pending') });
+			if (res.status === 429) return fail(429, { message: t('archive.err.busy') });
+			return fail(res.status || 400, { message: res.message || t('err.generic') });
+		}
+
+		return { archive: res.data };
+	},
+
+	deleteArchive: async ({ locals, request, params }) => {
+		if (!locals.session) redirect(303, '/login');
+
+		const form = await request.formData();
+		const archiveId = (form.get('archive_id') ?? '').toString();
+		if (!archiveId) return fail(400, { message: t('err.generic') });
+
+		const id = await resolveId(locals.session, params.slug);
+		if (!id) return fail(404, { message: t('ws.detail.notFound') });
+
+		const res = await deleteArchive(locals.session, id, archiveId);
+		if (!res.ok) {
+			if (res.status === 401) redirect(303, '/login');
+			return fail(res.status || 400, { message: res.message || t('err.generic') });
+		}
+
+		return { archiveDeleted: archiveId };
 	},
 
 	delete: async ({ locals, params }) => {

@@ -16,6 +16,7 @@ type Storage interface {
 	PresignedGet(ctx context.Context, key, filename string, expiry time.Duration) (string, error)
 	Stat(ctx context.Context, key string) (size int64, contentType string, err error)
 	Get(ctx context.Context, key string) (io.ReadCloser, error)
+	GetRange(ctx context.Context, key string, offset, length int64) (io.ReadCloser, error)
 	Delete(ctx context.Context, key string) error
 	Put(ctx context.Context, key string, r io.Reader, size int64, contentType string) error
 	DeletePrefix(ctx context.Context, prefix string) error

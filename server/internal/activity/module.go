@@ -76,9 +76,10 @@ func (m *Module) workspaceMember(ctx context.Context, workspaceID, userID string
 	}
 
 	return &middleware.Membership{
-		Role:        row.RoleName,
-		Permissions: row.Permissions,
-		Status:      row.Status,
+		Role:            row.RoleName,
+		Permissions:     row.Permissions,
+		Status:          row.Status,
+		WorkspaceStatus: row.WorkspaceStatus,
 	}, nil
 }
 
@@ -89,15 +90,23 @@ func (m *Module) RegisterRoutes(r chi.Router) {
 
 		r.Route("/workspaces/{workspaceID}", func(r chi.Router) {
 			r.Use(m.mw.RequireMember("workspaceID", m.workspaceMember))
+			r.Use(m.mw.RequireRoomOpenForGuests)
 
-			r.Get("/", m.handler.ListActivity)
-			r.Get("/export", m.handler.ExportActivity)
+			r.Group(func(r chi.Router) {
+				r.Post("/documents/{documentID}/duration", m.handler.RecordDurations)
+			})
 
-			r.Route("/documents/{documentID}", func(r chi.Router) {
-				r.Post("/duration", m.handler.RecordDurations)
-				r.Get("/engagement", m.handler.GetDocumentReaders)
-				r.Get("/engagement/readers/{actorID}", m.handler.GetReaderPages)
-				r.Get("/engagement/export", m.handler.ExportDocumentEngagement)
+			r.Group(func(r chi.Router) {
+				r.Use(m.mw.RequireRoomWritable)
+
+				r.Get("/", m.handler.ListActivity)
+				r.Get("/export", m.handler.ExportActivity)
+
+				r.Route("/documents/{documentID}", func(r chi.Router) {
+					r.Get("/engagement", m.handler.GetDocumentReaders)
+					r.Get("/engagement/readers/{actorID}", m.handler.GetReaderPages)
+					r.Get("/engagement/export", m.handler.ExportDocumentEngagement)
+				})
 			})
 		})
 	})

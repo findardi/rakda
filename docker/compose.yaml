@@ -1,0 +1,62 @@
+name: rakda-dev
+
+services:
+  postgres:
+    # samakan major dengan managed database provider (saat ini PG 16)
+    image: postgres:16
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: dev_rakda
+    ports:
+      - '127.0.0.1:5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U root -d dev_rakda']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: miniouser
+      MINIO_ROOT_PASSWORD: miniopassword
+      # KMS single-key bawaan MinIO. Tanpa ini SSE-S3 tidak ada sama sekali dan
+      # enkripsi bucket-default gagal diam-diam, sehingga verifikasi lokal jadi
+      # teater. Kunci ini fixture dev yang sengaja di-commit — sekelas dengan
+      # miniouser/miniopassword di atas, dan tidak pernah dipakai produksi
+      # (di sana KMS milik provider).
+      MINIO_KMS_SECRET_KEY: 'rakda-dev-key:CuKOMLAFd8ObzK6o5uYT5HL1DOXaPZY6XBwcOutY4II='
+    ports:
+      - '127.0.0.1:9000:9000'
+      - '127.0.0.1:9001:9001'
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  gotenberg:
+    image: gotenberg/gotenberg:8.36
+    # default --api-timeout 30s < VIEWER_CONVERT_TIMEOUT 2m di server
+    command: ['gotenberg', '--api-timeout=150s']
+    ports:
+      - '127.0.0.1:3000:3000'
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://localhost:3000/health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  miniodata:

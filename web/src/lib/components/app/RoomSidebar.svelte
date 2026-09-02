@@ -14,6 +14,11 @@
 	};
 	let { workspace, access, qaWaiting = 0, qaEnabled = true }: Props = $props();
 
+	// Room switcher data rides the layout load that already resolved slug->id —
+	// zero extra requests. Falls back to just the open room if absent.
+	const rooms = $derived((page.data as { rooms?: WorkspaceData[] }).rooms ?? [workspace]);
+	const switchable = $derived(rooms.length > 1);
+
 	const overviewHref = $derived(`/workspace/${workspace.slug}`);
 	const documentsHref = $derived(`/workspace/${workspace.slug}/document`);
 	const accessManagementHref = $derived(`/workspace/${workspace.slug}/management-access`);
@@ -53,16 +58,74 @@
 		{t('ws.detail.back')}
 	</a>
 
-	<div class="mt-1 mb-2 flex items-center gap-2.5 px-1">
-		<span
-			class="grid h-6 w-6 flex-none place-items-center rounded-field bg-primary/10 text-xs font-semibold text-primary"
-			>{workspace.name.charAt(0).toUpperCase()}</span
-		>
-		<div class="min-w-0">
-			<span class="block truncate text-sm font-semibold tracking-[-0.01em]">{workspace.name}</span>
-			<WorkspaceStatusBadge status={workspace.status} class="mt-0.5" />
+	<!-- Identity block doubles as the room switcher when the member is in more
+	     than one room. A shortcut, not a replacement: the back link above still
+	     leads to the full list. -->
+	{#if switchable}
+		<div class="dropdown mt-1 mb-2 w-full">
+			<button
+				tabindex="0"
+				class="flex w-full items-center gap-2.5 rounded-field px-1 py-1 text-left transition-colors hover:bg-base-content/5"
+				aria-label={t('ws.switcher.open')}
+			>
+				<span
+					class="grid h-6 w-6 flex-none place-items-center rounded-field bg-primary/10 text-xs font-semibold text-primary"
+					>{workspace.name.charAt(0).toUpperCase()}</span
+				>
+				<div class="min-w-0 flex-1">
+					<span class="block truncate text-sm font-semibold tracking-[-0.01em]"
+						>{workspace.name}</span
+					>
+					<WorkspaceStatusBadge status={workspace.status} class="mt-0.5" />
+				</div>
+				<svg
+					class="h-4 w-4 flex-none text-muted"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="1.6"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					aria-hidden="true"
+				>
+					<path d="m7 15 5 5 5-5M7 9l5-5 5 5" />
+				</svg>
+			</button>
+			<ul
+				class="dropdown-content z-dropdown mt-1 max-h-80 w-full min-w-52 overflow-y-auto rounded-box border border-base-content/10 bg-base-100 p-1.5 shadow-lg"
+			>
+				{#each rooms as room (room.id)}
+					{@const current = room.id === workspace.id}
+					<li>
+						<!-- eslint-disable svelte/no-navigation-without-resolve -- slug interpolation; same pattern as the nav links above -->
+						<a
+							href="/workspace/{room.slug}"
+							class="flex items-center gap-2 rounded-field px-2 py-1.5 text-sm transition-colors {current
+								? 'bg-primary/10 font-medium text-primary'
+								: 'hover:bg-base-content/5'}"
+							aria-current={current ? 'true' : undefined}
+						>
+							<span class="min-w-0 flex-1 truncate">{room.name}</span>
+							<WorkspaceStatusBadge status={room.status} class="flex-none" />
+						</a>
+						<!-- eslint-enable svelte/no-navigation-without-resolve -->
+					</li>
+				{/each}
+			</ul>
 		</div>
-	</div>
+	{:else}
+		<div class="mt-1 mb-2 flex items-center gap-2.5 px-1">
+			<span
+				class="grid h-6 w-6 flex-none place-items-center rounded-field bg-primary/10 text-xs font-semibold text-primary"
+				>{workspace.name.charAt(0).toUpperCase()}</span
+			>
+			<div class="min-w-0">
+				<span class="block truncate text-sm font-semibold tracking-[-0.01em]">{workspace.name}</span
+				>
+				<WorkspaceStatusBadge status={workspace.status} class="mt-0.5" />
+			</div>
+		</div>
+	{/if}
 
 	<div class="mb-1 border-t border-base-content/10"></div>
 

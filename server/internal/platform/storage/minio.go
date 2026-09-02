@@ -12,6 +12,7 @@ import (
 	"github.com/findardi/rakda/server/internal/platform/config"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+	"github.com/minio/minio-go/v7/pkg/sse"
 )
 
 type MinioStorage struct {
@@ -62,6 +63,33 @@ func (m *MinioStorage) ensureBucket(ctx context.Context) error {
 	return nil
 }
 
+func (m *MinioStorage) EnsureEncryption(ctx context.Context) error {
+	if err := m.client.SetBucketEncryption(ctx, m.bucket, sse.NewConfigurationSSES3()); err != nil {
+		return fmt.Errorf("set bucket encryption: %w", err)
+	}
+
+	return nil
+}
+
+func (m *MinioStorage) EncryptionStatus(ctx context.Context) (string, error) {
+	cfg, err := m.client.GetBucketEncryption(ctx, m.bucket)
+	if err != nil {
+		if minio.ToErrorResponse(err).Code == "ServerSideEncryptionConfigurationNotFoundError" {
+			return "", nil
+		}
+
+		return "", fmt.Errorf("get bucket encryption: %w", err)
+	}
+
+	for _, rule := range cfg.Rules {
+		if algo := rule.Apply.SSEAlgorithm; algo != "" {
+			return algo, nil
+		}
+	}
+
+	return "", nil
+}
+
 func (m *MinioStorage) PresignedPut(ctx context.Context, key string, expiry time.Duration) (string, error) {
 	u, err := m.client.PresignedPutObject(ctx, m.bucket, key, expiry)
 	if err != nil {
@@ -97,6 +125,20 @@ func (m *MinioStorage) Get(ctx context.Context, key string) (io.ReadCloser, erro
 
 	if err != nil {
 		return nil, fmt.Errorf("get object: %w", err)
+	}
+
+	return obj, nil
+}
+
+func (m *MinioStorage) GetRange(ctx context.Context, key string, offset, length int64) (io.ReadCloser, error) {
+	opts := minio.GetObjectOptions{}
+	if err := opts.SetRange(offset, offset+length-1); err != nil {
+		return nil, fmt.Errorf("set range: %w", err)
+	}
+
+	obj, err := m.client.GetObject(ctx, m.bucket, key, opts)
+	if err != nil {
+		return nil, fmt.Errorf("get object range: %w", err)
 	}
 
 	return obj, nil

@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/findardi/rakda/server/internal/platform/middleware"
+	"github.com/findardi/rakda/server/internal/platform/permission"
 	"github.com/findardi/rakda/server/internal/platform/response"
 	"github.com/findardi/rakda/server/internal/platform/validation"
 	"github.com/findardi/rakda/server/internal/workspace/dto"
@@ -83,10 +84,15 @@ func (h *WorkspaceHandler) GetWorkspaces(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *WorkspaceHandler) GetWorkspace(w http.ResponseWriter, r *http.Request) {
-	// ownership already enforced by RequireOwner middleware
+	claims, ok := middleware.ClaimsFromContext(r.Context())
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
 	id := chi.URLParam(r, "workspaceID")
 
-	res, err := h.svc.GetWorkspace(r.Context(), id)
+	res, err := h.svc.GetWorkspace(r.Context(), id, claims.ID)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrWorkspaceNotFound):
@@ -99,6 +105,32 @@ func (h *WorkspaceHandler) GetWorkspace(w http.ResponseWriter, r *http.Request) 
 	}
 
 	response.Success(w, http.StatusOK, "get workspace success", res)
+}
+
+func (h *WorkspaceHandler) GetWorkspaceSummary(w http.ResponseWriter, r *http.Request) {
+	claims, ok := middleware.ClaimsFromContext(r.Context())
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	id := chi.URLParam(r, "workspaceID")
+
+	res, err := h.svc.GetWorkspaceSummary(r.Context(), id, claims.ID)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrWorkspaceNotFound):
+			response.Error(w, http.StatusNotFound, err.Error(), nil)
+		case errors.Is(err, service.ErrWorkspaceForbidden):
+			response.Error(w, http.StatusForbidden, err.Error(), nil)
+		default:
+			log.Printf("get workspace summary internal error: %v", err)
+			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
+		}
+		return
+	}
+
+	response.Success(w, http.StatusOK, "get workspace summary success", res)
 }
 
 func (h *WorkspaceHandler) UpdateStatusWorkspace(w http.ResponseWriter, r *http.Request) {
@@ -115,12 +147,25 @@ func (h *WorkspaceHandler) UpdateStatusWorkspace(w http.ResponseWriter, r *http.
 		return
 	}
 
-	if err := h.svc.UpdateStatusWorkspace(r.Context(), req); err != nil {
+	claims, ok := middleware.ClaimsFromContext(r.Context())
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	res, err := h.svc.UpdateStatusWorkspace(r.Context(), req, service.Actor{
+		UserID: claims.ID,
+		Name:   claims.Username,
+		Role:   permission.RoleOwner,
+	})
+	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrInvalidStatus):
 			response.Error(w, http.StatusBadRequest, err.Error(), nil)
 		case errors.Is(err, service.ErrWorkspaceNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
+		case errors.Is(err, service.ErrStatusTransition):
+			response.Error(w, http.StatusConflict, err.Error(), nil)
 		default:
 			log.Printf("update status internal error: %v", err)
 			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
@@ -128,7 +173,7 @@ func (h *WorkspaceHandler) UpdateStatusWorkspace(w http.ResponseWriter, r *http.
 		return
 	}
 
-	response.Success(w, http.StatusOK, "success update status", nil)
+	response.Success(w, http.StatusOK, "success update status", res)
 }
 
 func (h *WorkspaceHandler) UpdateWorkspace(w http.ResponseWriter, r *http.Request) {
@@ -169,6 +214,8 @@ func (h *WorkspaceHandler) DeleteWorkspace(w http.ResponseWriter, r *http.Reques
 		switch {
 		case errors.Is(err, service.ErrWorkspaceNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
+		case errors.Is(err, service.ErrWorkspaceArchived):
+			response.Error(w, http.StatusLocked, err.Error(), nil)
 		default:
 			log.Printf("delete workspace internal error: %v", err)
 			response.Error(w, http.StatusInternalServerError, "internal server error", nil)

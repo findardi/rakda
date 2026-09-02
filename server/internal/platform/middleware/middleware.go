@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/findardi/rakda/server/internal/platform/permission"
 	"github.com/findardi/rakda/server/internal/platform/response"
 	"github.com/findardi/rakda/server/internal/platform/token"
 	"github.com/go-chi/chi/v5"
@@ -42,9 +43,10 @@ type OwnerResolver func(ctx context.Context, id string) (ownerID string, err err
 // the flattened permission set of that role, and the member status. RequireMember
 // loads it into the request context; RequirePermission reads it.
 type Membership struct {
-	Role        string   `json:"role"`
-	Permissions []string `json:"permissions"`
-	Status      string   `json:"status"`
+	Role            string   `json:"role"`
+	Permissions     []string `json:"permissions"`
+	Status          string   `json:"status"`
+	WorkspaceStatus string   `json:"workspace_status"`
 }
 
 type MemberResolver func(ctx context.Context, workspaceID string, userID string) (*Membership, error)
@@ -206,6 +208,47 @@ func (m *Middleware) RequirePermission(perm string) func(http.Handler) http.Hand
 	}
 }
 
+func (m *Middleware) RequireRoomOpenForGuests(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ms, ok := MembershipFromContext(r.Context())
+		if !ok {
+			log.Printf("require room open: membership missing in context (RequireMember not applied?)")
+			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
+			return
+		}
+
+		if ms.Role == permission.RoleGuest && ms.WorkspaceStatus == permission.RoomPrepare {
+			response.Error(w, http.StatusForbidden, "room is not open yet", nil)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (m *Middleware) RequireRoomWritable(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ms, ok := MembershipFromContext(r.Context())
+		if !ok {
+			log.Printf("require room writable: membership missing in context (RequireMember not applied?)")
+			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
+			return
+		}
+
+		if ms.WorkspaceStatus != permission.RoomArchive {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		if r.Method == http.MethodGet || r.Method == http.MethodHead {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		response.Error(w, http.StatusLocked, "room is archived", nil)
+	})
+}
+
 func ClaimsFromContext(ctx context.Context) (*token.JwtClaims, bool) {
 	claims, ok := ctx.Value(claimsKey).(*token.JwtClaims)
 	return claims, ok
@@ -296,12 +339,12 @@ func ClientIP(r *http.Request) string {
 }
 
 // resolveClientIP — aturan persis 9.5-a:
-// 1. peer = host dari RemoteAddr (SplitHostPort gagal → RemoteAddr apa adanya).
-// 2. peer tidak tepercaya → peer, XFF diabaikan total.
-// 3. Kumpulkan hop XFF (nilai bisa muncul berkali-kali), dipecah koma, di-trim,
-//    entri kosong dibuang; kalau kosong, X-Real-IP sebagai satu hop.
-// 4. Telusuri hop dari kanan ke kiri, kembalikan yang pertama tidak tepercaya.
-// 5. Semua hop tepercaya (atau tidak ada hop) → peer.
+//  1. peer = host dari RemoteAddr (SplitHostPort gagal → RemoteAddr apa adanya).
+//  2. peer tidak tepercaya → peer, XFF diabaikan total.
+//  3. Kumpulkan hop XFF (nilai bisa muncul berkali-kali), dipecah koma, di-trim,
+//     entri kosong dibuang; kalau kosong, X-Real-IP sebagai satu hop.
+//  4. Telusuri hop dari kanan ke kiri, kembalikan yang pertama tidak tepercaya.
+//  5. Semua hop tepercaya (atau tidak ada hop) → peer.
 func resolveClientIP(r *http.Request, trusted []netip.Prefix) string {
 	peer := peerIP(r)
 	if !isTrustedProxy(peer, trusted) {

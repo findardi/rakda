@@ -146,7 +146,7 @@
 </div>
 
 <dialog bind:this={askDialog} class="modal" aria-labelledby="qa-ask-title">
-	<div class="modal-box w-full max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+	<div class="modal-box max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
 		<h2 id="qa-ask-title" class="text-lg font-semibold tracking-[-0.01em]">{t('qa.ask.title')}</h2>
 		<p class="mt-1 text-sm text-muted text-pretty">{t('qa.ask.desc')}</p>
 
@@ -206,7 +206,7 @@
 				rows={5}
 			/>
 
-			<div class="mt-1 flex justify-end gap-2">
+			<div class="mt-1 flex flex-wrap justify-end gap-2">
 				<Button type="button" variant="ghost" onclick={() => askDialog?.close()}>
 					{t('qa.ask.cancel')}
 				</Button>

@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -27,7 +28,7 @@ import (
 func stampPages(dims ...[2]float64) []burnedPage {
 	pages := make([]burnedPage, len(dims))
 	for i, d := range dims {
-		pages[i] = burnedPage{path: fmt.Sprintf("p%04d.png", i+1), w: d[0], h: d[1]}
+		pages[i] = burnedPage{path: fmt.Sprintf("p%04d.jpg", i+1), w: d[0], h: d[1]}
 	}
 	return pages
 }
@@ -72,12 +73,12 @@ func TestGroupPageRuns_SplitsOnDimensionChange(t *testing.T) {
 	runs := groupPageRuns(pages, 25)
 
 	require.Len(t, runs, 3)
-	assert.Equal(t, []string{"p0001.png", "p0002.png"}, runs[0].images)
+	assert.Equal(t, []string{"p0001.jpg", "p0002.jpg"}, runs[0].images)
 	assert.Equal(t, 1275.0, runs[0].w)
-	assert.Equal(t, []string{"p0003.png"}, runs[1].images)
+	assert.Equal(t, []string{"p0003.jpg"}, runs[1].images)
 	assert.Equal(t, 1650.0, runs[1].w)
 	assert.Equal(t, 1275.0, runs[1].h)
-	assert.Equal(t, []string{"p0004.png"}, runs[2].images)
+	assert.Equal(t, []string{"p0004.jpg"}, runs[2].images)
 	assert.Equal(t, 1275.0, runs[2].w)
 }
 
@@ -103,21 +104,19 @@ func TestGroupPageRuns_Empty(t *testing.T) {
 
 func requirePoppler(t *testing.T) {
 	t.Helper()
-	for _, bin := range []string{"pdfinfo", "pdftoppm", "pdftotext"} {
+	for _, bin := range []string{"pdfinfo", "pdftoppm", "pdftotext", "pdfimages"} {
 		if _, err := exec.LookPath(bin); err != nil {
 			t.Skipf("%s not in PATH", bin)
 		}
 	}
 }
 
-func blankPNG(t *testing.T, dir, name string, w, h int) string {
+func blankJPEG(t *testing.T, dir, name string, w, h int) string {
 	t.Helper()
 	img := image.NewRGBA(image.Rect(0, 0, w, h))
 	draw.Draw(img, img.Bounds(), image.White, image.Point{}, draw.Src)
-	var buf bytes.Buffer
-	require.NoError(t, png.Encode(&buf, img))
 	path := filepath.Join(dir, name)
-	require.NoError(t, os.WriteFile(path, buf.Bytes(), 0o600))
+	require.NoError(t, writeJPEG(path, img))
 	return path
 }
 
@@ -159,6 +158,25 @@ func nonWhitePixels(t *testing.T, pdfPath string, page int) int {
 	return count
 }
 
+func imageEncodings(t *testing.T, pdfPath string) map[int]string {
+	t.Helper()
+	out, err := exec.Command("pdfimages", "-list", pdfPath).Output()
+	require.NoError(t, err)
+	enc := map[int]string{}
+	for _, line := range strings.Split(string(out), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 9 {
+			continue
+		}
+		page, err := strconv.Atoi(fields[0])
+		if err != nil {
+			continue
+		}
+		enc[page] = fields[8]
+	}
+	return enc
+}
+
 func TestRasterWatermarkPDF_MixedSizesBatched(t *testing.T) {
 	requirePoppler(t)
 
@@ -168,7 +186,7 @@ func TestRasterWatermarkPDF_MixedSizesBatched(t *testing.T) {
 	srcDir := t.TempDir()
 	srcPages := make([]burnedPage, len(layout))
 	for i, d := range layout {
-		path := blankPNG(t, srcDir, fmt.Sprintf("s%02d.png", i), d[0], d[1])
+		path := blankJPEG(t, srcDir, fmt.Sprintf("s%02d.jpg", i), d[0], d[1])
 		srcPages[i] = burnedPage{path: path, w: float64(d[0]), h: float64(d[1])}
 	}
 	srcRuns, err := importPageRuns(srcDir, srcPages, dpi, 100)
@@ -195,7 +213,7 @@ func TestRasterWatermarkPDF_MixedSizesBatched(t *testing.T) {
 		}
 		return io.NopCloser(bytes.NewReader(srcBytes)), nil
 	}}
-	svc := NewContentService(nil, store, Viewer{Renderer: renderer, Watermark: wm, DPI: dpi}, 0, nil, 1)
+	svc := NewContentService(nil, store, Viewer{Renderer: renderer, Watermark: wm, DPI: dpi}, 0, nil, StampDeps{Sync: 1, Async: 1}, ArchiveDeps{})
 
 	doc, err := renderer.Open(bytes.NewReader(srcBytes))
 	require.NoError(t, err)
@@ -217,13 +235,18 @@ func TestRasterWatermarkPDF_MixedSizesBatched(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, wantSizes, pageSizes(t, outPDF, len(layout)))
+	enc := imageEncodings(t, outPDF)
+	require.Len(t, enc, len(layout))
+	for pg := 1; pg <= len(layout); pg++ {
+		assert.Equal(t, "jpeg", enc[pg], "page %d embedded as DCTDecode", pg)
+	}
 	for _, pg := range []int{1, 4, 7} {
 		assert.Greater(t, nonWhitePixels(t, outPDF, pg), 0, "page %d carries the burned mark", pg)
 	}
 
 	for _, p := range pages {
 		_, err := os.Stat(p.path)
-		assert.True(t, errors.Is(err, os.ErrNotExist), "page png removed after import: %s", p.path)
+		assert.True(t, errors.Is(err, os.ErrNotExist), "page file removed after import: %s", p.path)
 	}
 	for _, rf := range runFiles {
 		_, err := os.Stat(rf)

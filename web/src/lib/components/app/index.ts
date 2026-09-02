@@ -5,6 +5,7 @@ export { default as RoomSidebar } from './RoomSidebar.svelte';
 export { default as RolePermissions } from './RolePermissions.svelte';
 export { default as InviteDialog } from './InviteDialog.svelte';
 export { default as WorkspaceStatusBadge } from './WorkspaceStatusBadge.svelte';
+export { default as DownloadJobs } from './DownloadJobs.svelte';
 export { default as UploadQueue } from './UploadQueue.svelte';
 export { default as ViewerPage } from './ViewerPage.svelte';
 export { default as DocumentVersions } from './DocumentVersions.svelte';
