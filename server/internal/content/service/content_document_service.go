@@ -17,6 +17,7 @@ import (
 	"github.com/findardi/rakda/server/internal/content/dto"
 	contentdb "github.com/findardi/rakda/server/internal/content/repository/sqlc"
 	"github.com/findardi/rakda/server/internal/platform/render"
+	"github.com/findardi/rakda/server/internal/platform/spool"
 	"github.com/findardi/rakda/server/internal/platform/storage"
 	"github.com/findardi/rakda/server/internal/platform/watermark"
 	"github.com/jackc/pgx/v5"
@@ -471,7 +472,7 @@ func (s *ContentService) DownloadDocument(ctx context.Context, workspaceID, docu
 	}
 
 	if clean {
-		src, err := s.store.Get(ctx, renditionKey)
+		src, err := s.renditionGet(ctx, renditionKey)
 		if err != nil {
 			return DownloadResult{}, fmt.Errorf("get rendition: %w", err)
 		}
@@ -597,6 +598,14 @@ func (r *spooledReadCloser) size() (int64, error) {
 	return fi.Size(), nil
 }
 
+func (r *spooledReadCloser) rewind() error {
+	if _, err := r.file.Seek(0, io.SeekStart); err != nil {
+		return fmt.Errorf("rewind watermarked pdf: %w", err)
+	}
+
+	return nil
+}
+
 // rasterWatermarkPDF merakit varian unduhan ber-watermark sebagai raster
 // ter-flatten (keputusan 9-g): tiap halaman dirender/ambil-cache → `BurnImage`
 // yang sama dengan viewer → ditulis JPEG → rakit ulang jadi PDF. Tandanya
@@ -614,7 +623,7 @@ func (r *spooledReadCloser) size() (int64, error) {
 // sampai byte/halaman pasca-JPEG diukur (U-62). Import berjalan bergantian,
 // bukan paralel.
 func (s *ContentService) rasterWatermarkPDF(ctx context.Context, workspaceID, versionID, renditionKey string, pageCount int, mark watermark.Mark) (*spooledReadCloser, error) {
-	dir, err := os.MkdirTemp("", "rakda-wm-*")
+	dir, err := os.MkdirTemp("", spool.Prefix+"wm-*")
 	if err != nil {
 		return nil, fmt.Errorf("temp dir: %w", err)
 	}
@@ -627,7 +636,7 @@ func (s *ContentService) rasterWatermarkPDF(ctx context.Context, workspaceID, ve
 		return nil, fmt.Errorf("pages dir: %w", err)
 	}
 
-	pdf, err := s.store.Get(ctx, renditionKey)
+	pdf, err := s.renditionGet(ctx, renditionKey)
 	if err != nil {
 		removeAll()
 		return nil, fmt.Errorf("get rendition: %w", err)

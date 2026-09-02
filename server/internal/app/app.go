@@ -55,7 +55,7 @@ type App struct {
 	downloadJobSweep func(ctx context.Context)
 }
 
-func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.Storage, viewer contentservice.Viewer) *App {
+func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.Storage, viewer contentservice.Viewer, caches contentservice.CacheDeps) *App {
 	otpGen := otp.New(otpSecret)
 	jwtGen := token.New(jwtSecret)
 
@@ -189,7 +189,7 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 	contentSvc := contentservice.NewContentService(contentrepo.New(pool), store, viewer, trashRetention, activitysvc, contentservice.StampDeps{Sync: downloadStampConcurrency, Async: downloadStampAsyncConcurrency}, contentservice.ArchiveDeps{
 		Concurrency: archiveConcurrency,
 		TTL:         archiveTTL,
-	})
+	}, caches)
 
 	// Dibangun di sini, bukan di dalam qa.NewModule, karena arsip 13-b butuh
 	// eksportir Q&A sementara QAService butuh ContentService. Urutannya:
@@ -205,7 +205,7 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 		TTL:            archiveTTL,
 		ActivityExport: activitysvc,
 		QAExport:       qaSvc,
-	})
+	}, caches)
 	activityModule := activity.NewModule(pool, jwtGen)
 	qaModule := qa.NewModule(pool, jwtGen, contentSvc, activitysvc)
 

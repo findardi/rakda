@@ -2,9 +2,12 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"io"
 	"time"
 )
+
+var ErrNotFound = errors.New("storage: object not found")
 
 type Part struct {
 	PartNumber int

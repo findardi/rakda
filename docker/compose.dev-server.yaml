@@ -4,6 +4,17 @@
 # dengan prod (database rakda_dev + bucket dev), bukan container.
 name: rakda-dev-server
 
+# Spool + cache api dan spool gotenberg di bind mount host, dibuat sekali
+# sebelum up pertama (uid 10001 = api di server.Dockerfile, 1001 = gotenberg):
+#   sudo mkdir -p /srv/rakda/spool /srv/rakda/cache /srv/rakda/gotenberg-tmp
+#   sudo chown 10001:10001 /srv/rakda/spool /srv/rakda/cache
+#   sudo chown 1001:1001 /srv/rakda/gotenberg-tmp
+#   sudo chmod 700 /srv/rakda/spool /srv/rakda/cache /srv/rakda/gotenberg-tmp
+# DISK_CACHE_KEY (32 byte base64) wajib di .env.dev.api bila cache aktif.
+# Log semua container → journald; cap-nya di docker/systemd/journald-rakda.conf.
+x-logging: &logging
+  driver: journald
+
 networks:
   rakda:
     # aardvark-dns 1.4 (Ubuntu noble) terbukti tidak meneruskan query DNS
@@ -17,7 +28,10 @@ networks:
 services:
   gotenberg:
     image: gotenberg/gotenberg:8.36
-    command: ['gotenberg', '--api-timeout=150s']
+    command: ['sh', '-c', 'test -w /tmp || exit 1; find /tmp -mindepth 1 -delete; exec gotenberg --api-timeout=150s']
+    volumes:
+      - /srv/rakda/gotenberg-tmp:/tmp
+    logging: *logging
     healthcheck:
       test: ['CMD', 'curl', '-fsS', 'http://localhost:3000/health']
       interval: 10s
@@ -34,6 +48,13 @@ services:
     image: ghcr.io/findardi/rakda-api:dev
     env_file:
       - .env.dev.api
+    environment:
+      TMPDIR: /var/lib/rakda/spool
+      DISK_CACHE_DIR: /var/lib/rakda/cache
+    volumes:
+      - /srv/rakda/spool:/var/lib/rakda/spool
+      - /srv/rakda/cache:/var/lib/rakda/cache
+    logging: *logging
     # aardvark-dns 1.4 meneruskan query eksternal ke stub 127.0.0.53 host —
     # upstream eksplisit; nama internal tetap dilayani aardvark lebih dulu
     dns:
@@ -64,6 +85,7 @@ services:
       # Traefik meng-append tepat satu hop XFF; XFF_DEPTH=1 mengambil hop itu
       ADDRESS_HEADER: x-forwarded-for
       XFF_DEPTH: '1'
+    logging: *logging
     depends_on:
       api:
         condition: service_healthy
@@ -88,6 +110,7 @@ services:
       - ./traefik/traefik-prod.yml:/etc/traefik/traefik.yml:ro
       - ./traefik/dynamic-dev-server.yml:/etc/traefik/dynamic.yml:ro
       - letsencrypt:/letsencrypt
+    logging: *logging
     depends_on:
       web:
         condition: service_started
@@ -109,6 +132,7 @@ services:
       - tools
     env_file:
       - .env.dev.api
+    logging: *logging
     dns:
       - 1.1.1.1
       - 8.8.8.8

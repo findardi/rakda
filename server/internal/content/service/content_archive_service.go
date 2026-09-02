@@ -518,7 +518,7 @@ func (s *ContentService) writeArchiveDocument(
 		return entry, fmt.Errorf("zip entry %s: %w", zipPath, err)
 	}
 
-	rc, err := s.store.Get(ctx, key)
+	rc, err := s.renditionGet(ctx, key)
 	if err != nil {
 		entry.status = "hilang: rendition tidak terbaca"
 		return entry, nil

@@ -1,7 +1,6 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -15,6 +14,7 @@ import (
 	"github.com/findardi/rakda/server/internal/platform/convert"
 	"github.com/findardi/rakda/server/internal/platform/permission"
 	"github.com/findardi/rakda/server/internal/platform/render"
+	"github.com/findardi/rakda/server/internal/platform/spool"
 	"github.com/findardi/rakda/server/internal/platform/watermark"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -220,7 +220,7 @@ func (s *ContentService) buildRendition(ctx context.Context, workspaceID string,
 	if convert.IsPDF(doc.Name) {
 		renditionKey = version.StorageKey
 
-		pdf, err := s.store.Get(ctx, renditionKey)
+		pdf, err := s.renditionGet(ctx, renditionKey)
 		if err != nil {
 			return "", 0, fmt.Errorf("get original pdf: %w", err)
 		}
@@ -252,7 +252,7 @@ func (s *ContentService) buildRendition(ctx context.Context, workspaceID string,
 		// Tumpahkan sekali ke berkas sementara (9.5-b): poppler sudah men-spool
 		// ke disk untuk PageCount, jadi menahan seluruh PDF di RAM hanyalah
 		// membayar dua kali. Berkas yang sama dipakai untuk Put lalu PageCount.
-		f, err := os.CreateTemp("", "rakda-rendition-*.pdf")
+		f, err := os.CreateTemp("", spool.Prefix+"rendition-*.pdf")
 		if err != nil {
 			return "", 0, fmt.Errorf("temp rendition: %w", err)
 		}
@@ -279,6 +279,12 @@ func (s *ContentService) buildRendition(ctx context.Context, workspaceID string,
 		pageCount, err = s.viewer.Renderer.PageCount(ctx, f)
 		if err != nil {
 			return "", 0, s.markRenditionFailed(ctx, version.ID, err)
+		}
+
+		if pageCount <= maxRenditionPages {
+			if _, err := f.Seek(0, io.SeekStart); err == nil {
+				s.renditionPut(renditionKey, f)
+			}
 		}
 	}
 
@@ -421,12 +427,8 @@ func (s *ContentService) GetPageImage(ctx context.Context, req dto.ViewPageReque
 func (s *ContentService) loadOrRenderPage(ctx context.Context, workspaceID, versionID, renditionKey string, page int) ([]byte, error) {
 	key := pageCacheKey(workspaceID, versionID, page, s.viewer.DPI)
 
-	if r, err := s.store.Get(ctx, key); err == nil {
-		b, rerr := io.ReadAll(r)
-		r.Close()
-		if rerr == nil && len(b) > 0 {
-			return b, nil
-		}
+	if b, ok := s.cachedPage(ctx, key); ok {
+		return b, nil
 	}
 
 	img, err := s.renderPage(ctx, renditionKey, page)
@@ -434,16 +436,16 @@ func (s *ContentService) loadOrRenderPage(ctx context.Context, workspaceID, vers
 		return nil, err
 	}
 
-	if err := s.store.Put(ctx, key, bytes.NewReader(img), int64(len(img)), "image/png"); err != nil {
+	if err := s.storePage(ctx, key, img); err != nil {
 		return nil, fmt.Errorf("cache page: %w", err)
 	}
 
 	return img, nil
 }
 
-// renderPage merender satu halaman tanpa menyentuh cache PNG Minio.
+// renderPage merender satu halaman tanpa menyentuh cache PNG.
 func (s *ContentService) renderPage(ctx context.Context, renditionKey string, page int) ([]byte, error) {
-	pdf, err := s.store.Get(ctx, renditionKey)
+	pdf, err := s.renditionGet(ctx, renditionKey)
 	if err != nil {
 		return nil, fmt.Errorf("get rendition: %w", err)
 	}
@@ -468,12 +470,8 @@ func (s *ContentService) renderPage(ctx context.Context, renditionKey string, pa
 func (s *ContentService) pageForDownload(ctx context.Context, workspaceID, versionID string, doc render.Document, page int) ([]byte, error) {
 	key := pageCacheKey(workspaceID, versionID, page, s.viewer.DPI)
 
-	if r, err := s.store.Get(ctx, key); err == nil {
-		b, rerr := io.ReadAll(r)
-		r.Close()
-		if rerr == nil && len(b) > 0 {
-			return b, nil
-		}
+	if b, ok := s.cachedPage(ctx, key); ok {
+		return b, nil
 	}
 
 	img, err := doc.RenderPage(ctx, page)

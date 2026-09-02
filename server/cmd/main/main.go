@@ -2,14 +2,19 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 
 	"github.com/findardi/rakda/server/internal/app"
 	contentservice "github.com/findardi/rakda/server/internal/content/service"
 	"github.com/findardi/rakda/server/internal/platform/config"
 	"github.com/findardi/rakda/server/internal/platform/convert"
 	"github.com/findardi/rakda/server/internal/platform/database"
+	"github.com/findardi/rakda/server/internal/platform/diskcache"
 	"github.com/findardi/rakda/server/internal/platform/render"
+	"github.com/findardi/rakda/server/internal/platform/spool"
 	"github.com/findardi/rakda/server/internal/platform/storage"
 	"github.com/findardi/rakda/server/internal/platform/watermark"
 )
@@ -18,6 +23,17 @@ func main() {
 	if err := config.LoadEnvFile("configs/.env"); err != nil {
 		log.Fatal(err)
 	}
+
+	if err := spool.CheckWritable(); err != nil {
+		log.Fatal(err)
+	}
+
+	removed, err := spool.SweepOrphans()
+	if err != nil {
+		log.Printf("spool: sapu sisa spool tidak tuntas: %v", err)
+	}
+
+	log.Printf("spool: %d sisa spool dihapus dari %s", removed, os.TempDir())
 
 	dbCfg, err := config.LoadDatabaseConfig()
 	if err != nil {
@@ -119,6 +135,16 @@ func main() {
 		DPI:           viewerCfg.DPI,
 	}
 
+	cacheCfg, err := config.LoadDiskCacheConfig()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	caches, err := openDiskCaches(cacheCfg)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	otpSecret := config.GetEnv("OTP_SECRET", "")
 	jwtSecret := config.GetEnv("JWT_SECRET", "")
 	addr := config.GetEnv("ADDR", ":8181")
@@ -127,7 +153,42 @@ func main() {
 		log.Fatal("OTP_SECRET and JWT_SECRET must be set")
 	}
 
-	if err := app.New(db, otpSecret, addr, jwtSecret, store, viewer).Run(); err != nil {
+	if err := app.New(db, otpSecret, addr, jwtSecret, store, viewer, caches).Run(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func openDiskCaches(cfg config.DiskCacheConfig) (contentservice.CacheDeps, error) {
+	if !cfg.Enabled() {
+		log.Printf("diskcache: nonaktif (DISK_CACHE_DIR kosong)")
+		return contentservice.CacheDeps{}, nil
+	}
+
+	type tier struct {
+		name   string
+		budget int64
+		dst    **diskcache.Cache
+	}
+
+	var caches contentservice.CacheDeps
+	tiers := []tier{
+		{"renditions", cfg.RenditionBudget, &caches.Renditions},
+		{"pages", cfg.PageBudget, &caches.Pages},
+		{"downloads", cfg.DownloadBudget, &caches.Downloads},
+	}
+
+	for _, tier := range tiers {
+		c, err := diskcache.New(filepath.Join(cfg.Dir, tier.name), tier.budget, cfg.MinFree, cfg.Key)
+		if err != nil {
+			return contentservice.CacheDeps{}, fmt.Errorf("diskcache %s: %w", tier.name, err)
+		}
+
+		entries, bytes := c.Stats()
+		log.Printf("diskcache: %s aktif di %s (anggaran %d MiB, min-free %d MiB, %d entri / %d MiB dari disk)",
+			tier.name, c.Dir(), tier.budget>>20, cfg.MinFree>>20, entries, bytes>>20)
+
+		*tier.dst = c
+	}
+
+	return caches, nil
 }

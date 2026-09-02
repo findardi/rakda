@@ -213,7 +213,7 @@ func TestRasterWatermarkPDF_MixedSizesBatched(t *testing.T) {
 		}
 		return io.NopCloser(bytes.NewReader(srcBytes)), nil
 	}}
-	svc := NewContentService(nil, store, Viewer{Renderer: renderer, Watermark: wm, DPI: dpi}, 0, nil, StampDeps{Sync: 1, Async: 1}, ArchiveDeps{})
+	svc := NewContentService(nil, store, Viewer{Renderer: renderer, Watermark: wm, DPI: dpi}, 0, nil, StampDeps{Sync: 1, Async: 1}, ArchiveDeps{}, CacheDeps{})
 
 	doc, err := renderer.Open(bytes.NewReader(srcBytes))
 	require.NoError(t, err)

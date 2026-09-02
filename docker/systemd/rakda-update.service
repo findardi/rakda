@@ -9,3 +9,4 @@ Type=oneshot
 WorkingDirectory=/opt/rakda/docker
 ExecStart=/usr/bin/podman compose -f compose.prod.yaml pull --quiet api web
 ExecStart=/usr/bin/podman compose -f compose.prod.yaml up -d
+ExecStart=-/usr/bin/podman image prune -f

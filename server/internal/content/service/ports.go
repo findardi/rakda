@@ -103,6 +103,7 @@ type ContentRepository interface {
 	ListDownloadJobsForUser(ctx context.Context, arg contentdb.ListDownloadJobsForUserParams) ([]contentdb.DocumentDownloadJob, error)
 	MarkDownloadJobReady(ctx context.Context, arg contentdb.MarkDownloadJobReadyParams) error
 	MarkDownloadJobFailed(ctx context.Context, arg contentdb.MarkDownloadJobFailedParams) error
+	MarkReadyDownloadJobLost(ctx context.Context, arg contentdb.MarkReadyDownloadJobLostParams) error
 	ListStalePendingDownloadJobs(ctx context.Context, cutoff pgtype.Timestamptz) ([]contentdb.DocumentDownloadJob, error)
 	ListExpiredDownloadJobs(ctx context.Context) ([]contentdb.DocumentDownloadJob, error)
 	DeleteDownloadJob(ctx context.Context, id pgtype.UUID) error

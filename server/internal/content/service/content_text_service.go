@@ -100,7 +100,7 @@ func (s *ContentService) extractVersionText(ctx context.Context, row contentdb.L
 		return fmt.Errorf("ensure rendition: %w", err)
 	}
 
-	pdf, err := s.store.Get(ctx, renditionKey)
+	pdf, err := s.renditionGet(ctx, renditionKey)
 	if err != nil {
 		return fmt.Errorf("get rendition: %w", err)
 	}
@@ -237,7 +237,7 @@ func (s *ContentService) ocrVersion(ctx context.Context, rows []contentdb.ListPe
 		return 0, len(rows)
 	}
 
-	pdf, err := s.store.Get(ctx, *head.RenditionKey)
+	pdf, err := s.renditionGet(ctx, *head.RenditionKey)
 	if err != nil {
 		log.Printf("ocr sweep: get rendition %s: %v", uuidString(head.VersionID), err)
 		return 0, len(rows)
@@ -352,7 +352,7 @@ func (s *ContentService) bboxVersion(ctx context.Context, rows []contentdb.ListP
 		return 0, len(rows)
 	}
 
-	pdf, err := s.store.Get(ctx, *head.RenditionKey)
+	pdf, err := s.renditionGet(ctx, *head.RenditionKey)
 	if err != nil {
 		log.Printf("bbox sweep: get rendition %s: %v", uuidString(head.VersionID), err)
 		return 0, len(rows)

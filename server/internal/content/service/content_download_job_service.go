@@ -11,6 +11,8 @@ import (
 	activityservice "github.com/findardi/rakda/server/internal/activity/service"
 	"github.com/findardi/rakda/server/internal/content/dto"
 	contentdb "github.com/findardi/rakda/server/internal/content/repository/sqlc"
+	"github.com/findardi/rakda/server/internal/platform/diskcache"
+	"github.com/findardi/rakda/server/internal/platform/storage"
 	"github.com/findardi/rakda/server/internal/platform/watermark"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -161,7 +163,7 @@ func (s *ContentService) storeDownloadJobResult(ctx context.Context, workspaceID
 	}
 
 	key := downloadJobKey(workspaceID, uuidString(job.ID))
-	if err := s.store.Put(ctx, key, res.body, size, "application/pdf"); err != nil {
+	if err := s.storeDownloadArtifact(ctx, key, res.body, size); err != nil {
 		s.markDownloadJobFailed(ctx, job.ID, fmt.Errorf("store artifact: %w", err))
 		return
 	}
@@ -173,7 +175,43 @@ func (s *ContentService) storeDownloadJobResult(ctx context.Context, workspaceID
 		Ttl:       pgtype.Interval{Microseconds: downloadJobTTL.Microseconds(), Valid: true},
 	}); err != nil {
 		log.Printf("download job %s: mark ready: %v", uuidString(job.ID), err)
-		_ = s.store.Delete(ctx, key)
+		s.discardDownloadArtifact(ctx, key)
+	}
+}
+
+func (s *ContentService) storeDownloadArtifact(ctx context.Context, key string, body *spooledReadCloser, size int64) error {
+	err := s.downloads.Put(key, body)
+	if err == nil {
+		return nil
+	}
+
+	if !errors.Is(err, diskcache.ErrDisabled) {
+		log.Printf("diskcache: download %s not stored locally, using object storage: %v", key, err)
+	}
+
+	if err := body.rewind(); err != nil {
+		return err
+	}
+
+	return s.store.Put(ctx, key, body, size, "application/pdf")
+}
+
+func (s *ContentService) discardDownloadArtifact(ctx context.Context, key string) {
+	if err := s.downloads.Remove(key); err != nil {
+		log.Printf("diskcache: discard download %s: %v", key, err)
+	}
+
+	if err := s.store.Delete(ctx, key); err != nil {
+		log.Printf("download job: discard %s: %v", key, err)
+	}
+}
+
+func (s *ContentService) markDownloadJobLost(ctx context.Context, jobID pgtype.UUID) {
+	if err := s.repo.MarkReadyDownloadJobLost(ctx, contentdb.MarkReadyDownloadJobLostParams{
+		ID:    jobID,
+		Error: "artefak unduhan sudah tidak tersedia, minta unduhan baru",
+	}); err != nil {
+		log.Printf("download job %s: mark lost: %v", uuidString(jobID), err)
 	}
 }
 
@@ -272,6 +310,17 @@ func (s *ContentService) GetDownloadJobObject(ctx context.Context, workspaceID, 
 		return DownloadJobObject{}, ErrContentForbidden
 	}
 
+	if !s.downloads.Has(job.ObjectKey) {
+		if _, _, err := s.store.Stat(ctx, job.ObjectKey); err != nil {
+			if !errors.Is(err, storage.ErrNotFound) {
+				return DownloadJobObject{}, fmt.Errorf("stat artifact: %w", err)
+			}
+
+			s.markDownloadJobLost(ctx, job.ID)
+			return DownloadJobObject{}, ErrDownloadJobLost
+		}
+	}
+
 	return DownloadJobObject{
 		Key:      job.ObjectKey,
 		Size:     job.SizeBytes,
@@ -291,8 +340,27 @@ func (s *ContentService) RecordDownloadJobDelivery(ctx context.Context, workspac
 		map[string]any{"version_no": job.VersionNo, "variant": "watermarked", "async": true}))
 }
 
-func (s *ContentService) OpenDownloadJobRange(ctx context.Context, key string, offset, length int64) (io.ReadCloser, error) {
-	return s.store.GetRange(ctx, key, offset, length)
+func (s *ContentService) OpenDownloadJobRange(ctx context.Context, obj DownloadJobObject, offset, length int64) (io.ReadCloser, error) {
+	if r, ok := s.downloads.Open(obj.Key); ok {
+		if r.Size() != obj.Size {
+			r.Close()
+			log.Printf("diskcache: download %s size %d differs from job %d, dropping local copy", obj.Key, r.Size(), obj.Size)
+			_ = s.downloads.Remove(obj.Key)
+			return s.store.GetRange(ctx, obj.Key, offset, length)
+		}
+
+		if _, err := r.Seek(offset, io.SeekStart); err != nil {
+			r.Close()
+			return nil, err
+		}
+
+		return struct {
+			io.Reader
+			io.Closer
+		}{io.LimitReader(r, length), r}, nil
+	}
+
+	return s.store.GetRange(ctx, obj.Key, offset, length)
 }
 
 func downloadJobResponse(job contentdb.DocumentDownloadJob) dto.DownloadJobResponse {
@@ -339,6 +407,10 @@ func (s *ContentService) RunDownloadJobSweeper(ctx context.Context, interval tim
 }
 
 func (s *ContentService) sweepDownloadJobsOnce(ctx context.Context, ttl time.Duration) {
+	if evicted, freed := s.downloads.Sweep(ttl); evicted > 0 {
+		log.Printf("download job sweep: evicted %d local artifacts (%d bytes)", evicted, freed)
+	}
+
 	if _, err := s.store.DeleteOlderThan(ctx, "downloads/", ttl); err != nil {
 		log.Printf("download job sweep: delete objects: %v", err)
 	}
@@ -362,6 +434,10 @@ func (s *ContentService) sweepDownloadJobsOnce(ctx context.Context, ttl time.Dur
 
 	for _, job := range expired {
 		if job.ObjectKey != "" {
+			if err := s.downloads.Remove(job.ObjectKey); err != nil {
+				log.Printf("download job sweep: drop local %s: %v", job.ObjectKey, err)
+			}
+
 			if err := s.store.Delete(ctx, job.ObjectKey); err != nil {
 				log.Printf("download job sweep: delete %s: %v", job.ObjectKey, err)
 				continue

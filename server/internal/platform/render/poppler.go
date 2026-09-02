@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/findardi/rakda/server/internal/platform/config"
+	"github.com/findardi/rakda/server/internal/platform/spool"
 )
 
 type PopplerRenderer struct {
@@ -70,7 +71,7 @@ func NewPoppler(cfg config.ViewerConfig, opts ...PopplerOption) (*PopplerRendere
 }
 
 func (p *PopplerRenderer) PageCount(ctx context.Context, pdf io.Reader) (int, error) {
-	work, cleanup, err := spool(pdf)
+	work, cleanup, err := spoolPDF(pdf)
 	if err != nil {
 		return 0, err
 	}
@@ -114,7 +115,7 @@ func (p *PopplerRenderer) RenderPage(ctx context.Context, pdf io.Reader, page in
 }
 
 func (p *PopplerRenderer) Open(pdf io.Reader) (Document, error) {
-	work, cleanup, err := spool(pdf)
+	work, cleanup, err := spoolPDF(pdf)
 	if err != nil {
 		return nil, err
 	}
@@ -175,8 +176,8 @@ type spooled struct {
 	pdf string
 }
 
-func spool(r io.Reader) (spooled, func(), error) {
-	dir, err := os.MkdirTemp("", "rakda-view-*")
+func spoolPDF(r io.Reader) (spooled, func(), error) {
+	dir, err := os.MkdirTemp("", spool.Prefix+"view-*")
 	if err != nil {
 		return spooled{}, nil, fmt.Errorf("temp dir: %w", err)
 	}
@@ -242,7 +243,7 @@ func (p *PopplerRenderer) run(ctx context.Context, name string, args ...string) 
 }
 
 func (p *PopplerRenderer) ExtractText(ctx context.Context, pdf io.Reader) (string, error) {
-	work, cleanup, err := spool(pdf)
+	work, cleanup, err := spoolPDF(pdf)
 	if err != nil {
 		return "", err
 	}
@@ -257,7 +258,7 @@ func (p *PopplerRenderer) ExtractText(ctx context.Context, pdf io.Reader) (strin
 }
 
 func (p *PopplerRenderer) OpenWordBoxes(pdf io.Reader) (WordBoxDocument, error) {
-	work, cleanup, err := spool(pdf)
+	work, cleanup, err := spoolPDF(pdf)
 	if err != nil {
 		return nil, err
 	}

@@ -79,6 +79,27 @@ disalin, tidak dirakit ulang.
 Angka plafon dikirim server ke klien, tidak ditulis di kode web. Kalau batasnya
 berubah, UI ikut tanpa perlu disentuh.
 
+## Enkripsi at-rest
+
+Setiap objek di object storage — berkas sumber, rendition, cache halaman,
+artefak unduhan, arsip — dienkripsi AES-256 di sisi penyimpanan (SSE-S3,
+bucket-default) sejak Fase 16. Aplikasi **memeriksa** status itu saat boot; di
+produksi ia menolak berjalan kalau bucket tidak terbukti terenkripsi, dan
+"tidak bisa ditentukan" diperlakukan sama dengan gagal.
+
+Batasnya harus dikatakan apa adanya. **Kunci dipegang provider penyimpanan**,
+bukan Rakda dan bukan pelanggan. Enkripsi ini menutup disk atau bucket yang
+jatuh ke tangan lain; ia tidak menutup provider yang membaca datanya sendiri.
+Salinan produk tidak boleh menyiratkan "hanya Anda yang bisa membaca", dan
+tidak boleh menyebut BYOK atau kunci per-ruangan — keduanya bukan bagian
+produk.
+
+Indeks pencarian isi dokumen di database (teks per halaman dan kata hasil OCR)
+**tidak** terenkripsi di level kolom. Rancangannya ada dan dilewati dengan
+sadar; yang melindunginya hari ini adalah enkripsi volume provider database dan
+kontrol akses. Salinan produk tidak boleh mengklaim "dokumen terenkripsi di
+database".
+
 ## Perlindungan layar
 
 Viewer meraster halaman dan membakar watermark per permintaan. Di atas itu,

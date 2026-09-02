@@ -231,7 +231,7 @@ func newTextTestService(t *testing.T, repo *textFakeRepo, store fakeStorage, ren
 		Renderer:      renderer,
 		TextExtractor: extractor,
 		DPI:           150,
-	}, 0, nil, StampDeps{Sync: 2, Async: 2}, ArchiveDeps{})
+	}, 0, nil, StampDeps{Sync: 2, Async: 2}, ArchiveDeps{}, CacheDeps{})
 }
 
 func TestExtractVersionText(t *testing.T) {
@@ -487,7 +487,7 @@ func TestOCRSweeperOpensRenditionOncePerVersion(t *testing.T) {
 		TextExtractor: fakeTextExtractor{extractFn: func(ctx context.Context, pdf io.Reader) (string, error) { return "", nil }},
 		OCR:           ocr,
 		DPI:           150,
-	}, 0, nil, StampDeps{Sync: 2, Async: 2}, ArchiveDeps{})
+	}, 0, nil, StampDeps{Sync: 2, Async: 2}, ArchiveDeps{}, CacheDeps{})
 
 	svc.sweepOCROnce(context.Background(), 10)
 
@@ -567,7 +567,7 @@ func TestOCRSweeperWritesResultAndFailure(t *testing.T) {
 		TextExtractor: fakeTextExtractor{extractFn: func(ctx context.Context, pdf io.Reader) (string, error) { return "", nil }},
 		OCR:           ocr,
 		DPI:           150,
-	}, 0, nil, StampDeps{Sync: 2, Async: 2}, ArchiveDeps{})
+	}, 0, nil, StampDeps{Sync: 2, Async: 2}, ArchiveDeps{}, CacheDeps{})
 
 	svc.sweepOCROnce(context.Background(), 10)
 
