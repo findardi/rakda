@@ -626,17 +626,12 @@ func (r *spooledReadCloser) rewind() error {
 // ImportImages masih menahan ~10 MB piksel per halaman dan dipertahankan
 // sampai byte/halaman pasca-JPEG diukur (U-62). Import berjalan bergantian,
 // bukan paralel.
-<<<<<<< Updated upstream
-func (s *ContentService) rasterWatermarkPDF(ctx context.Context, workspaceID, versionID, renditionKey string, pageCount int, mark watermark.Mark) (*spooledReadCloser, error) {
-	dir, err := os.MkdirTemp("", spool.Prefix+"wm-*")
-=======
 //
 // renderer adalah parameter karena dua kolam poppler melayani fungsi ini:
 // jalur sinkron dan eskalasi memakai Viewer.Renderer, job latar memakai
 // Viewer.DownloadJobRenderer yang ter-nice.
 func (s *ContentService) rasterWatermarkPDF(ctx context.Context, renderer render.Render, workspaceID, versionID, renditionKey string, pageCount int, mark watermark.Mark) (*spooledReadCloser, error) {
-	dir, err := os.MkdirTemp("", "rakda-wm-*")
->>>>>>> Stashed changes
+	dir, err := os.MkdirTemp("", spool.Prefix+"wm-*")
 	if err != nil {
 		return nil, fmt.Errorf("temp dir: %w", err)
 	}

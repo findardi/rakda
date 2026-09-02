@@ -137,12 +137,6 @@ func renditionOnlyStore() fakeStorage {
 	}
 }
 
-<<<<<<< Updated upstream
-	return NewContentService(repo, store, Viewer{
-		Renderer: failingRenderer{},
-		DPI:      150,
-	}, 0, nil, StampDeps{Sync: 1, Async: 1}, ArchiveDeps{}, CacheDeps{})
-=======
 func newDownloadTestService(t *testing.T, repo *downloadFakeRepo, request, downloadJob render.Render) *ContentService {
 	t.Helper()
 
@@ -151,8 +145,7 @@ func newDownloadTestService(t *testing.T, repo *downloadFakeRepo, request, downl
 		DownloadJobRenderer: downloadJob,
 		Watermark:           unexpectedWatermarker{},
 		DPI:                 150,
-	}, 0, nil, StampDeps{Sync: 1, Async: 1}, ArchiveDeps{})
->>>>>>> Stashed changes
+	}, 0, nil, StampDeps{Sync: 1, Async: 1}, ArchiveDeps{}, CacheDeps{})
 }
 
 func downloadFixture(pageCount int32) *downloadFakeRepo {
