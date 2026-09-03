@@ -1,6 +1,7 @@
 import type { ApiResult } from '$lib/types';
 import type {
 	CreateWorkspacePayload,
+	HeroPreset,
 	MyAccessWorkspace,
 	UpdateWorkspacePayload,
 	WorkspaceData,
@@ -8,7 +9,7 @@ import type {
 	WorkspaceStatus,
 	WorkspaceSummaryData
 } from '$lib/types/workspace';
-import { del, get, patch, post, put } from './client';
+import { API_URL, del, get, patch, post, put, putForm, upstreamHeaders } from './client';
 
 // All endpoints are JWT-protected (RequireAuth + RequireActive) — pass the token.
 // By-id operations are additionally owner-only (RequireOwner) on the backend.
@@ -55,6 +56,52 @@ export async function updateWorkspaceStatus(
 // Delete returns an empty data envelope (200, data: null), not 204.
 export async function deleteWorkspace(token: string, id: string): Promise<ApiResult<null>> {
 	return del<null>(`/workspaces/${id}`, token);
+}
+
+// --- branding (owner-only mutations; the logo read is member-gated) --------
+
+export async function getHeroPresets(token: string): Promise<ApiResult<HeroPreset[]>> {
+	return get<HeroPreset[]>('/workspaces/hero-presets', token);
+}
+
+// The picture goes through the server, which sniffs, resizes, and re-encodes
+// it; the backend answers 413 / 415 / 400 for size, format, and content.
+export async function uploadWorkspaceLogo(
+	token: string,
+	id: string,
+	file: File
+): Promise<ApiResult<WorkspaceData>> {
+	const form = new FormData();
+	form.set('file', file, file.name || 'logo');
+	return putForm<WorkspaceData>(`/workspaces/${id}/branding/logo`, form, token);
+}
+
+export async function removeWorkspaceLogo(
+	token: string,
+	id: string
+): Promise<ApiResult<WorkspaceData>> {
+	return del<WorkspaceData>(`/workspaces/${id}/branding/logo`, token);
+}
+
+// Empty preset = back to the automatic identity.
+export async function setWorkspaceHero(
+	token: string,
+	id: string,
+	preset: string
+): Promise<ApiResult<WorkspaceData>> {
+	return put<WorkspaceData>(`/workspaces/${id}/branding/hero`, { preset }, token);
+}
+
+// Raw upstream response for the logo proxy: PNG bytes (or 304), not an
+// envelope, so it bypasses the typed client like fetchViewPage does.
+export function fetchWorkspaceLogo(
+	token: string,
+	id: string,
+	ifNoneMatch?: string
+): Promise<Response> {
+	const headers = upstreamHeaders(token);
+	if (ifNoneMatch) headers['if-none-match'] = ifNoneMatch;
+	return fetch(`${API_URL}/workspaces/${id}/branding/logo`, { headers });
 }
 
 export async function getMyAccessWorkspace(

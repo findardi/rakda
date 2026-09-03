@@ -2,17 +2,14 @@ package activity
 
 import (
 	"context"
-	"errors"
 
 	accessrepo "github.com/findardi/rakda/server/internal/access/repository"
-	accessdb "github.com/findardi/rakda/server/internal/access/repository/sqlc"
 	"github.com/findardi/rakda/server/internal/activity/handler"
 	"github.com/findardi/rakda/server/internal/activity/repository"
 	"github.com/findardi/rakda/server/internal/activity/service"
 	auth "github.com/findardi/rakda/server/internal/auth/repository"
 	"github.com/findardi/rakda/server/internal/platform/middleware"
 	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -54,42 +51,13 @@ func NewModule(pool *pgxpool.Pool, verifier middleware.TokenVerifier) *Module {
 	}
 }
 
-func (m *Module) workspaceMember(ctx context.Context, workspaceID, userID string) (*middleware.Membership, error) {
-	var wID, uID pgtype.UUID
-
-	if err := wID.Scan(workspaceID); err != nil {
-		return nil, middleware.ErrResourceNotFound
-	}
-	if err := uID.Scan(userID); err != nil {
-		return nil, middleware.ErrResourceNotFound
-	}
-
-	row, err := m.accessRepo.GetMembershipWithPermissions(ctx, accessdb.GetMembershipWithPermissionsParams{
-		WorkspaceID: wID,
-		UserID:      uID,
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, middleware.ErrResourceNotFound
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	return &middleware.Membership{
-		Role:            row.RoleName,
-		Permissions:     row.Permissions,
-		Status:          row.Status,
-		WorkspaceStatus: row.WorkspaceStatus,
-	}, nil
-}
-
 func (m *Module) RegisterRoutes(r chi.Router) {
 	r.Route("/activity", func(r chi.Router) {
 		r.Use(m.mw.RequireAuth)
 		r.Use(m.mw.RequireActive)
 
 		r.Route("/workspaces/{workspaceID}", func(r chi.Router) {
-			r.Use(m.mw.RequireMember("workspaceID", m.workspaceMember))
+			r.Use(m.mw.RequireMember("workspaceID", m.accessRepo.ResolveMembership))
 			r.Use(m.mw.RequireRoomOpenForGuests)
 
 			r.Group(func(r chi.Router) {

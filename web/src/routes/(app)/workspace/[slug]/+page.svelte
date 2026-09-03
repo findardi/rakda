@@ -3,7 +3,7 @@
 	import { applyAction, enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import type { SubmitFunction } from '@sveltejs/kit';
+	import type { ActionResult, SubmitFunction } from '@sveltejs/kit';
 	import { Alert, Button, Field, TextareaField, Toaster, showToast } from '$lib/components/common';
 	import { WorkspaceStatusBadge } from '$lib/components/app';
 	import {
@@ -15,12 +15,14 @@
 		isRoomReadOnly
 	} from '$lib/access/roles';
 	import { describeActivity } from '$lib/activity/describe';
+	import { heroColor as heroColorFor, workspaceLogoUrl } from '$lib/branding';
 	import { formatBytes } from '$lib/format';
-	import { t } from '$lib/i18n';
+	import { t, type TKey } from '$lib/i18n';
 	import { readRecents, type RecentDocument, type RecentFolder } from '$lib/recents';
 	import type { ActivityItem } from '$lib/types/activity';
 	import type { ArchiveData } from '$lib/types/archive';
 	import type {
+		HeroPreset,
 		MyAccessWorkspace,
 		WorkspaceStatus,
 		WorkspaceSummaryData
@@ -52,15 +54,12 @@
 	const archives = $derived((data as { archives?: ArchiveData[] }).archives ?? []);
 	const archivePending = $derived(archives.some((a) => a.status === 'pending'));
 
-	// Hero identity: deterministic from the slug so every room keeps one face —
-	// the default until per-room branding images exist.
-	const heroSeed = $derived.by(() => {
-		let h = 0;
-		for (const c of ws.slug) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-		return h;
-	});
-	const heroColor = $derived(`oklch(0.45 0.07 ${190 + (heroSeed % 5) * 12})`);
-	const heroPhase = $derived(heroSeed % 40);
+	// Hero identity comes resolved from the server: a chosen preset, or the
+	// slug-derived default every room is born with. Same arcs either way — only
+	// the hue moves, so a room's choice never competes with what is written on it.
+	const heroColor = $derived(heroColorFor(ws.hero_hue));
+	const heroPhase = $derived(ws.hero_phase);
+	const logoSrc = $derived(workspaceLogoUrl(ws));
 	const monogram = $derived.by(() => {
 		const words = ws.name.trim().split(/\s+/);
 		const a = words[0]?.[0] ?? '';
@@ -248,6 +247,91 @@
 		};
 	};
 
+	// --- Appearance: logo upload + curated hero preset (owner) ---
+	const heroPresets = $derived((data as { heroPresets?: HeroPreset[] }).heroPresets ?? []);
+	const PRESET_LABEL: Record<string, TKey> = {
+		tide: 'ws.brand.preset.tide',
+		reef: 'ws.brand.preset.reef',
+		lagoon: 'ws.brand.preset.lagoon',
+		slate: 'ws.brand.preset.slate',
+		harbor: 'ws.brand.preset.harbor',
+		moss: 'ws.brand.preset.moss',
+		olive: 'ws.brand.preset.olive',
+		clay: 'ws.brand.preset.clay',
+		plum: 'ws.brand.preset.plum',
+		ember: 'ws.brand.preset.ember'
+	};
+	const presetLabel = (key: string) => (PRESET_LABEL[key] ? t(PRESET_LABEL[key]) : key);
+	// The "automatic" swatch previews the identity the room would fall back to.
+	const heroChoices = $derived<HeroPreset[]>([
+		{ key: '', hue: ws.hero_hue, phase: ws.hero_phase },
+		...heroPresets
+	]);
+
+	let brandDialog = $state<HTMLDialogElement>();
+	let brandMessage = $state<string | null>(null);
+	let logoInput = $state<HTMLInputElement>();
+	let logoChosen = $state(false);
+	let logoSubmitting = $state(false);
+	let heroSubmitting = $state(false);
+
+	function openBranding() {
+		brandMessage = null;
+		logoChosen = false;
+		if (logoInput) logoInput.value = '';
+		brandDialog?.showModal();
+	}
+
+	// Shared tail of the three appearance forms: reload on success, surface the
+	// message on failure. Typed on `result` alone so any enhance callback fits.
+	function brandOutcome(toastKey: TKey): (input: { result: ActionResult }) => Promise<void> {
+		return async ({ result }) => {
+			if (result.type === 'success') {
+				await invalidateAll();
+				showToast(t(toastKey), 'success');
+			} else if (result.type === 'failure') {
+				brandMessage = (result.data?.message as string) ?? t('err.generic');
+			} else {
+				brandMessage = t('err.generic');
+			}
+		};
+	}
+
+	const submitLogo: SubmitFunction = ({ formData, cancel }) => {
+		const file = formData.get('file');
+		if (!(file instanceof File) || file.size === 0) return cancel();
+		logoSubmitting = true;
+		brandMessage = null;
+		const done = brandOutcome('ws.brand.logoSaved');
+		return async (input) => {
+			logoSubmitting = false;
+			logoChosen = false;
+			if (logoInput) logoInput.value = '';
+			await done(input);
+		};
+	};
+
+	const submitLogoRemove: SubmitFunction = () => {
+		logoSubmitting = true;
+		brandMessage = null;
+		const done = brandOutcome('ws.brand.logoRemoved');
+		return async (input) => {
+			logoSubmitting = false;
+			await done(input);
+		};
+	};
+
+	// A swatch click submits its form at once; there is nothing else to fill in.
+	const submitHero: SubmitFunction = () => {
+		heroSubmitting = true;
+		brandMessage = null;
+		const done = brandOutcome('ws.brand.heroSaved');
+		return async (input) => {
+			heroSubmitting = false;
+			await done(input);
+		};
+	};
+
 	// --- Delete (type-to-confirm) ---
 	let deleteDialog = $state<HTMLDialogElement>();
 	let deleteConfirm = $state('');
@@ -302,12 +386,20 @@
 			{/each}
 		</svg>
 		<div class="relative flex flex-wrap items-start gap-4 p-6 sm:p-8">
-			<div
-				class="flex h-16 w-16 flex-none items-center justify-center rounded-box text-xl font-semibold text-white"
-				style="background: {heroColor}"
-			>
-				{monogram}
-			</div>
+			{#if logoSrc}
+				<img
+					src={logoSrc}
+					alt={t('ws.brand.logoAlt', { name: ws.name })}
+					class="h-16 w-16 flex-none rounded-box border border-base-content/10 bg-base-100 object-contain p-1.5"
+				/>
+			{:else}
+				<div
+					class="flex h-16 w-16 flex-none items-center justify-center rounded-box text-xl font-semibold text-white"
+					style="background: {heroColor}"
+				>
+					{monogram}
+				</div>
+			{/if}
 			<div class="min-w-0 flex-1">
 				<div class="flex flex-wrap items-center gap-x-3 gap-y-1">
 					<h1
@@ -333,7 +425,15 @@
 				</p>
 			</div>
 			{#if canEdit}
-				<Button variant="ghost" onclick={openEdit}>{t('ws.edit.open')}</Button>
+				<!-- The API answers 423 for both in an archived room; greying them out
+				     says so before the round trip, like the delete row below. -->
+				<div class="flex flex-wrap gap-1">
+					<Button variant="ghost" disabled={readOnly} onclick={openEdit}>{t('ws.edit.open')}</Button
+					>
+					<Button variant="ghost" disabled={readOnly} onclick={openBranding}
+						>{t('ws.brand.open')}</Button
+					>
+				</div>
 			{/if}
 		</div>
 	</header>
@@ -682,6 +782,149 @@
 	</div>
 	<form method="dialog" class="modal-backdrop">
 		<button aria-label={t('ws.dialog.cancel')}></button>
+	</form>
+</dialog>
+
+<!-- Appearance dialog: logo + hero preset. Each control is its own form so a
+     swatch click or an upload commits on its own; nothing here needs a Save. -->
+<dialog bind:this={brandDialog} class="modal" aria-labelledby="brand-title">
+	<div class="modal-box max-w-lg rounded-box border border-base-content/10 bg-base-100 p-6">
+		<h2 id="brand-title" class="text-lg font-semibold tracking-[-0.01em]">{t('ws.brand.title')}</h2>
+		<p class="mt-1 text-sm text-muted text-pretty">
+			{readOnly ? t('ws.brand.readOnly') : t('ws.brand.desc')}
+		</p>
+
+		{#if brandMessage}
+			<div class="mt-4"><Alert align="start">{brandMessage}</Alert></div>
+		{/if}
+
+		<section class="mt-5">
+			<h3 class="text-sm font-semibold">{t('ws.brand.logo')}</h3>
+			<div class="mt-2 flex flex-wrap items-center gap-4">
+				{#if logoSrc}
+					<img
+						src={logoSrc}
+						alt={t('ws.brand.logoAlt', { name: ws.name })}
+						class="h-16 w-16 flex-none rounded-box border border-base-content/10 bg-base-100 object-contain p-1.5"
+					/>
+				{:else}
+					<div
+						class="flex h-16 w-16 flex-none items-center justify-center rounded-box text-xl font-semibold text-white"
+						style="background: {heroColor}"
+						aria-hidden="true"
+					>
+						{monogram}
+					</div>
+				{/if}
+				<form
+					method="POST"
+					action="?/uploadLogo"
+					enctype="multipart/form-data"
+					use:enhance={submitLogo}
+					class="flex min-w-0 flex-1 flex-col gap-2"
+				>
+					<input
+						bind:this={logoInput}
+						type="file"
+						name="file"
+						accept="image/png,image/jpeg,image/webp"
+						disabled={readOnly || logoSubmitting}
+						onchange={(e) => (logoChosen = (e.currentTarget.files?.length ?? 0) > 0)}
+						aria-label={t('ws.brand.logoUpload')}
+						class="file-input file-input-sm w-full"
+					/>
+					<p class="text-xs text-muted">{t('ws.brand.logoHint')}</p>
+					<div class="flex flex-wrap gap-2">
+						<Button
+							type="submit"
+							size="sm"
+							loading={logoSubmitting}
+							disabled={readOnly || !logoChosen}
+						>
+							{logoSubmitting ? t('ws.brand.logoUploading') : t('ws.brand.logoUpload')}
+						</Button>
+					</div>
+				</form>
+			</div>
+			{#if logoSrc}
+				<form method="POST" action="?/removeLogo" use:enhance={submitLogoRemove} class="mt-2">
+					<Button
+						type="submit"
+						variant="danger-outline"
+						size="sm"
+						disabled={readOnly || logoSubmitting}
+					>
+						{t('ws.brand.logoRemove')}
+					</Button>
+				</form>
+			{/if}
+		</section>
+
+		<section class="mt-6">
+			<h3 class="text-sm font-semibold">{t('ws.brand.hero')}</h3>
+			<p class="mt-1 text-xs text-muted">{t('ws.brand.heroHint')}</p>
+			<form method="POST" action="?/setHero" use:enhance={submitHero} class="mt-3">
+				<fieldset
+					disabled={readOnly || heroSubmitting}
+					class="grid grid-cols-3 gap-2 sm:grid-cols-4"
+					aria-label={t('ws.brand.hero')}
+				>
+					{#each heroChoices as p (p.key)}
+						{@const auto = p.key === ''}
+						{@const selected = ws.hero_preset === p.key}
+						<label
+							class="flex cursor-pointer flex-col gap-1.5 rounded-field border p-1.5 transition-colors {selected
+								? 'border-primary bg-primary/5'
+								: 'border-base-content/10 hover:bg-base-content/5'}"
+						>
+							<input
+								type="radio"
+								name="preset"
+								value={p.key}
+								checked={selected}
+								onchange={(e) => e.currentTarget.form?.requestSubmit()}
+								class="sr-only"
+							/>
+							<svg
+								aria-hidden="true"
+								viewBox="0 0 96 40"
+								class="h-10 w-full rounded-selector bg-base-100"
+								style="color: {heroColorFor(p.hue)}"
+							>
+								{#each [0, 1, 2, 3] as ring (ring)}
+									<circle
+										cx="12"
+										cy="20"
+										r={8 + p.phase / 4 + ring * 9}
+										fill="none"
+										stroke="currentColor"
+										stroke-width="1"
+										opacity={0.5 - ring * 0.1}
+									/>
+								{/each}
+								<rect x="4" y="12" width="16" height="16" rx="3" fill="currentColor" />
+							</svg>
+							<span
+								class="truncate text-center text-[0.6875rem] {selected
+									? 'font-medium text-primary'
+									: 'text-muted'}"
+							>
+								{auto ? t('ws.brand.heroAuto') : presetLabel(p.key)}
+							</span>
+						</label>
+					{/each}
+				</fieldset>
+			</form>
+		</section>
+
+		<div class="mt-6 flex justify-end">
+			<Button type="button" variant="ghost" onclick={() => brandDialog?.close()}>
+				{t('ws.brand.close')}
+			</Button>
+		</div>
+	</div>
+	<form method="dialog" class="modal-backdrop">
+		<button aria-label={t('ws.brand.close')}></button>
 	</form>
 </dialog>
 

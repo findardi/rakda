@@ -217,7 +217,7 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 	qaSvc := qaservice.NewQAService(qarepo.New(pool), contentSvc, activitysvc)
 
 	authModule := auth.NewModule(pool, otpGen, jwtGen, mailer, limiter, providers, accessSvc)
-	workspaceModule := workspace.NewModule(pool, jwtGen, accessSvc, contentSvc, activitysvc)
+	workspaceModule := workspace.NewModule(pool, jwtGen, accessSvc, contentSvc, activitysvc, store)
 	accessModule := access.NewModule(pool, jwtGen, mailer, authsvc, otpGen, webURL, activitysvc)
 	invitationModule := invitation.NewModule(pool, jwtGen, activitysvc)
 	contentModule := content.NewModule(pool, jwtGen, store, viewer, trashRetention, activitysvc, contentservice.StampDeps{Sync: downloadStampConcurrency, Async: downloadStampAsyncConcurrency}, contentservice.ArchiveDeps{

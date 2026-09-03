@@ -208,6 +208,8 @@ type Workspace struct {
 	Status      string             `json:"status"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	LogoKey     *string            `json:"logo_key"`
+	HeroPreset  *string            `json:"hero_preset"`
 }
 
 type WorkspaceArchive struct {

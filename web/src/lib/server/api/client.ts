@@ -17,25 +17,42 @@ export function upstreamHeaders(token?: string): Record<string, string> {
 	return headers;
 }
 
+type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+
 // `token` attaches `Authorization: Bearer` for JWT-protected endpoints.
-async function request<T>(
-	method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+function request<T>(
+	method: Method,
 	path: string,
 	body: unknown,
 	token?: string
 ): Promise<ApiResult<T>> {
-	const headers: Record<string, string> = {
-		'content-type': 'application/json',
-		...upstreamHeaders(token)
-	};
+	return send<T>(
+		method,
+		path,
+		body === undefined ? undefined : JSON.stringify(body),
+		{ 'content-type': 'application/json' },
+		token
+	);
+}
+
+// Multipart variant: the runtime sets the boundary header itself, so no
+// content-type is added here. Used for the few small uploads that pass
+// through the server (branding); documents keep the presigned path.
+export const putForm = <T>(path: string, form: FormData, token?: string) =>
+	send<T>('PUT', path, form, {}, token);
+
+async function send<T>(
+	method: Method,
+	path: string,
+	body: BodyInit | undefined,
+	extraHeaders: Record<string, string>,
+	token?: string
+): Promise<ApiResult<T>> {
+	const headers: Record<string, string> = { ...extraHeaders, ...upstreamHeaders(token) };
 
 	let res: Response;
 	try {
-		res = await fetch(`${API_URL}${path}`, {
-			method,
-			headers,
-			body: body === undefined ? undefined : JSON.stringify(body)
-		});
+		res = await fetch(`${API_URL}${path}`, { method, headers, body });
 	} catch {
 		return { ok: false, status: 0, message: t('err.network'), fieldErrors: {} };
 	}

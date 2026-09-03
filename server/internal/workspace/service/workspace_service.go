@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log"
 	"regexp"
 	"strings"
 
@@ -65,19 +66,24 @@ type WorkspaceService struct {
 	access   AccessService
 	content  ContentProvisioner
 	activity ActivityRecorder
+	store    AssetStore
 }
 
-func NewWorkspaceService(repo WorkspaceRepository, access AccessService, content ContentProvisioner, activity ActivityRecorder) *WorkspaceService {
+func NewWorkspaceService(repo WorkspaceRepository, access AccessService, content ContentProvisioner, activity ActivityRecorder, store AssetStore) *WorkspaceService {
 	return &WorkspaceService{
 		repo:     repo,
 		access:   access,
 		content:  content,
 		activity: activity,
+		store:    store,
 	}
 }
 
+// workspaceResponse is the one mapper every read path goes through, so a field
+// added here (branding, say) reaches the list, the detail, and the update
+// response alike.
 func workspaceResponse(w workspacedb.Workspace) dto.WorkspaceResponse {
-	return dto.WorkspaceResponse{
+	res := dto.WorkspaceResponse{
 		ID:          uuidString(w.ID),
 		OwnerID:     uuidString(w.OwnerID),
 		Name:        w.Name,
@@ -87,6 +93,8 @@ func workspaceResponse(w workspacedb.Workspace) dto.WorkspaceResponse {
 		CreatedAt:   w.CreatedAt.Time,
 		UpdatedAt:   w.UpdatedAt.Time,
 	}
+	applyBranding(&res, w.Slug, w.LogoKey, w.HeroPreset)
+	return res
 }
 
 func (s *WorkspaceService) slugBase(name string) string {
@@ -192,16 +200,7 @@ func (s *WorkspaceService) CreateWorkspace(ctx context.Context, req dto.Workspac
 		return dto.WorkspaceResponse{}, err
 	}
 
-	return dto.WorkspaceResponse{
-		ID:          uuidString(workspace.ID),
-		OwnerID:     uuidString(workspace.OwnerID),
-		Name:        workspace.Name,
-		Slug:        workspace.Slug,
-		Description: deref(workspace.Description),
-		Status:      workspace.Status,
-		CreatedAt:   workspace.CreatedAt.Time,
-		UpdatedAt:   workspace.UpdatedAt.Time,
-	}, nil
+	return workspaceResponse(workspace), nil
 }
 
 func (s *WorkspaceService) GetWorkspaces(ctx context.Context, userID string) (dto.WorkspaceListResponse, error) {
@@ -232,6 +231,7 @@ func (s *WorkspaceService) GetWorkspaces(ctx context.Context, userID string) (dt
 			UpdatedAt:   w.UpdatedAt.Time,
 			Role:        w.RoleName,
 		}
+		applyBranding(&work, w.Slug, w.LogoKey, w.HeroPreset)
 		if w.LastActivityAt.Valid {
 			t := w.LastActivityAt.Time
 			work.LastActivityAt = &t
@@ -260,16 +260,7 @@ func (s *WorkspaceService) GetWorkspacesByOwner(ctx context.Context, userID stri
 	}
 
 	for _, w := range workspace {
-		work := dto.WorkspaceResponse{
-			ID:          uuidString(w.ID),
-			OwnerID:     uuidString(w.OwnerID),
-			Name:        w.Name,
-			Slug:        w.Slug,
-			Description: deref(w.Description),
-			Status:      w.Status,
-			CreatedAt:   w.CreatedAt.Time,
-			UpdatedAt:   w.UpdatedAt.Time,
-		}
+		work := workspaceResponse(w)
 
 		workspaces = append(workspaces, work)
 	}
@@ -297,16 +288,7 @@ func (s *WorkspaceService) GetWorkspace(ctx context.Context, workspaceID, actorI
 		return dto.WorkspaceResponse{}, fmt.Errorf("get workspace: %w", err)
 	}
 
-	return dto.WorkspaceResponse{
-		ID:          uuidString(workspace.ID),
-		OwnerID:     uuidString(workspace.OwnerID),
-		Name:        workspace.Name,
-		Slug:        workspace.Slug,
-		Description: deref(workspace.Description),
-		Status:      workspace.Status,
-		CreatedAt:   workspace.CreatedAt.Time,
-		UpdatedAt:   workspace.UpdatedAt.Time,
-	}, nil
+	return workspaceResponse(workspace), nil
 }
 
 func (s *WorkspaceService) GetWorkspaceSummary(ctx context.Context, workspaceID, actorID string) (dto.WorkspaceSummaryResponse, error) {
@@ -406,21 +388,19 @@ func (s *WorkspaceService) UpdateStatusWorkspace(ctx context.Context, req dto.Wo
 	return workspaceResponse(updated), nil
 }
 
-func (s *WorkspaceService) UpdateWorkspace(ctx context.Context, req dto.WorkspaceUpdateRequest) (dto.WorkspaceResponse, error) {
-	var uid pgtype.UUID
-	if err := uid.Scan(req.ID); err != nil {
-		return dto.WorkspaceResponse{}, fmt.Errorf("parse workspace id: %w", err)
-	}
-
-	current, err := s.repo.GetWorkspaceByID(ctx, uid)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return dto.WorkspaceResponse{}, ErrWorkspaceNotFound
-	} else if err != nil {
-		return dto.WorkspaceResponse{}, fmt.Errorf("get workspace: %w", err)
+// UpdateWorkspace renames and/or re-describes a room. A request that changes
+// nothing writes nothing — no row, no audit line. The archive check duplicates
+// the route gate on purpose: the middleware is the contract, this is what a
+// caller without a router still gets.
+func (s *WorkspaceService) UpdateWorkspace(ctx context.Context, req dto.WorkspaceUpdateRequest, actor Actor) (dto.WorkspaceResponse, error) {
+	uid, current, err := s.writableWorkspace(ctx, req.ID)
+	if err != nil {
+		return dto.WorkspaceResponse{}, err
 	}
 
 	slug := current.Slug
-	if req.Name != current.Name {
+	nameChanged := req.Name != current.Name
+	if nameChanged {
 		if s.slugBase(req.Name) == "" {
 			return dto.WorkspaceResponse{}, ErrWorkspaceNameInvalid
 		}
@@ -439,33 +419,55 @@ func (s *WorkspaceService) UpdateWorkspace(ctx context.Context, req dto.Workspac
 	if req.Description != "" {
 		desc = &req.Description
 	}
+	descChanged := deref(desc) != deref(current.Description)
 
-	w, err := s.repo.UpdateWorkspace(ctx, workspacedb.UpdateWorkspaceParams{
-		ID:          uid,
-		Name:        req.Name,
-		Description: desc,
-		Slug:        slug,
-	})
-
-	switch {
-	case errors.Is(err, pgx.ErrNoRows):
-		return dto.WorkspaceResponse{}, ErrWorkspaceNotFound
-	case isUniqueViolation(err, "workspaces_owner_slug_key"):
-		return dto.WorkspaceResponse{}, ErrWorkspaceNameTaken
-	case err != nil:
-		return dto.WorkspaceResponse{}, fmt.Errorf("update workspace: %w", err)
+	if !nameChanged && !descChanged {
+		return workspaceResponse(current), nil
 	}
 
-	return dto.WorkspaceResponse{
-		ID:          uuidString(w.ID),
-		OwnerID:     uuidString(w.OwnerID),
-		Name:        w.Name,
-		Slug:        w.Slug,
-		Description: deref(w.Description),
-		Status:      w.Status,
-		CreatedAt:   w.CreatedAt.Time,
-		UpdatedAt:   w.UpdatedAt.Time,
-	}, nil
+	var updated workspacedb.Workspace
+	err = s.repo.ExecTx(ctx, func(q *workspacedb.Queries, tx pgx.Tx) error {
+		w, err := q.UpdateWorkspace(ctx, workspacedb.UpdateWorkspaceParams{
+			ID:          uid,
+			Name:        req.Name,
+			Description: desc,
+			Slug:        slug,
+		})
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
+			return ErrWorkspaceNotFound
+		case isUniqueViolation(err, "workspaces_owner_slug_key"):
+			return ErrWorkspaceNameTaken
+		case err != nil:
+			return fmt.Errorf("update workspace: %w", err)
+		}
+
+		if err := s.activity.RecordTx(ctx, tx, activityservice.Entry{
+			WorkspaceID: req.ID,
+			ActorID:     actor.UserID,
+			ActorName:   actor.Name,
+			ActorRole:   actor.Role,
+			Action:      activityservice.ActionWorkspaceUpdated,
+			TargetType:  activityservice.TargetWorkspace,
+			TargetID:    req.ID,
+			TargetName:  w.Name,
+			Metadata: map[string]any{
+				"from":                current.Name,
+				"to":                  w.Name,
+				"description_changed": descChanged,
+			},
+		}); err != nil {
+			return err
+		}
+
+		updated = w
+		return nil
+	})
+	if err != nil {
+		return dto.WorkspaceResponse{}, err
+	}
+
+	return workspaceResponse(updated), nil
 }
 
 func (s *WorkspaceService) DeleteWorkspace(ctx context.Context, workspaceID string) error {
@@ -487,6 +489,12 @@ func (s *WorkspaceService) DeleteWorkspace(ctx context.Context, workspaceID stri
 
 	if err := s.repo.DeleteWorkspace(ctx, uid); err != nil {
 		return fmt.Errorf("delete workspace: %w", err)
+	}
+
+	// The row is gone; its logo would otherwise outlive it for ever. Best
+	// effort, like every other object cleanup behind a committed row.
+	if err := s.store.DeletePrefix(ctx, logoObjectPrefix(workspaceID)); err != nil {
+		log.Printf("workspace: delete assets of %s: %v", workspaceID, err)
 	}
 
 	return nil

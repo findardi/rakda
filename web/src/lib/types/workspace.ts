@@ -25,10 +25,26 @@ export interface WorkspaceData {
 	// ISO-8601 strings over the wire (Go time.Time marshals to RFC3339).
 	created_at: string;
 	updated_at: string;
+	// Branding. `logo` is a version token ('' = none) that keys the logo
+	// proxy URL; `hero_preset` is the chosen curated preset ('' = automatic);
+	// hue/phase are resolved server-side either way, so the hero renders
+	// from them without recomputing an identity the server already owns.
+	logo: string;
+	hero_preset: string;
+	hero_hue: number;
+	hero_phase: number;
 	// List-only fields: the caller's role in that room, and its latest
 	// activity stamp (drives the default ordering). Absent on by-id reads.
 	role?: string;
 	last_activity_at?: string;
+}
+
+// One curated hero identity from GET /workspaces/hero-presets. The list is
+// server-owned: the picker renders from it and the backend validates against it.
+export interface HeroPreset {
+	key: string;
+	hue: number;
+	phase: number;
 }
 
 // GET /workspaces — quota rides along so the client never guesses the limit.

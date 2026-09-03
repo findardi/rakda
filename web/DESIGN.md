@@ -71,6 +71,16 @@ intinya.
 masuk hanya saat berarti sesuatu (aksi, status, akses). Permukaan tidak pernah
 "dihias".
 
+**Satu pengecualian sadar: hero ikhtisar ruangan.** Hero adalah identitas
+tenant, bukan dekorasi — logo yang diunggah pemilik (tile 64 px, latar
+`base-100`, `object-contain`) dan pola busur dengan hue dari **preset kurasi**
+server (`GET /workspaces/hero-presets`). Yang boleh berubah hanya hue; lightness
+0.45 dan chroma 0.07 dikunci di `$lib/branding.ts` supaya tidak ada pilihan yang
+membuat teks di atasnya gagal AA. Tidak ada unggah gambar latar, tidak ada hex
+kustom (iDeals memilih hal yang sama). Di luar hero, branding hanya tampil
+sebagai tile logo seukuran avatar (sidebar 24 px, daftar ruangan 36 px); chrome
+aplikasi tetap tenang, dan tidak ada permukaan pra-login yang menampilkannya.
+
 ## 3. Typography
 
 **Body/UI Font:** Single sans, tajam & netral _(family dipilih saat

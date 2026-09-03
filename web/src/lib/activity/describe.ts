@@ -78,7 +78,12 @@ export const ACTIVITY_GROUPS: { key: TKey; actions: string[] }[] = [
 	},
 	{
 		key: 'activity.group.room',
-		actions: ['workspace_status_changed', 'archive_exported']
+		actions: [
+			'workspace_updated',
+			'workspace_status_changed',
+			'workspace_branding_changed',
+			'archive_exported'
+		]
 	}
 ];
 
@@ -178,7 +183,9 @@ const LABEL_KEY: Record<string, TKey> = {
 	question_reopened: 'activity.label.question_reopened',
 	faq_published: 'activity.label.faq_published',
 	qa_settings_changed: 'activity.label.qa_settings_changed',
+	workspace_updated: 'activity.label.workspace_updated',
 	workspace_status_changed: 'activity.label.workspace_status_changed',
+	workspace_branding_changed: 'activity.label.workspace_branding_changed',
 	archive_exported: 'activity.label.archive_exported'
 };
 
@@ -331,6 +338,29 @@ export function describeActivity(item: ActivityItem): ActivityPhrase {
 					to: statusDisplayName(text(meta.to))
 				}
 			};
+
+		// A rename carries from/to; a description-only edit names the room once.
+		case 'workspace_updated':
+			return text(meta.from) !== text(meta.to)
+				? {
+						key: 'activity.action.workspace_renamed',
+						vars: { from: text(meta.from), to: text(meta.to) }
+					}
+				: { key: 'activity.action.workspace_described', vars };
+
+		// One action, three sentences: which asset moved and whether it was set or
+		// removed both come from the metadata.
+		case 'workspace_branding_changed':
+			if (meta.kind === 'logo') {
+				return {
+					key:
+						meta.action === 'removed'
+							? 'activity.action.workspace_logo_removed'
+							: 'activity.action.workspace_logo_set',
+					vars
+				};
+			}
+			return { key: 'activity.action.workspace_hero_changed', vars };
 
 		default:
 			return { key: PHRASE_KEY[item.action] ?? null, vars };
