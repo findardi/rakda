@@ -253,6 +253,7 @@ type WorkspaceMember struct {
 	Status      string             `json:"status"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
 }
 
 type WorkspaceRole struct {
@@ -266,17 +267,18 @@ type WorkspaceRole struct {
 }
 
 type WorkspaceUserInvitation struct {
-	ID          pgtype.UUID        `json:"id"`
-	WorkspaceID pgtype.UUID        `json:"workspace_id"`
-	Email       string             `json:"email"`
-	RoleID      pgtype.UUID        `json:"role_id"`
-	UserID      pgtype.UUID        `json:"user_id"`
-	InvitedBy   pgtype.UUID        `json:"invited_by"`
-	CodeHash    string             `json:"code_hash"`
-	Status      string             `json:"status"`
-	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
-	AcceptedAt  pgtype.Timestamptz `json:"accepted_at"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
-	GroupID     pgtype.UUID        `json:"group_id"`
+	ID              pgtype.UUID        `json:"id"`
+	WorkspaceID     pgtype.UUID        `json:"workspace_id"`
+	Email           string             `json:"email"`
+	RoleID          pgtype.UUID        `json:"role_id"`
+	UserID          pgtype.UUID        `json:"user_id"`
+	InvitedBy       pgtype.UUID        `json:"invited_by"`
+	CodeHash        string             `json:"code_hash"`
+	Status          string             `json:"status"`
+	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
+	AcceptedAt      pgtype.Timestamptz `json:"accepted_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	GroupID         pgtype.UUID        `json:"group_id"`
+	AccessExpiresAt pgtype.Timestamptz `json:"access_expires_at"`
 }

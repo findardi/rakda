@@ -15,9 +15,11 @@ func TestBuildEmailsRenderFully(t *testing.T) {
 		{"verify", BuildVerifyEmail("123456")},
 		{"reset", BuildResetPasswordEmail("654321")},
 		{"invite_registered", BuildInviteEmail("https://app.rakda.id", "Budi", "Proyek A",
-			"tok", true, time.Date(2026, 9, 10, 0, 0, 0, 0, time.UTC))},
+			"tok", true, time.Date(2026, 9, 10, 0, 0, 0, 0, time.UTC), time.Time{})},
 		{"invite_new_user", BuildInviteEmail("https://app.rakda.id", "", "",
-			"tok", false, time.Time{})},
+			"tok", false, time.Time{}, time.Time{})},
+		{"invite_with_access_window", BuildInviteEmail("https://app.rakda.id", "Budi", "Proyek A",
+			"tok", true, time.Date(2026, 9, 10, 0, 0, 0, 0, time.UTC), time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC))},
 	}
 
 	for _, c := range cases {

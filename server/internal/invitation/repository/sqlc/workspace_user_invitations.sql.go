@@ -18,7 +18,7 @@ update workspace_user_invitations set
     accepted_at = now(),
     updated_at = now()
 where id = $1 and status = 'pending'
-returning id, workspace_id, email, role_id, user_id, invited_by, code_hash, status, expires_at, accepted_at, created_at, updated_at, group_id
+returning id, workspace_id, email, role_id, user_id, invited_by, code_hash, status, expires_at, accepted_at, created_at, updated_at, group_id, access_expires_at
 `
 
 type AcceptWorkspaceInvitationParams struct {
@@ -43,6 +43,7 @@ func (q *Queries) AcceptWorkspaceInvitation(ctx context.Context, arg AcceptWorks
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.GroupID,
+		&i.AccessExpiresAt,
 	)
 	return i, err
 }
@@ -97,7 +98,7 @@ func (q *Queries) AssignToGroup(ctx context.Context, arg AssignToGroupParams) er
 
 const getMyInvitations = `-- name: GetMyInvitations :many
 select 
-    wi.id, wi.workspace_id, wi.email, wi.role_id, wi.user_id, wi.invited_by, wi.code_hash, wi.status, wi.expires_at, wi.accepted_at, wi.created_at, wi.updated_at, wi.group_id,
+    wi.id, wi.workspace_id, wi.email, wi.role_id, wi.user_id, wi.invited_by, wi.code_hash, wi.status, wi.expires_at, wi.accepted_at, wi.created_at, wi.updated_at, wi.group_id, wi.access_expires_at,
     u.username as invited_name,
     r.name as role_name,
     w.name as workspace_name
@@ -114,22 +115,23 @@ order by wi.created_at desc
 `
 
 type GetMyInvitationsRow struct {
-	ID            pgtype.UUID        `json:"id"`
-	WorkspaceID   pgtype.UUID        `json:"workspace_id"`
-	Email         string             `json:"email"`
-	RoleID        pgtype.UUID        `json:"role_id"`
-	UserID        pgtype.UUID        `json:"user_id"`
-	InvitedBy     pgtype.UUID        `json:"invited_by"`
-	CodeHash      string             `json:"code_hash"`
-	Status        string             `json:"status"`
-	ExpiresAt     pgtype.Timestamptz `json:"expires_at"`
-	AcceptedAt    pgtype.Timestamptz `json:"accepted_at"`
-	CreatedAt     pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
-	GroupID       pgtype.UUID        `json:"group_id"`
-	InvitedName   *string            `json:"invited_name"`
-	RoleName      *string            `json:"role_name"`
-	WorkspaceName *string            `json:"workspace_name"`
+	ID              pgtype.UUID        `json:"id"`
+	WorkspaceID     pgtype.UUID        `json:"workspace_id"`
+	Email           string             `json:"email"`
+	RoleID          pgtype.UUID        `json:"role_id"`
+	UserID          pgtype.UUID        `json:"user_id"`
+	InvitedBy       pgtype.UUID        `json:"invited_by"`
+	CodeHash        string             `json:"code_hash"`
+	Status          string             `json:"status"`
+	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
+	AcceptedAt      pgtype.Timestamptz `json:"accepted_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	GroupID         pgtype.UUID        `json:"group_id"`
+	AccessExpiresAt pgtype.Timestamptz `json:"access_expires_at"`
+	InvitedName     *string            `json:"invited_name"`
+	RoleName        *string            `json:"role_name"`
+	WorkspaceName   *string            `json:"workspace_name"`
 }
 
 func (q *Queries) GetMyInvitations(ctx context.Context, userID pgtype.UUID) ([]GetMyInvitationsRow, error) {
@@ -155,6 +157,7 @@ func (q *Queries) GetMyInvitations(ctx context.Context, userID pgtype.UUID) ([]G
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.GroupID,
+			&i.AccessExpiresAt,
 			&i.InvitedName,
 			&i.RoleName,
 			&i.WorkspaceName,
@@ -170,7 +173,7 @@ func (q *Queries) GetMyInvitations(ctx context.Context, userID pgtype.UUID) ([]G
 }
 
 const getWorkspaceInvitation = `-- name: GetWorkspaceInvitation :one
-select id, workspace_id, email, role_id, user_id, invited_by, code_hash, status, expires_at, accepted_at, created_at, updated_at, group_id from workspace_user_invitations where id = $1
+select id, workspace_id, email, role_id, user_id, invited_by, code_hash, status, expires_at, accepted_at, created_at, updated_at, group_id, access_expires_at from workspace_user_invitations where id = $1
 `
 
 func (q *Queries) GetWorkspaceInvitation(ctx context.Context, id pgtype.UUID) (WorkspaceUserInvitation, error) {
@@ -190,26 +193,33 @@ func (q *Queries) GetWorkspaceInvitation(ctx context.Context, id pgtype.UUID) (W
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.GroupID,
+		&i.AccessExpiresAt,
 	)
 	return i, err
 }
 
 const insertMember = `-- name: InsertMember :exec
 insert into workspace_members
-    (workspace_id, user_id, role_id, status)
+    (workspace_id, user_id, role_id, status, expires_at)
 values
-    ($1, $2, $3, 'active')
+    ($1, $2, $3, 'active', $4)
 on conflict (workspace_id, user_id) do nothing
 `
 
 type InsertMemberParams struct {
-	WorkspaceID pgtype.UUID `json:"workspace_id"`
-	UserID      pgtype.UUID `json:"user_id"`
-	RoleID      pgtype.UUID `json:"role_id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	UserID      pgtype.UUID        `json:"user_id"`
+	RoleID      pgtype.UUID        `json:"role_id"`
+	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
 }
 
 func (q *Queries) InsertMember(ctx context.Context, arg InsertMemberParams) error {
-	_, err := q.db.Exec(ctx, insertMember, arg.WorkspaceID, arg.UserID, arg.RoleID)
+	_, err := q.db.Exec(ctx, insertMember,
+		arg.WorkspaceID,
+		arg.UserID,
+		arg.RoleID,
+		arg.ExpiresAt,
+	)
 	return err
 }
 
@@ -218,7 +228,7 @@ update workspace_user_invitations set
     status = 'rejected',
     updated_at = now()
 where id = $1 and status = 'pending'
-returning id, workspace_id, email, role_id, user_id, invited_by, code_hash, status, expires_at, accepted_at, created_at, updated_at, group_id
+returning id, workspace_id, email, role_id, user_id, invited_by, code_hash, status, expires_at, accepted_at, created_at, updated_at, group_id, access_expires_at
 `
 
 func (q *Queries) RejectWorkspaceInvitation(ctx context.Context, id pgtype.UUID) (WorkspaceUserInvitation, error) {
@@ -238,6 +248,7 @@ func (q *Queries) RejectWorkspaceInvitation(ctx context.Context, id pgtype.UUID)
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.GroupID,
+		&i.AccessExpiresAt,
 	)
 	return i, err
 }

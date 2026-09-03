@@ -109,6 +109,7 @@ func (m *Module) RegisterRoutes(r chi.Router) {
 					r.With(m.mw.RequirePermission(permission.PermMemberView)).Get("/", m.handler.GetMembers)
 					r.With(m.mw.RequirePermission(permission.PermMemberView)).Get("/{memberID}", m.handler.GetMember)
 					r.With(m.mw.RequirePermission(permission.PermMemberEdit)).Put("/{memberID}", m.handler.UpdateMember)
+					r.With(m.mw.RequirePermission(permission.PermMemberEdit)).Patch("/{memberID}/expiry", m.handler.UpdateMemberExpiry)
 					r.With(m.mw.RequirePermission(permission.PermMemberDelete)).Delete("/{memberID}", m.handler.DeleteMember)
 				})
 

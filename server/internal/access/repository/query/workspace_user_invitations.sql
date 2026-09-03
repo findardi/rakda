@@ -1,9 +1,9 @@
 -- name: InsertWorkspaceInvitation :one
 with created as (
     insert into workspace_user_invitations
-        (workspace_id, email, role_id, user_id, group_id, invited_by, code_hash, status, expires_at)
+        (workspace_id, email, role_id, user_id, group_id, invited_by, code_hash, status, expires_at, access_expires_at)
     values
-        ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
     returning *
 )
 select
@@ -47,6 +47,7 @@ select
     i.created_at,
     i.updated_at,
     i.group_id,
+    i.access_expires_at,
     r.name as role_name,
     u.username as invited_by_username,
     g.name as group_name
@@ -114,6 +115,7 @@ with updated as (
         invited_by = @invited_by,
         code_hash = @code_hash,
         expires_at = @expires_at,
+        access_expires_at = @access_expires_at,
         accepted_at = null,
         updated_at = now()
     where workspace_id = @workspace_id

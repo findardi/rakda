@@ -31,6 +31,9 @@ type Querier interface {
 	GetMember(ctx context.Context, id pgtype.UUID) (GetMemberRow, error)
 	GetMemberByWorkspaceUser(ctx context.Context, arg GetMemberByWorkspaceUserParams) (WorkspaceMember, error)
 	GetMembers(ctx context.Context, workspaceID pgtype.UUID) ([]GetMembersRow, error)
+	// The one membership lookup every room route goes through. A lapsed
+	// expires_at reads as "not a member" here, so the gate is fail-closed for all
+	// modules at once without touching their resolvers.
 	GetMembershipWithPermissions(ctx context.Context, arg GetMembershipWithPermissionsParams) (GetMembershipWithPermissionsRow, error)
 	GetRole(ctx context.Context, id pgtype.UUID) (WorkspaceRole, error)
 	GetRoles(ctx context.Context, workspaceID pgtype.UUID) ([]WorkspaceRole, error)
@@ -51,6 +54,9 @@ type Querier interface {
 	RevokeWorkspaceInvitation(ctx context.Context, id pgtype.UUID) (WorkspaceUserInvitation, error)
 	UpdateGroup(ctx context.Context, arg UpdateGroupParams) (WorkspaceGroup, error)
 	UpdateGroupQA(ctx context.Context, arg UpdateGroupQAParams) (WorkspaceGroup, error)
+	// NULL clears the expiry; a future date extends or shortens it. Nothing else
+	// about the membership moves, so a lapsed member is revived by this alone.
+	UpdateMemberExpiry(ctx context.Context, arg UpdateMemberExpiryParams) (WorkspaceMember, error)
 	UpdateRole(ctx context.Context, arg UpdateRoleParams) (WorkspaceMember, error)
 }
 

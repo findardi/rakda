@@ -36,9 +36,9 @@ select * from workspace_user_invitations where id = $1;
 
 -- name: InsertMember :exec
 insert into workspace_members
-    (workspace_id, user_id, role_id, status)
+    (workspace_id, user_id, role_id, status, expires_at)
 values
-    ($1, $2, $3, 'active')
+    ($1, $2, $3, 'active', $4)
 on conflict (workspace_id, user_id) do nothing;
 
 -- name: AssignDefaultGroupIfGuest :exec

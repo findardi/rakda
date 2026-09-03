@@ -6,6 +6,7 @@ Anda diundang ke ruang data
 {{.Link}}{{else}}Buat akun Anda untuk menerima undangan:
 {{.Link}}{{end}}
 {{if .ExpiresLabel}}Undangan berlaku sampai {{.ExpiresLabel}}.{{end}}
+{{if .AccessExpiresLabel}}Akses Anda ke ruang ini berlaku sampai {{.AccessExpiresLabel}}.{{end}}
 
 ---
 Anda menerima email ini karena {{.Reason}}.

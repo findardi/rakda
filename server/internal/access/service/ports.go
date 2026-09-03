@@ -19,6 +19,7 @@ type AccessRepository interface {
 	DeleteGroupMember(ctx context.Context, arg accessdb.DeleteGroupMemberParams) error
 
 	UpdateRole(ctx context.Context, arg accessdb.UpdateRoleParams) (accessdb.WorkspaceMember, error)
+	UpdateMemberExpiry(ctx context.Context, arg accessdb.UpdateMemberExpiryParams) (accessdb.WorkspaceMember, error)
 
 	GetRole(ctx context.Context, id pgtype.UUID) (accessdb.WorkspaceRole, error)
 	GetRoles(ctx context.Context, workspaceID pgtype.UUID) ([]accessdb.WorkspaceRole, error)

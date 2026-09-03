@@ -24,7 +24,8 @@ select w.* from workspaces w
 join workspace_members m on m.workspace_id = w.id
 where w.id = sqlc.arg(workspace_id)
   and m.user_id = sqlc.arg(user_id)
-  and m.status = 'active';
+  and m.status = 'active'
+  and (m.expires_at is null or m.expires_at > now());
 
 -- name: UpdateWorkspaceStatus :one
 update workspaces set 
@@ -50,7 +51,8 @@ select r.name from workspace_members m
 join workspace_roles r on r.id = m.role_id
 where m.workspace_id = sqlc.arg(workspace_id)
   and m.user_id = sqlc.arg(user_id)
-  and m.status = 'active';
+  and m.status = 'active'
+  and (m.expires_at is null or m.expires_at > now());
 
 -- name: GetWorkspaceSummary :one
 select
@@ -78,4 +80,5 @@ join workspace_members wm on wm.workspace_id = w.id
 join workspace_roles r on r.id = wm.role_id
 where wm.user_id = sqlc.arg(user_id)
   and wm.status = 'active'
+  and (wm.expires_at is null or wm.expires_at > now())
 order by last_activity_at desc nulls last, w.created_at desc, w.id;

@@ -22,6 +22,8 @@ const (
 	MemberStatusInvited   = "invited"
 	MemberStatusActive    = "active"
 	MemberStatusSuspended = "suspended"
+	// Derived only — never stored. See memberStatus.
+	MemberStatusExpired = "expired"
 )
 
 const (
@@ -75,6 +77,10 @@ var (
 	ErrDeleteDefaultGroup = errors.New("group is default by system, cant deleted")
 
 	ErrAssignMemberRole = errors.New("only can assign guest role")
+
+	ErrExpiryGuestOnly = errors.New("access expiry can only be set for the guest role")
+	ErrExpiryInvalid   = errors.New("access expiry must be an RFC 3339 timestamp")
+	ErrExpiryInPast    = errors.New("access expiry must be in the future")
 )
 
 type AccessService struct {
@@ -132,6 +138,59 @@ func deref(s *string) string {
 		return ""
 	}
 	return *s
+}
+
+// parseAccessExpiry turns the optional expiry a manager typed into a column
+// value. Only guests may carry one, and it must lie in the future: a date
+// already past would mint a member who is expired on arrival, which is a
+// removal wearing the wrong name. Empty means "never expires".
+func parseAccessExpiry(raw, roleName string) (pgtype.Timestamptz, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return pgtype.Timestamptz{}, nil
+	}
+	if roleName != permission.RoleGuest {
+		return pgtype.Timestamptz{}, ErrExpiryGuestOnly
+	}
+
+	t, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		return pgtype.Timestamptz{}, ErrExpiryInvalid
+	}
+	if !t.After(time.Now()) {
+		return pgtype.Timestamptz{}, ErrExpiryInPast
+	}
+
+	return pgtype.Timestamptz{Time: t.UTC(), Valid: true}, nil
+}
+
+// memberStatus derives the status the API reports. The lapse is never
+// stored — the invitation list derives its "expired" the same way in SQL — so
+// a member reads as expired the moment the date passes and as active again
+// the moment a manager moves it forward. Mirrors the guard in
+// GetMembershipWithPermissions: expires_at <= now() is out.
+func memberStatus(stored string, expiresAt pgtype.Timestamptz) string {
+	if expiresAt.Valid && !expiresAt.Time.After(time.Now()) {
+		return MemberStatusExpired
+	}
+	return stored
+}
+
+func timePtr(t pgtype.Timestamptz) *time.Time {
+	if !t.Valid {
+		return nil
+	}
+	v := t.Time
+	return &v
+}
+
+// rfc3339OrNil formats an optional time for audit metadata; nil stays a JSON
+// null so "cleared" is distinguishable from "unknown".
+func rfc3339OrNil(t *time.Time) any {
+	if t == nil {
+		return nil
+	}
+	return t.UTC().Format(time.RFC3339)
 }
 
 func isUniqueViolation(err error, constraint string) bool {
@@ -311,9 +370,17 @@ func (s *AccessService) AddMembers(ctx context.Context, req dto.AddMembersReques
 		groupName = g.Name
 	}
 
+	accessExpiresAt, err := parseAccessExpiry(req.AccessExpiresAt, invitedRole.Name)
+	if err != nil {
+		return outcome, err
+	}
+
 	inviteMeta := map[string]any{"role": invitedRole.Name}
 	if groupName != "" {
 		inviteMeta["group"] = groupName
+	}
+	if accessExpiresAt.Valid {
+		inviteMeta["access_expires_at"] = accessExpiresAt.Time.Format(time.RFC3339)
 	}
 
 	seen := make(map[string]struct{})
@@ -367,18 +434,20 @@ func (s *AccessService) AddMembers(ctx context.Context, req dto.AddMembersReques
 		// whose expiry has lapsed — for this email instead of leaving a stale
 		// row and inserting a duplicate that the pending unique index rejects.
 		revived, err := s.repo.ReinviteWorkspaceInvitation(ctx, accessdb.ReinviteWorkspaceInvitationParams{
-			WorkspaceID: wsID,
-			Email:       email,
-			RoleID:      roleID,
-			GroupID:     gID,
-			UserID:      uID,
-			InvitedBy:   inID,
-			CodeHash:    codeHash,
-			ExpiresAt:   expiresAt,
+			WorkspaceID:     wsID,
+			Email:           email,
+			RoleID:          roleID,
+			GroupID:         gID,
+			UserID:          uID,
+			InvitedBy:       inID,
+			CodeHash:        codeHash,
+			ExpiresAt:       expiresAt,
+			AccessExpiresAt: accessExpiresAt,
 		})
 		if err == nil {
 			s.sendInviteEmail(email, rawToken, registered,
-				revived.WorkspaceName, deref(revived.InvitedByUsername), revived.ExpiresAt.Time)
+				revived.WorkspaceName, deref(revived.InvitedByUsername),
+				revived.ExpiresAt.Time, revived.AccessExpiresAt.Time)
 			s.activity.Record(ctx, s.activityEntry(req.WorkspaceId, actor,
 				activityservice.ActionInviteSent, activityservice.TargetInvitation,
 				uuidString(revived.ID), email, inviteMeta))
@@ -402,15 +471,16 @@ func (s *AccessService) AddMembers(ctx context.Context, req dto.AddMembersReques
 
 		// No revivable invitation: create a fresh one.
 		fresh, err := s.repo.InsertWorkspaceInvitation(ctx, accessdb.InsertWorkspaceInvitationParams{
-			WorkspaceID: wsID,
-			Email:       email,
-			RoleID:      roleID,
-			UserID:      uID,
-			GroupID:     gID,
-			InvitedBy:   inID,
-			CodeHash:    codeHash,
-			Status:      InviteStatusPending,
-			ExpiresAt:   expiresAt,
+			WorkspaceID:     wsID,
+			Email:           email,
+			RoleID:          roleID,
+			UserID:          uID,
+			GroupID:         gID,
+			InvitedBy:       inID,
+			CodeHash:        codeHash,
+			Status:          InviteStatusPending,
+			ExpiresAt:       expiresAt,
+			AccessExpiresAt: accessExpiresAt,
 		})
 		if isUniqueViolation(err, "workspace_invitations_pending_key") {
 			outcome = append(outcome, dto.AddMembersResponse{
@@ -425,7 +495,8 @@ func (s *AccessService) AddMembers(ctx context.Context, req dto.AddMembersReques
 		}
 
 		s.sendInviteEmail(email, rawToken, registered,
-			fresh.WorkspaceName, deref(fresh.InvitedByUsername), fresh.ExpiresAt.Time)
+			fresh.WorkspaceName, deref(fresh.InvitedByUsername),
+			fresh.ExpiresAt.Time, fresh.AccessExpiresAt.Time)
 		s.activity.Record(ctx, s.activityEntry(req.WorkspaceId, actor,
 			activityservice.ActionInviteSent, activityservice.TargetInvitation,
 			uuidString(fresh.ID), email, inviteMeta))
@@ -479,6 +550,7 @@ func (s *AccessService) ListInvitations(ctx context.Context, workspaceID, status
 			InvitedByUsername: deref(r.InvitedByUsername),
 			Status:            r.Status,
 			ExpiresAt:         r.ExpiresAt.Time,
+			AccessExpiresAt:   timePtr(r.AccessExpiresAt),
 			CreatedAt:         r.CreatedAt.Time,
 		})
 	}
@@ -488,8 +560,8 @@ func (s *AccessService) ListInvitations(ctx context.Context, workspaceID, status
 
 // sendInviteEmail fires the invite email in the background; the request ctx
 // would be cancelled, so use a fresh one. Failure is logged, not fatal.
-func (s *AccessService) sendInviteEmail(to, token string, registered bool, workspaceName, invitedBy string, expiresAt time.Time) {
-	em := sender.BuildInviteEmail(s.webURL, invitedBy, workspaceName, token, registered, expiresAt)
+func (s *AccessService) sendInviteEmail(to, token string, registered bool, workspaceName, invitedBy string, expiresAt, accessExpiresAt time.Time) {
+	em := sender.BuildInviteEmail(s.webURL, invitedBy, workspaceName, token, registered, expiresAt, accessExpiresAt)
 
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -573,13 +645,14 @@ func (s *AccessService) GetMembers(ctx context.Context, workspaceID string) ([]d
 			WorkspaceID: uuidString(w.WorkspaceID),
 			UserID:      uuidString(w.UserID),
 			RoleID:      uuidString(w.RoleID),
-			Status:      w.Status,
+			Status:      memberStatus(w.Status, w.ExpiresAt),
 			CreatedAt:   w.CreatedAt.Time,
 			UpdatedAt:   w.UpdatedAt.Time,
 			RoleName:    deref(w.RoleName),
 			Username:    deref(w.Username),
 			Email:       deref(w.Email),
 			GroupNames:  w.GroupNames,
+			ExpiresAt:   timePtr(w.ExpiresAt),
 		}
 
 		members = append(members, member)
@@ -607,13 +680,14 @@ func (s *AccessService) GetMember(ctx context.Context, memberID string) (dto.Get
 		WorkspaceID: uuidString(w.WorkspaceID),
 		UserID:      uuidString(w.UserID),
 		RoleID:      uuidString(w.RoleID),
-		Status:      w.Status,
+		Status:      memberStatus(w.Status, w.ExpiresAt),
 		CreatedAt:   w.CreatedAt.Time,
 		UpdatedAt:   w.UpdatedAt.Time,
 		RoleName:    deref(w.RoleName),
 		Username:    deref(w.Username),
 		Email:       deref(w.Email),
 		GroupNames:  w.GroupNames,
+		ExpiresAt:   timePtr(w.ExpiresAt),
 	}, nil
 }
 
@@ -664,6 +738,80 @@ func (s *AccessService) UpdateMemberRole(ctx context.Context, req dto.UpdateMemb
 		req.MemberID, target.Email, map[string]any{"from": target.RoleName, "to": newRole.Name}))
 
 	return s.GetMember(ctx, req.MemberID)
+}
+
+// UpdateMemberExpiry sets, moves, or clears a guest's access expiry. Nothing
+// but the date is checked at the gate, so a lapsed member is revived by a new
+// future date or by clearing it — no re-invitation, group and history intact.
+func (s *AccessService) UpdateMemberExpiry(ctx context.Context, req dto.UpdateMemberExpiryRequest, actor Actor) (dto.GetMemberResponse, error) {
+	var mID pgtype.UUID
+	if err := mID.Scan(req.MemberID); err != nil {
+		return dto.GetMemberResponse{}, fmt.Errorf("parse member id: %w", err)
+	}
+
+	target, err := s.GetMember(ctx, req.MemberID)
+	if err != nil {
+		return dto.GetMemberResponse{}, err
+	}
+	// Checked here as well as in parseAccessExpiry so that clearing on a
+	// non-guest is refused too, rather than silently succeeding as a no-op.
+	if target.RoleName != permission.RoleGuest {
+		return dto.GetMemberResponse{}, ErrExpiryGuestOnly
+	}
+
+	var expiresAt pgtype.Timestamptz
+	if req.ExpiresAt != nil {
+		expiresAt, err = parseAccessExpiry(*req.ExpiresAt, target.RoleName)
+		if err != nil {
+			return dto.GetMemberResponse{}, err
+		}
+	}
+
+	_, err = s.repo.UpdateMemberExpiry(ctx, accessdb.UpdateMemberExpiryParams{
+		ID:        mID,
+		ExpiresAt: expiresAt,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return dto.GetMemberResponse{}, ErrMemberNotFound
+	}
+	if err != nil {
+		return dto.GetMemberResponse{}, fmt.Errorf("update member expiry: %w", err)
+	}
+
+	s.activity.Record(ctx, s.activityEntry(target.WorkspaceID, actor,
+		activityservice.ActionMemberExpiryChanged, activityservice.TargetMember,
+		req.MemberID, target.Email, map[string]any{
+			"from": rfc3339OrNil(target.ExpiresAt),
+			"to":   rfc3339OrNil(timePtr(expiresAt)),
+		}))
+
+	return s.GetMember(ctx, req.MemberID)
+}
+
+// MemberExpiry reports the caller's own access expiry in a room, nil when
+// none is set. Read on its own rather than through the membership guard so
+// the guard's Membership shape — copied per module — stays untouched.
+func (s *AccessService) MemberExpiry(ctx context.Context, workspaceID, userID string) (*time.Time, error) {
+	var wsID, uID pgtype.UUID
+	if err := wsID.Scan(workspaceID); err != nil {
+		return nil, fmt.Errorf("parse workspace id: %w", err)
+	}
+	if err := uID.Scan(userID); err != nil {
+		return nil, fmt.Errorf("parse user id: %w", err)
+	}
+
+	m, err := s.repo.GetMemberByWorkspaceUser(ctx, accessdb.GetMemberByWorkspaceUserParams{
+		WorkspaceID: wsID,
+		UserID:      uID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrMemberNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get member: %w", err)
+	}
+
+	return timePtr(m.ExpiresAt), nil
 }
 
 func (s *AccessService) DeleteMember(ctx context.Context, memberID string, actor Actor) error {
@@ -725,7 +873,8 @@ func (s *AccessService) ResendInvitation(ctx context.Context, invitationID strin
 	// The email must carry the renewed expiry, not the one on the row fetched
 	// before the update — for a lapsed invitation that date is in the past.
 	s.sendInviteEmail(inv.Email, rawToken, inv.UserID.Valid,
-		inv.WorkspaceName, deref(inv.InvitedByUsername), updated.ExpiresAt.Time)
+		inv.WorkspaceName, deref(inv.InvitedByUsername),
+		updated.ExpiresAt.Time, updated.AccessExpiresAt.Time)
 	s.activity.Record(ctx, s.activityEntry(uuidString(inv.WorkspaceID), actor,
 		activityservice.ActionInviteResent, activityservice.TargetInvitation,
 		invitationID, inv.Email, nil))

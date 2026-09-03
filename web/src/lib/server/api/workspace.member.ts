@@ -3,10 +3,11 @@ import type {
 	AddMemberResult,
 	AddMembersPayload,
 	InvitationData,
+	UpdateMemberExpiryPayload,
 	UpdateMemberRolePayload,
 	WorkspaceMemberData
 } from '$lib/types/workspace';
-import { del, get, post, put } from './client';
+import { del, get, patch, post, put } from './client';
 
 // Bulk invite. The backend resolves account existence per email internally and
 // returns a per-email outcome — it never tells the caller who was registered.
@@ -69,6 +70,20 @@ export async function updateMemberRole(
 ): Promise<ApiResult<WorkspaceMemberData>> {
 	return put<WorkspaceMemberData>(
 		`/access/workspaces/${workspaceId}/members/${memberId}`,
+		p,
+		token
+	);
+}
+
+// Set or clear a guest's access expiry. Guest-only on the backend (400 otherwise).
+export async function updateMemberExpiry(
+	token: string,
+	workspaceId: string,
+	memberId: string,
+	p: UpdateMemberExpiryPayload
+): Promise<ApiResult<WorkspaceMemberData>> {
+	return patch<WorkspaceMemberData>(
+		`/access/workspaces/${workspaceId}/members/${memberId}/expiry`,
 		p,
 		token
 	);

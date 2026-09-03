@@ -35,6 +35,7 @@ const (
 	ActionInviteRevoked          = "invite_revoked"
 	ActionMemberRemoved          = "member_removed"
 	ActionRoleChanged            = "role_changed"
+	ActionMemberExpiryChanged    = "member_expiry_changed"
 	ActionGroupCreated           = "group_created"
 	ActionGroupUpdated           = "group_updated"
 	ActionGroupDeleted           = "group_deleted"
