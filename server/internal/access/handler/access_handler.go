@@ -49,8 +49,26 @@ func (h *AccessHandler) GetMyAccess(w http.ResponseWriter, r *http.Request) {
 		response.Error(w, http.StatusInternalServerError, "internal server error", nil)
 		return
 	}
+	claims, ok := middleware.ClaimsFromContext(r.Context())
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
 
-	response.Success(w, http.StatusOK, "get my access success", ms)
+	expiresAt, err := h.svc.MemberExpiry(r.Context(), chi.URLParam(r, "workspaceID"), claims.ID)
+	if err != nil {
+		log.Printf("get my access internal error: %v", err)
+		response.Error(w, http.StatusInternalServerError, "internal server error", nil)
+		return
+	}
+
+	response.Success(w, http.StatusOK, "get my access success", dto.MyAccessResponse{
+		Role:            ms.Role,
+		Permissions:     ms.Permissions,
+		Status:          ms.Status,
+		WorkspaceStatus: ms.WorkspaceStatus,
+		ExpiresAt:       expiresAt,
+	})
 }
 
 func (h *AccessHandler) GetRoles(w http.ResponseWriter, r *http.Request) {
@@ -165,7 +183,10 @@ func (h *AccessHandler) AddMembers(w http.ResponseWriter, r *http.Request) {
 			response.Error(w, http.StatusForbidden, err.Error(), nil)
 		case errors.Is(err, service.ErrRoleNotFound), errors.Is(err, service.ErrGroupNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
-		case errors.Is(err, service.ErrGroupGuestOnly):
+		case errors.Is(err, service.ErrGroupGuestOnly),
+			errors.Is(err, service.ErrExpiryGuestOnly),
+			errors.Is(err, service.ErrExpiryInvalid),
+			errors.Is(err, service.ErrExpiryInPast):
 			response.Error(w, http.StatusBadRequest, err.Error(), nil)
 		default:
 			log.Printf("add members internal error: %v", err)
@@ -271,6 +292,44 @@ func (h *AccessHandler) UpdateMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.Success(w, http.StatusOK, "update member success", res)
+}
+
+func (h *AccessHandler) UpdateMemberExpiry(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
+
+	mID := chi.URLParam(r, "memberID")
+
+	var req dto.UpdateMemberExpiryRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
+		return
+	}
+
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
+		return
+	}
+
+	req.MemberID = mID
+
+	res, err := h.svc.UpdateMemberExpiry(r.Context(), req, actor)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrMemberNotFound):
+			response.Error(w, http.StatusNotFound, err.Error(), nil)
+		case errors.Is(err, service.ErrExpiryGuestOnly),
+			errors.Is(err, service.ErrExpiryInvalid),
+			errors.Is(err, service.ErrExpiryInPast):
+			response.Error(w, http.StatusBadRequest, err.Error(), nil)
+		default:
+			log.Printf("update member expiry internal error: %v", err)
+			response.Error(w, http.StatusInternalServerError, "internal server error", nil)
+		}
+		return
+	}
+
+	response.Success(w, http.StatusOK, "update member expiry success", res)
 }
 
 func (h *AccessHandler) DeleteMember(w http.ResponseWriter, r *http.Request) {

@@ -64,6 +64,7 @@ join workspace_roles r on r.id = m.role_id
 where m.workspace_id = $1
   and m.user_id = $2
   and m.status = 'active'
+  and (m.expires_at is null or m.expires_at > now())
 `
 
 type GetMemberRoleNameParams struct {
@@ -156,6 +157,7 @@ join workspace_members m on m.workspace_id = w.id
 where w.id = $1
   and m.user_id = $2
   and m.status = 'active'
+  and (m.expires_at is null or m.expires_at > now())
 `
 
 type GetWorkspaceForMemberParams struct {
@@ -219,6 +221,7 @@ join workspace_members wm on wm.workspace_id = w.id
 join workspace_roles r on r.id = wm.role_id
 where wm.user_id = $1
   and wm.status = 'active'
+  and (wm.expires_at is null or wm.expires_at > now())
 order by last_activity_at desc nulls last, w.created_at desc, w.id
 `
 

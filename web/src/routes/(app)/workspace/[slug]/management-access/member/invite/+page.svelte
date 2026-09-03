@@ -178,6 +178,13 @@
 							{t('pending.expires')}
 							<span class="font-mono">{fmtDate(inv.expires_at)}</span>
 						</span>
+						{#if inv.access_expires_at}
+							<span aria-hidden="true">·</span>
+							<span>
+								{t('pending.accessUntil')}
+								<span class="font-mono">{fmtDate(inv.access_expires_at)}</span>
+							</span>
+						{/if}
 						{#if inv.invited_by_username}
 							<span aria-hidden="true">·</span>
 							<span>{t('pending.invitedBy', { name: inv.invited_by_username })}</span>

@@ -13,17 +13,18 @@ import (
 
 const addMember = `-- name: AddMember :one
 insert into workspace_members
-    (workspace_id, user_id, role_id, status)
+    (workspace_id, user_id, role_id, status, expires_at)
 values
-    ($1, $2, $3, $4)
-returning id, workspace_id, user_id, role_id, status, created_at, updated_at
+    ($1, $2, $3, $4, $5)
+returning id, workspace_id, user_id, role_id, status, created_at, updated_at, expires_at
 `
 
 type AddMemberParams struct {
-	WorkspaceID pgtype.UUID `json:"workspace_id"`
-	UserID      pgtype.UUID `json:"user_id"`
-	RoleID      pgtype.UUID `json:"role_id"`
-	Status      string      `json:"status"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	UserID      pgtype.UUID        `json:"user_id"`
+	RoleID      pgtype.UUID        `json:"role_id"`
+	Status      string             `json:"status"`
+	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
 }
 
 func (q *Queries) AddMember(ctx context.Context, arg AddMemberParams) (WorkspaceMember, error) {
@@ -32,6 +33,7 @@ func (q *Queries) AddMember(ctx context.Context, arg AddMemberParams) (Workspace
 		arg.UserID,
 		arg.RoleID,
 		arg.Status,
+		arg.ExpiresAt,
 	)
 	var i WorkspaceMember
 	err := row.Scan(
@@ -42,6 +44,7 @@ func (q *Queries) AddMember(ctx context.Context, arg AddMemberParams) (Workspace
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ExpiresAt,
 	)
 	return i, err
 }
@@ -57,7 +60,7 @@ func (q *Queries) DeleteMember(ctx context.Context, id pgtype.UUID) error {
 
 const getMember = `-- name: GetMember :one
 select 
-    m.id, m.workspace_id, m.user_id, m.role_id, m.status, m.created_at, m.updated_at,
+    m.id, m.workspace_id, m.user_id, m.role_id, m.status, m.created_at, m.updated_at, m.expires_at,
     r.name as role_name,
     u.username,
     u.email,
@@ -92,6 +95,7 @@ type GetMemberRow struct {
 	Status      string             `json:"status"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
 	RoleName    *string            `json:"role_name"`
 	Username    *string            `json:"username"`
 	Email       *string            `json:"email"`
@@ -109,6 +113,7 @@ func (q *Queries) GetMember(ctx context.Context, id pgtype.UUID) (GetMemberRow, 
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ExpiresAt,
 		&i.RoleName,
 		&i.Username,
 		&i.Email,
@@ -118,7 +123,7 @@ func (q *Queries) GetMember(ctx context.Context, id pgtype.UUID) (GetMemberRow, 
 }
 
 const getMemberByWorkspaceUser = `-- name: GetMemberByWorkspaceUser :one
-select id, workspace_id, user_id, role_id, status, created_at, updated_at from workspace_members
+select id, workspace_id, user_id, role_id, status, created_at, updated_at, expires_at from workspace_members
 where workspace_id = $1 and user_id = $2
 `
 
@@ -138,13 +143,14 @@ func (q *Queries) GetMemberByWorkspaceUser(ctx context.Context, arg GetMemberByW
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ExpiresAt,
 	)
 	return i, err
 }
 
 const getMembers = `-- name: GetMembers :many
 select 
-    m.id, m.workspace_id, m.user_id, m.role_id, m.status, m.created_at, m.updated_at,
+    m.id, m.workspace_id, m.user_id, m.role_id, m.status, m.created_at, m.updated_at, m.expires_at,
     r.name as role_name,
     u.username,
     u.email,
@@ -180,6 +186,7 @@ type GetMembersRow struct {
 	Status      string             `json:"status"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
 	RoleName    *string            `json:"role_name"`
 	Username    *string            `json:"username"`
 	Email       *string            `json:"email"`
@@ -203,6 +210,7 @@ func (q *Queries) GetMembers(ctx context.Context, workspaceID pgtype.UUID) ([]Ge
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ExpiresAt,
 			&i.RoleName,
 			&i.Username,
 			&i.Email,
@@ -224,6 +232,7 @@ from workspace_members m
 join workspace_roles r on r.id = m.role_id
 join workspaces w on w.id = m.workspace_id
 where m.workspace_id = $1 and m.user_id = $2
+  and (m.expires_at is null or m.expires_at > now())
 `
 
 type GetMembershipWithPermissionsParams struct {
@@ -238,6 +247,9 @@ type GetMembershipWithPermissionsRow struct {
 	WorkspaceStatus string   `json:"workspace_status"`
 }
 
+// The one membership lookup every room route goes through. A lapsed
+// expires_at reads as "not a member" here, so the gate is fail-closed for all
+// modules at once without touching their resolvers.
 func (q *Queries) GetMembershipWithPermissions(ctx context.Context, arg GetMembershipWithPermissionsParams) (GetMembershipWithPermissionsRow, error) {
 	row := q.db.QueryRow(ctx, getMembershipWithPermissions, arg.WorkspaceID, arg.UserID)
 	var i GetMembershipWithPermissionsRow
@@ -250,12 +262,43 @@ func (q *Queries) GetMembershipWithPermissions(ctx context.Context, arg GetMembe
 	return i, err
 }
 
+const updateMemberExpiry = `-- name: UpdateMemberExpiry :one
+update workspace_members set
+    expires_at = $2,
+    updated_at = now()
+where id = $1
+returning id, workspace_id, user_id, role_id, status, created_at, updated_at, expires_at
+`
+
+type UpdateMemberExpiryParams struct {
+	ID        pgtype.UUID        `json:"id"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+}
+
+// NULL clears the expiry; a future date extends or shortens it. Nothing else
+// about the membership moves, so a lapsed member is revived by this alone.
+func (q *Queries) UpdateMemberExpiry(ctx context.Context, arg UpdateMemberExpiryParams) (WorkspaceMember, error) {
+	row := q.db.QueryRow(ctx, updateMemberExpiry, arg.ID, arg.ExpiresAt)
+	var i WorkspaceMember
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.UserID,
+		&i.RoleID,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ExpiresAt,
+	)
+	return i, err
+}
+
 const updateRole = `-- name: UpdateRole :one
 update workspace_members set
     role_id = $2,
     updated_at = now()
 where id = $1
-returning id, workspace_id, user_id, role_id, status, created_at, updated_at
+returning id, workspace_id, user_id, role_id, status, created_at, updated_at, expires_at
 `
 
 type UpdateRoleParams struct {
@@ -274,6 +317,7 @@ func (q *Queries) UpdateRole(ctx context.Context, arg UpdateRoleParams) (Workspa
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ExpiresAt,
 	)
 	return i, err
 }

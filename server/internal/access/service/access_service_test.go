@@ -8,6 +8,7 @@ import (
 	"github.com/findardi/rakda/server/internal/access/dto"
 	accessdb "github.com/findardi/rakda/server/internal/access/repository/sqlc"
 	activityservice "github.com/findardi/rakda/server/internal/activity/service"
+	authdto "github.com/findardi/rakda/server/internal/auth/dto"
 	"github.com/findardi/rakda/server/internal/platform/permission"
 	"github.com/findardi/rakda/server/internal/platform/sender"
 	"github.com/jackc/pgx/v5"
@@ -43,6 +44,13 @@ func (fakeToken) Hash(code string) string { return "hashed:" + code }
 
 type fakeRecorder struct{}
 
+// fakeAuth knows no accounts: every invitee is a future user.
+type fakeAuth struct{}
+
+func (fakeAuth) UserExists(context.Context, string) (authdto.UserResponse, error) {
+	return authdto.UserResponse{}, nil
+}
+
 func (fakeRecorder) Record(context.Context, activityservice.Entry)                 {}
 func (fakeRecorder) RecordTx(context.Context, pgx.Tx, activityservice.Entry) error { return nil }
 
@@ -53,6 +61,9 @@ type fakeRepo struct {
 	getMemberFn     func(context.Context, pgtype.UUID) (accessdb.GetMemberRow, error)
 	addMemberFn     func(context.Context, accessdb.AddMemberParams) (accessdb.WorkspaceMember, error)
 	updateRoleFn    func(context.Context, accessdb.UpdateRoleParams) (accessdb.WorkspaceMember, error)
+	updateExpiryFn  func(context.Context, accessdb.UpdateMemberExpiryParams) (accessdb.WorkspaceMember, error)
+	reinviteFn      func(context.Context, accessdb.ReinviteWorkspaceInvitationParams) (accessdb.ReinviteWorkspaceInvitationRow, error)
+	insertInvFn     func(context.Context, accessdb.InsertWorkspaceInvitationParams) (accessdb.InsertWorkspaceInvitationRow, error)
 	deleteMemberFn  func(context.Context, pgtype.UUID) error
 	getInvFn        func(context.Context, string) (accessdb.GetInvitationByCodeHashDetailedRow, error)
 	updateGroupQAFn func(context.Context, accessdb.UpdateGroupQAParams) (accessdb.WorkspaceGroup, error)
@@ -93,6 +104,18 @@ func (f *fakeRepo) UpdateRole(ctx context.Context, arg accessdb.UpdateRoleParams
 	return f.updateRoleFn(ctx, arg)
 }
 
+func (f *fakeRepo) UpdateMemberExpiry(ctx context.Context, arg accessdb.UpdateMemberExpiryParams) (accessdb.WorkspaceMember, error) {
+	return f.updateExpiryFn(ctx, arg)
+}
+
+func (f *fakeRepo) ReinviteWorkspaceInvitation(ctx context.Context, arg accessdb.ReinviteWorkspaceInvitationParams) (accessdb.ReinviteWorkspaceInvitationRow, error) {
+	return f.reinviteFn(ctx, arg)
+}
+
+func (f *fakeRepo) InsertWorkspaceInvitation(ctx context.Context, arg accessdb.InsertWorkspaceInvitationParams) (accessdb.InsertWorkspaceInvitationRow, error) {
+	return f.insertInvFn(ctx, arg)
+}
+
 func (f *fakeRepo) DeleteMember(ctx context.Context, id pgtype.UUID) error {
 	return f.deleteMemberFn(ctx, id)
 }
@@ -124,6 +147,60 @@ func TestGuardRoleAssignment(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			assert.ErrorIs(t, guardRoleAssignment(c.actorRole, c.target), c.wantErr)
+		})
+	}
+}
+
+func TestParseAccessExpiry(t *testing.T) {
+	future := time.Now().Add(24 * time.Hour).Format(time.RFC3339)
+	past := time.Now().Add(-time.Minute).Format(time.RFC3339)
+
+	cases := []struct {
+		name    string
+		raw     string
+		role    string
+		wantSet bool
+		wantErr error
+	}{
+		{"empty means never expires", "", permission.RoleGuest, false, nil},
+		{"blank is empty, whatever the role", "   ", permission.RoleAdmin, false, nil},
+		{"guest with a future date", future, permission.RoleGuest, true, nil},
+		{"admin may not carry one", future, permission.RoleAdmin, false, ErrExpiryGuestOnly},
+		{"owner may not carry one", future, permission.RoleOwner, false, ErrExpiryGuestOnly},
+		{"past date", past, permission.RoleGuest, false, ErrExpiryInPast},
+		{"date without time is not RFC 3339", "2030-10-01", permission.RoleGuest, false, ErrExpiryInvalid},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, err := parseAccessExpiry(c.raw, c.role)
+			if c.wantErr != nil {
+				assert.ErrorIs(t, err, c.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, c.wantSet, got.Valid)
+		})
+	}
+}
+
+func TestMemberStatus(t *testing.T) {
+	cases := []struct {
+		name    string
+		stored  string
+		expires pgtype.Timestamptz
+		want    string
+	}{
+		{"no expiry keeps the stored status", MemberStatusActive, pgtype.Timestamptz{}, MemberStatusActive},
+		{"future expiry keeps the stored status", MemberStatusActive,
+			pgtype.Timestamptz{Time: time.Now().Add(time.Hour), Valid: true}, MemberStatusActive},
+		{"lapsed expiry reads expired", MemberStatusActive,
+			pgtype.Timestamptz{Time: time.Now().Add(-time.Hour), Valid: true}, MemberStatusExpired},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.want, memberStatus(c.stored, c.expires))
 		})
 	}
 }
@@ -209,6 +286,93 @@ func TestAddMembersGroupValidation(t *testing.T) {
 		require.Error(t, err)
 		assert.NotErrorIs(t, err, ErrGroupNotFound)
 	})
+}
+
+func TestAddMembersExpiryValidation(t *testing.T) {
+	roleNamed := func(name string) func(context.Context, pgtype.UUID) (accessdb.WorkspaceRole, error) {
+		return func(ctx context.Context, id pgtype.UUID) (accessdb.WorkspaceRole, error) {
+			return accessdb.WorkspaceRole{ID: id, Name: name}, nil
+		}
+	}
+	future := time.Now().Add(24 * time.Hour).Format(time.RFC3339)
+	past := time.Now().Add(-24 * time.Hour).Format(time.RFC3339)
+
+	cases := []struct {
+		name    string
+		role    string
+		expiry  string
+		wantErr error
+	}{
+		{"guest with a future date passes", permission.RoleGuest, future, nil},
+		{"admin invite with a date is rejected", permission.RoleAdmin, future, ErrExpiryGuestOnly},
+		{"past date is rejected", permission.RoleGuest, past, ErrExpiryInPast},
+		{"malformed date is rejected", permission.RoleGuest, "tomorrow", ErrExpiryInvalid},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			repo := &fakeRepo{getRoleFn: roleNamed(c.role)}
+
+			// No emails: every case is decided in validation, before the
+			// per-email loop that would need the auth and mail ports.
+			_, err := newService(repo).AddMembers(context.Background(), dto.AddMembersRequest{
+				WorkspaceId:     uuidWS,
+				RoleId:          uuidRole,
+				AccessExpiresAt: c.expiry,
+			}, Actor{UserID: uuidActor, Role: permission.RoleOwner})
+
+			if c.wantErr == nil {
+				assert.NoError(t, err)
+				return
+			}
+			assert.ErrorIs(t, err, c.wantErr)
+		})
+	}
+}
+
+// The chosen window must land on the invitation row and in the email; a
+// validated-but-dropped date would silently invite for ever.
+func TestAddMembersExpiryReachesInvitation(t *testing.T) {
+	future := time.Now().UTC().Add(72 * time.Hour).Truncate(time.Second)
+	var inserted accessdb.InsertWorkspaceInvitationParams
+	repo := &fakeRepo{
+		getRoleFn: func(ctx context.Context, id pgtype.UUID) (accessdb.WorkspaceRole, error) {
+			return accessdb.WorkspaceRole{ID: id, Name: permission.RoleGuest}, nil
+		},
+		reinviteFn: func(ctx context.Context, arg accessdb.ReinviteWorkspaceInvitationParams) (accessdb.ReinviteWorkspaceInvitationRow, error) {
+			return accessdb.ReinviteWorkspaceInvitationRow{}, pgx.ErrNoRows
+		},
+		insertInvFn: func(ctx context.Context, arg accessdb.InsertWorkspaceInvitationParams) (accessdb.InsertWorkspaceInvitationRow, error) {
+			inserted = arg
+			return accessdb.InsertWorkspaceInvitationRow{
+				ID:              mustUUID(t, uuidTarget),
+				ExpiresAt:       arg.ExpiresAt,
+				AccessExpiresAt: arg.AccessExpiresAt,
+				WorkspaceName:   "Acme",
+			}, nil
+		},
+	}
+	mail := captureMail{bodies: make(chan string, 1)}
+	svc := NewAccessService(repo, mail, fakeAuth{}, fakeToken{}, "https://web.test", fakeRecorder{})
+
+	out, err := svc.AddMembers(context.Background(), dto.AddMembersRequest{
+		WorkspaceId:     uuidWS,
+		RoleId:          uuidRole,
+		Email:           []string{"guest@example.com"},
+		AccessExpiresAt: future.Format(time.RFC3339),
+	}, Actor{UserID: uuidActor, Role: permission.RoleOwner})
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	assert.Equal(t, OutcomeInvited, out[0].Outcome)
+	require.True(t, inserted.AccessExpiresAt.Valid)
+	assert.True(t, inserted.AccessExpiresAt.Time.Equal(future))
+
+	select {
+	case body := <-mail.bodies:
+		assert.Contains(t, body, sender.FormatDateID(future))
+	case <-time.After(2 * time.Second):
+		t.Fatal("invite email was not sent")
+	}
 }
 
 // captureMail hands each sent body to the test; sendInviteEmail fires in a
@@ -300,6 +464,82 @@ func TestUpdateMemberRoleGuards(t *testing.T) {
 		}, Actor{UserID: uuidActor, Role: permission.RoleGuest})
 
 		assert.ErrorIs(t, err, ErrOnlyOwnerAssignsAdmin)
+	})
+}
+
+func TestUpdateMemberExpiry(t *testing.T) {
+	memberNamed := func(role string, expires pgtype.Timestamptz) func(context.Context, pgtype.UUID) (accessdb.GetMemberRow, error) {
+		return func(ctx context.Context, id pgtype.UUID) (accessdb.GetMemberRow, error) {
+			return accessdb.GetMemberRow{
+				ID:        id,
+				UserID:    mustUUID(t, uuidTarget),
+				RoleName:  strPtr(role),
+				ExpiresAt: expires,
+			}, nil
+		}
+	}
+	capture := func(into *accessdb.UpdateMemberExpiryParams) func(context.Context, accessdb.UpdateMemberExpiryParams) (accessdb.WorkspaceMember, error) {
+		return func(ctx context.Context, arg accessdb.UpdateMemberExpiryParams) (accessdb.WorkspaceMember, error) {
+			*into = arg
+			return accessdb.WorkspaceMember{ID: arg.ID, ExpiresAt: arg.ExpiresAt}, nil
+		}
+	}
+	owner := Actor{UserID: uuidActor, Role: permission.RoleOwner}
+	future := time.Now().Add(24 * time.Hour).Format(time.RFC3339)
+	past := time.Now().Add(-24 * time.Hour).Format(time.RFC3339)
+
+	t.Run("admin target is refused, even when clearing", func(t *testing.T) {
+		repo := &fakeRepo{getMemberFn: memberNamed(permission.RoleAdmin, pgtype.Timestamptz{})}
+
+		_, err := newService(repo).UpdateMemberExpiry(context.Background(), dto.UpdateMemberExpiryRequest{
+			MemberID: uuidMember,
+		}, owner)
+
+		assert.ErrorIs(t, err, ErrExpiryGuestOnly)
+	})
+
+	t.Run("past date is refused", func(t *testing.T) {
+		repo := &fakeRepo{getMemberFn: memberNamed(permission.RoleGuest, pgtype.Timestamptz{})}
+
+		_, err := newService(repo).UpdateMemberExpiry(context.Background(), dto.UpdateMemberExpiryRequest{
+			MemberID:  uuidMember,
+			ExpiresAt: strPtr(past),
+		}, owner)
+
+		assert.ErrorIs(t, err, ErrExpiryInPast)
+	})
+
+	t.Run("future date reaches the row", func(t *testing.T) {
+		var got accessdb.UpdateMemberExpiryParams
+		repo := &fakeRepo{
+			getMemberFn:    memberNamed(permission.RoleGuest, pgtype.Timestamptz{}),
+			updateExpiryFn: capture(&got),
+		}
+
+		_, err := newService(repo).UpdateMemberExpiry(context.Background(), dto.UpdateMemberExpiryRequest{
+			MemberID:  uuidMember,
+			ExpiresAt: strPtr(future),
+		}, owner)
+
+		require.NoError(t, err)
+		assert.True(t, got.ExpiresAt.Valid)
+		assert.Equal(t, mustUUID(t, uuidMember), got.ID)
+	})
+
+	t.Run("null clears a lapsed member", func(t *testing.T) {
+		lapsedAt := pgtype.Timestamptz{Time: time.Now().Add(-time.Hour), Valid: true}
+		var got accessdb.UpdateMemberExpiryParams
+		repo := &fakeRepo{
+			getMemberFn:    memberNamed(permission.RoleGuest, lapsedAt),
+			updateExpiryFn: capture(&got),
+		}
+
+		_, err := newService(repo).UpdateMemberExpiry(context.Background(), dto.UpdateMemberExpiryRequest{
+			MemberID: uuidMember,
+		}, owner)
+
+		require.NoError(t, err)
+		assert.False(t, got.ExpiresAt.Valid, "clearing must write NULL, not keep the lapsed date")
 	})
 }
 

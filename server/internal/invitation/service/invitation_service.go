@@ -119,6 +119,11 @@ func (s *InvitationService) AcceptInvitation(ctx context.Context, invitationID s
 		if inv.ExpiresAt.Valid && inv.ExpiresAt.Time.Before(time.Now()) {
 			return ErrInvitationExpired
 		}
+		// The access window chosen at invite time has already closed: accepting
+		// would create a member who is expired on arrival.
+		if inv.AccessExpiresAt.Valid && !inv.AccessExpiresAt.Time.After(time.Now()) {
+			return ErrInvitationExpired
+		}
 
 		if _, err := q.AcceptWorkspaceInvitation(ctx, invitationdb.AcceptWorkspaceInvitationParams{
 			ID:     invID,
@@ -131,6 +136,7 @@ func (s *InvitationService) AcceptInvitation(ctx context.Context, invitationID s
 			WorkspaceID: inv.WorkspaceID,
 			UserID:      uID,
 			RoleID:      inv.RoleID,
+			ExpiresAt:   inv.AccessExpiresAt,
 		}); err != nil {
 			return fmt.Errorf("add member: %w", err)
 		}

@@ -6,6 +6,7 @@
 	import { Alert, Button, showToast } from '$lib/components/common';
 	import { roleDisplayName } from '$lib/access/permissions';
 	import { assignableRoles, canManageMembers } from '$lib/access/roles';
+	import { formatDateLocal, localDayEnd, localDayString, localTomorrowString } from '$lib/format';
 	import { t } from '$lib/i18n';
 	import type { MemberStatus, MyAccessWorkspace, WorkspaceMemberData } from '$lib/types/workspace';
 	import type { PageProps } from './$types';
@@ -32,6 +33,7 @@
 		if (s === 'active') return { label: t('member.status.active'), dot: 'bg-success' };
 		if (s === 'invited') return { label: t('member.status.invited'), dot: 'bg-warning' };
 		if (s === 'suspended') return { label: t('member.status.suspended'), dot: 'bg-error' };
+		if (s === 'expired') return { label: t('member.status.expired'), dot: 'bg-error' };
 		return { label: s, dot: 'bg-base-content/30' };
 	};
 
@@ -42,7 +44,7 @@
 	// --- Search + status filter (client-side; the list is already fully loaded) ---
 	let query = $state('');
 	let statusFilter = $state<'all' | MemberStatus>('all');
-	const statusFilters: MemberStatus[] = ['active', 'invited', 'suspended'];
+	const statusFilters: MemberStatus[] = ['active', 'invited', 'suspended', 'expired'];
 	const filtered = $derived.by(() => {
 		const q = query.trim().toLowerCase();
 		return members.filter((m) => {
@@ -89,6 +91,60 @@
 				roleMessage = (result.data?.message as string) ?? t('err.generic');
 			} else {
 				roleMessage = t('err.generic');
+			}
+		};
+	};
+
+	// --- Access expiry (guests only; the backend refuses other roles) ---
+	let expiryDialog = $state<HTMLDialogElement>();
+	let expiryForm = $state<HTMLFormElement>();
+	let expiryTarget = $state<WorkspaceMemberData | null>(null);
+	let expiryDate = $state('');
+	let minExpiryDate = $state('');
+	let expiryClear = $state(false);
+	let expirySubmitting = $state(false);
+	let expiryMessage = $state<string | null>(null);
+
+	function openExpiry(m: WorkspaceMemberData) {
+		expiryTarget = m;
+		expiryDate = m.expires_at ? localDayString(new Date(m.expires_at)) : '';
+		minExpiryDate = localTomorrowString();
+		expiryClear = false;
+		expiryMessage = null;
+		expiryDialog?.showModal();
+	}
+
+	// A type="button" that submits programmatically, so pressing Enter in the
+	// date field can never fall through to "clear".
+	function clearExpiry() {
+		expiryClear = true;
+		expiryForm?.requestSubmit();
+	}
+
+	const submitExpiry: SubmitFunction = ({ formData, cancel }) => {
+		const clear = expiryClear;
+		expiryClear = false;
+		if (clear) {
+			formData.set('expiresAt', '');
+		} else if (expiryDate) {
+			// End of the chosen day in this browser's timezone — see InviteDialog.
+			formData.set('expiresAt', localDayEnd(expiryDate).toISOString());
+		} else {
+			cancel();
+			return;
+		}
+		expirySubmitting = true;
+		expiryMessage = null;
+		return async ({ result }) => {
+			expirySubmitting = false;
+			if (result.type === 'success') {
+				expiryDialog?.close();
+				await invalidateAll();
+				showToast(t('member.expiry.saved'), 'success');
+			} else if (result.type === 'failure') {
+				expiryMessage = (result.data?.message as string) ?? t('err.generic');
+			} else {
+				expiryMessage = t('err.generic');
 			}
 		};
 	};
@@ -170,6 +226,7 @@
 			{@const owner = isOwner(m)}
 			{@const memberGroup = m.group_names?.[0] ?? ''}
 			{@const guest = m.role_name === 'guest'}
+			{@const expired = m.status === 'expired'}
 			<li class="flex flex-wrap items-center gap-x-3 gap-y-2 py-3">
 				<span
 					class="grid h-9 w-9 flex-none place-items-center rounded-full bg-primary/10 text-sm font-semibold text-primary"
@@ -194,16 +251,26 @@
 							{status.label}
 						</span>
 					</p>
-					{#if memberGroup}
-						<div class="mt-1.5">
-							<span
-								class="rounded-selector bg-base-content/5 px-1.5 py-0.5 text-[0.6875rem] text-muted"
-								>{memberGroup}</span
-							>
-						</div>
-					{:else if guest}
-						<div class="mt-1.5">
-							<span class="text-[0.6875rem] text-muted">{t('group.member.none')}</span>
+					{#if guest}
+						<div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+							{#if memberGroup}
+								<span
+									class="rounded-selector bg-base-content/5 px-1.5 py-0.5 text-[0.6875rem] text-muted"
+									>{memberGroup}</span
+								>
+							{:else}
+								<span class="text-[0.6875rem] text-muted">{t('group.member.none')}</span>
+							{/if}
+							{#if m.expires_at}
+								<span
+									class="rounded-selector px-1.5 py-0.5 text-[0.6875rem] {expired
+										? 'bg-error/10 text-error'
+										: 'bg-base-content/5 text-muted'}"
+								>
+									{expired ? t('member.expiry.lapsed') : t('member.expiry.until')}
+									<span class="font-mono">{formatDateLocal(m.expires_at)}</span>
+								</span>
+							{/if}
 						</div>
 					{/if}
 				</div>
@@ -239,6 +306,30 @@
 							<path d="M8 11V7a4 4 0 0 1 8 0v4" />
 						</svg>
 					</span>
+				{/if}
+
+				{#if canManage && guest}
+					<button
+						type="button"
+						onclick={() => openExpiry(m)}
+						aria-label={t('member.expiry.aria', { name: m.username || m.email })}
+						class="inline-flex flex-none items-center gap-1.5 rounded-field px-2.5 py-2.5 text-sm text-muted transition-colors hover:bg-primary/10 hover:text-primary"
+					>
+						<svg
+							class="h-4 w-4"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.8"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							aria-hidden="true"
+						>
+							<rect x="3" y="5" width="18" height="16" rx="2" />
+							<path d="M16 3v4M8 3v4M3 11h18" />
+						</svg>
+						{t('member.expiry')}
+					</button>
 				{/if}
 
 				{#if canManage && !owner && !isSelf(m)}
@@ -324,6 +415,67 @@
 	</div>
 	<form method="dialog" class="modal-backdrop">
 		<button aria-label={t('member.cancel')} onclick={cancelRoleChange}></button>
+	</form>
+</dialog>
+
+<!-- Access expiry -->
+<dialog bind:this={expiryDialog} class="modal" aria-labelledby="member-expiry-title">
+	<div class="modal-box max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+		<h2 id="member-expiry-title" class="text-lg font-semibold tracking-[-0.01em]">
+			{t('member.expiry.title')}
+		</h2>
+		{#if expiryTarget}
+			<p class="mt-1 text-sm text-muted text-pretty">
+				{t('member.expiry.desc', { name: expiryTarget.username || expiryTarget.email })}
+			</p>
+		{/if}
+
+		{#if expiryMessage}
+			<div class="mt-4"><Alert align="start">{expiryMessage}</Alert></div>
+		{/if}
+
+		<form
+			bind:this={expiryForm}
+			method="POST"
+			action="?/updateExpiry"
+			use:enhance={submitExpiry}
+			class="mt-5"
+		>
+			<input type="hidden" name="memberId" value={expiryTarget?.id ?? ''} />
+			<label class="text-sm font-medium" for="member-expiry-date"
+				>{t('member.expiry.dateLabel')}</label
+			>
+			<input
+				id="member-expiry-date"
+				type="date"
+				bind:value={expiryDate}
+				min={minExpiryDate}
+				class="input mt-1.5 w-full"
+			/>
+			<p class="mt-1.5 text-xs text-muted">{t('member.expiry.hint')}</p>
+
+			<div class="mt-5 flex flex-wrap justify-end gap-2">
+				<Button type="button" variant="ghost" onclick={() => expiryDialog?.close()}>
+					{t('member.cancel')}
+				</Button>
+				{#if expiryTarget?.expires_at}
+					<Button
+						type="button"
+						variant="danger-outline"
+						loading={expirySubmitting}
+						onclick={clearExpiry}
+					>
+						{t('member.expiry.clear')}
+					</Button>
+				{/if}
+				<Button type="submit" loading={expirySubmitting} disabled={!expiryDate}>
+					{expirySubmitting ? t('member.expiry.submitting') : t('member.expiry.submit')}
+				</Button>
+			</div>
+		</form>
+	</div>
+	<form method="dialog" class="modal-backdrop">
+		<button aria-label={t('member.cancel')}></button>
 	</form>
 </dialog>
 

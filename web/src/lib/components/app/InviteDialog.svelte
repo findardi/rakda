@@ -6,6 +6,7 @@
 	import { Alert, Button } from '$lib/components/common';
 	import { roleDisplayName } from '$lib/access/permissions';
 	import { assignableRoles } from '$lib/access/roles';
+	import { localDayEnd, localTomorrowString } from '$lib/format';
 	import { t } from '$lib/i18n';
 	import type {
 		AddMemberResult,
@@ -62,6 +63,9 @@
 	let chipError = $state<string | null>(null);
 	let roleId = $state('');
 	let groupId = $state('');
+	// Optional guest access expiry as a local calendar day; '' = never.
+	let accessExpiresAt = $state('');
+	let minExpiryDate = $state('');
 	let submitting = $state(false);
 	let formError = $state<string | null>(null);
 	let results = $state<AddMemberResult[] | null>(null);
@@ -83,6 +87,8 @@
 		results = null;
 		roleId = defaultRoleId;
 		groupId = defaultGroupId;
+		accessExpiresAt = '';
+		minExpiryDate = localTomorrowString();
 	}
 
 	function focusInput() {
@@ -165,8 +171,17 @@
 		// the default group when none arrives.
 		if (isGuestRole) {
 			formData.set('groupId', groupId);
+			// The date input yields a local calendar day; send the end of that
+			// day as an instant so the inviter's timezone, not the server's,
+			// decides what "until 30 Sep" means.
+			if (accessExpiresAt) {
+				formData.set('accessExpiresAt', localDayEnd(accessExpiresAt).toISOString());
+			} else {
+				formData.delete('accessExpiresAt');
+			}
 		} else {
 			formData.delete('groupId');
+			formData.delete('accessExpiresAt');
 		}
 
 		submitting = true;
@@ -361,6 +376,21 @@
 							{/each}
 						</select>
 						<p class="mt-1.5 text-xs text-muted">{t('member.invite.groupHint')}</p>
+					</div>
+
+					<div class="mt-4">
+						<label class="text-sm font-medium" for="invite-expiry"
+							>{t('member.invite.expiryLabel')}</label
+						>
+						<input
+							id="invite-expiry"
+							type="date"
+							name="accessExpiresAt"
+							bind:value={accessExpiresAt}
+							min={minExpiryDate}
+							class="input mt-1.5 w-full"
+						/>
+						<p class="mt-1.5 text-xs text-muted">{t('member.invite.expiryHint')}</p>
 					</div>
 				{/if}
 

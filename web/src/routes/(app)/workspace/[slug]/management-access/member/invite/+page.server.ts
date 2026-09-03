@@ -40,6 +40,7 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const roleId = (form.get('roleId') ?? '').toString();
 		const groupId = (form.get('groupId') ?? '').toString();
+		const accessExpiresAt = (form.get('accessExpiresAt') ?? '').toString();
 		const emails = [
 			...new Set(
 				form
@@ -58,7 +59,8 @@ export const actions: Actions = {
 		const res = await addMembers(locals.session, wsId, {
 			email: emails,
 			role_id: roleId,
-			group_id: groupId || undefined
+			group_id: groupId || undefined,
+			access_expires_at: accessExpiresAt || undefined
 		});
 		if (!res.ok) {
 			if (res.status === 401) redirect(303, '/login');

@@ -1,4 +1,5 @@
 import { roleDisplayName } from '$lib/access/permissions';
+import { formatDateLocal } from '$lib/format';
 import { t, type TKey } from '$lib/i18n';
 import type { ActivityItem } from '$lib/types/activity';
 
@@ -48,7 +49,8 @@ export const ACTIVITY_GROUPS: { key: TKey; actions: string[] }[] = [
 			'invite_accepted',
 			'invite_rejected',
 			'member_removed',
-			'role_changed'
+			'role_changed',
+			'member_expiry_changed'
 		]
 	},
 	{
@@ -117,6 +119,7 @@ const PHRASE_KEY: Record<string, TKey> = {
 	invite_rejected: 'activity.action.invite_rejected',
 	member_removed: 'activity.action.member_removed',
 	role_changed: 'activity.action.role_changed',
+	member_expiry_changed: 'activity.action.member_expiry_changed',
 	group_created: 'activity.action.group_created',
 	group_updated: 'activity.action.group_updated',
 	group_deleted: 'activity.action.group_deleted',
@@ -160,6 +163,7 @@ const LABEL_KEY: Record<string, TKey> = {
 	invite_rejected: 'activity.label.invite_rejected',
 	member_removed: 'activity.label.member_removed',
 	role_changed: 'activity.label.role_changed',
+	member_expiry_changed: 'activity.label.member_expiry_changed',
 	group_created: 'activity.label.group_created',
 	group_updated: 'activity.label.group_updated',
 	group_deleted: 'activity.label.group_deleted',
@@ -261,6 +265,16 @@ export function describeActivity(item: ActivityItem): ActivityPhrase {
 				key: 'activity.action.invite_sent',
 				vars: { ...vars, role: roleDisplayName(text(meta.role)) }
 			};
+
+		// `to` is null when the limit was removed — a different sentence, not an
+		// empty date.
+		case 'member_expiry_changed':
+			return text(meta.to)
+				? {
+						key: 'activity.action.member_expiry_changed',
+						vars: { ...vars, to: formatDateLocal(text(meta.to)) }
+					}
+				: { key: 'activity.action.member_expiry_cleared', vars };
 
 		case 'folder_access_changed':
 			return {

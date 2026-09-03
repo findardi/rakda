@@ -57,7 +57,8 @@ export interface WorkspaceRoleData {
 }
 
 // Workspace Member
-export type MemberStatus = 'invited' | 'active' | 'suspended';
+// 'expired' is derived by the server from expires_at; it is never stored.
+export type MemberStatus = 'invited' | 'active' | 'suspended' | 'expired';
 
 // Mirrors the Go `GetMemberResponse` (joined view: role name, user, groups).
 export interface WorkspaceMemberData {
@@ -73,19 +74,31 @@ export interface WorkspaceMemberData {
 	email: string;
 	// Go marshals a nil slice to null, so guard for null on the client.
 	group_names: string[] | null;
+	// Guest access expiry (ISO 8601); null = never. Once it has passed the
+	// server reports status 'expired' and refuses the member at the door.
+	expires_at: string | null;
 }
 
 export interface UpdateMemberRolePayload {
 	role_id: string;
 }
 
+// null clears the expiry; a value must be a future ISO 8601 timestamp. The
+// backend refuses non-guest targets (400).
+export interface UpdateMemberExpiryPayload {
+	expires_at: string | null;
+}
+
 // Bulk invite — backend field is `email` (an array, max 50), one role per batch.
 // `group_id` is optional and only meaningful for guest invites — when omitted
 // the guest lands in the room's default group on acceptance.
+// `access_expires_at` (ISO 8601, future) is optional and guest-only: the member
+// created on acceptance carries it as their expires_at.
 export interface AddMembersPayload {
 	email: string[];
 	role_id: string;
 	group_id?: string;
+	access_expires_at?: string;
 }
 
 // Per-email result. The backend never reveals registration status: existing and
@@ -116,6 +129,8 @@ export interface InvitationData {
 	invited_by_username: string;
 	status: string;
 	expires_at: string;
+	// The access window the member gets on acceptance; null = unlimited.
+	access_expires_at: string | null;
 	created_at: string;
 }
 
@@ -164,4 +179,6 @@ export interface MyAccessWorkspace {
 	permissions: string[];
 	status: string;
 	workspace_status: WorkspaceStatus;
+	// The caller's own access expiry; null/absent = never.
+	expires_at?: string | null;
 }

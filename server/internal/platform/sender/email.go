@@ -41,7 +41,9 @@ type InviteMail struct {
 	Link          string
 	Registered    bool
 	ExpiresLabel  string
-	Reason        string
+	// The access window the invitee gets in the room; empty = unlimited.
+	AccessExpiresLabel string
+	Reason             string
 }
 
 type emailLayoutData struct {
@@ -125,7 +127,7 @@ func BuildResetPasswordEmail(code string) Email {
 		})
 }
 
-func BuildInviteEmail(webURL, invitedBy, workspaceName, token string, registered bool, expiresAt time.Time) Email {
+func BuildInviteEmail(webURL, invitedBy, workspaceName, token string, registered bool, expiresAt, accessExpiresAt time.Time) Email {
 	if invitedBy == "" {
 		invitedBy = "Pengelola ruang"
 	}
@@ -144,16 +146,21 @@ func BuildInviteEmail(webURL, invitedBy, workspaceName, token string, registered
 	if !expiresAt.IsZero() {
 		label = FormatDateID(expiresAt)
 	}
+	accessLabel := ""
+	if !accessExpiresAt.IsZero() {
+		accessLabel = FormatDateID(accessExpiresAt)
+	}
 
 	return buildEmail("invite", subject,
 		"Buka undangan Anda untuk menerima atau menolak.",
 		InviteMail{
-			InvitedBy:     invitedBy,
-			WorkspaceName: workspaceName,
-			Link:          link,
-			Registered:    registered,
-			ExpiresLabel:  label,
-			Reason:        "undangan ke ruang data di Rakda",
+			InvitedBy:          invitedBy,
+			WorkspaceName:      workspaceName,
+			Link:               link,
+			Registered:         registered,
+			ExpiresLabel:       label,
+			AccessExpiresLabel: accessLabel,
+			Reason:             "undangan ke ruang data di Rakda",
 		})
 }
 

@@ -13,6 +13,7 @@
   </tr>
 </table>
 {{if .ExpiresLabel}}<p style="margin:0 0 16px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#5E6F76;">Undangan berlaku sampai {{.ExpiresLabel}}.</p>{{end}}
+{{if .AccessExpiresLabel}}<p style="margin:0 0 16px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#5E6F76;">Akses Anda ke ruang ini berlaku sampai {{.AccessExpiresLabel}}.</p>{{end}}
 <p style="margin:0 0 16px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:#5E6F76;">
   Tombol tidak berfungsi? Salin tautan ini ke peramban Anda:<br>
   <span style="color:#006B82;">{{.Link}}</span>

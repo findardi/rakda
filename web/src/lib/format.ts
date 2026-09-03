@@ -23,6 +23,38 @@ export function formatDate(iso: string): string {
 	return Number.isNaN(d.getTime()) ? '—' : d.toISOString().slice(0, 10);
 }
 
+// Local calendar day, for dates a person chose ("valid until 30 Sep") —
+// unlike formatDate, which stays UTC because audit facts must not drift.
+const dateLocalFmt = new Intl.DateTimeFormat('id-ID', {
+	day: '2-digit',
+	month: 'short',
+	year: 'numeric'
+});
+export function formatDateLocal(iso: string): string {
+	const d = new Date(iso);
+	return Number.isNaN(d.getTime()) ? '—' : dateLocalFmt.format(d);
+}
+
+// <input type="date"> speaks local calendar days. These two convert between
+// that and an instant: the end of the chosen day in the browser's timezone is
+// what "until 30 Sep" means to the person typing it, so the browser decides,
+// not the server.
+export function localDayString(d: Date): string {
+	const pad = (n: number) => String(n).padStart(2, '0');
+	return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+export function localDayEnd(ymd: string): Date {
+	const [y, m, d] = ymd.split('-').map(Number);
+	return new Date(y, m - 1, d, 23, 59, 59);
+}
+// Tomorrow as a local calendar day — the earliest expiry worth offering, since
+// a window that closes today would lapse within hours of being set.
+export function localTomorrowString(): string {
+	const d = new Date();
+	d.setDate(d.getDate() + 1);
+	return localDayString(d);
+}
+
 export function formatTimeUtc(iso: string): string {
 	const d = new Date(iso);
 	return Number.isNaN(d.getTime()) ? '—' : d.toISOString().slice(11, 16);

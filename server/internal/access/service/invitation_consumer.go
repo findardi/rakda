@@ -22,7 +22,7 @@ func (s *AccessService) PreviewInvitation(ctx context.Context, token string) (au
 		return authservice.InvitePreview{}, fmt.Errorf("get invitation: %w", err)
 	}
 
-	if row.Status != InviteStatusPending || (row.ExpiresAt.Valid && row.ExpiresAt.Time.Before(time.Now())) {
+	if row.Status != InviteStatusPending || lapsed(row.ExpiresAt) || lapsed(row.AccessExpiresAt) {
 		return authservice.InvitePreview{}, authservice.ErrInvitationInvalid
 	}
 
@@ -45,8 +45,10 @@ func (s *AccessService) ConsumeInvitation(ctx context.Context, tx pgx.Tx, token,
 		return fmt.Errorf("get invitation: %w", err)
 	}
 
-	if inv.Status != InviteStatusPending ||
-		(inv.ExpiresAt.Valid && inv.ExpiresAt.Time.Before(time.Now())) {
+	// An access window that closed before the invitee arrived is an
+	// invitation to nothing: refuse it like a lapsed link rather than minting
+	// a member who is expired on arrival.
+	if inv.Status != InviteStatusPending || lapsed(inv.ExpiresAt) || lapsed(inv.AccessExpiresAt) {
 		return authservice.ErrInvitationInvalid
 	}
 
@@ -67,6 +69,7 @@ func (s *AccessService) ConsumeInvitation(ctx context.Context, tx pgx.Tx, token,
 		UserID:      uID,
 		RoleID:      inv.RoleID,
 		Status:      MemberStatusActive,
+		ExpiresAt:   inv.AccessExpiresAt,
 	}); err != nil {
 		return fmt.Errorf("add member: %w", err)
 	}
@@ -92,4 +95,10 @@ func (s *AccessService) ConsumeInvitation(ctx context.Context, tx pgx.Tx, token,
 	}
 
 	return nil
+}
+
+// lapsed reports whether an optional deadline has already passed. Equality
+// counts as lapsed, matching the `> now()` guards in SQL.
+func lapsed(t pgtype.Timestamptz) bool {
+	return t.Valid && !t.Time.After(time.Now())
 }

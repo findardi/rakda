@@ -2,6 +2,7 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { t } from '$lib/i18n';
+	import { formatDateLocal } from '$lib/format';
 	import { canManageAccess } from '$lib/access/roles';
 	import WorkspaceStatusBadge from './WorkspaceStatusBadge.svelte';
 	import type { MyAccessWorkspace, WorkspaceData } from '$lib/types/workspace';
@@ -35,6 +36,9 @@
 	const showAccess = $derived(!!access && canManageAccess(access.role));
 	// Q&A off for the guest's group = section hidden entirely; managers always see it.
 	const showQa = $derived(qaEnabled || showAccess);
+	// A dated membership shows its date where the member sees the room: losing
+	// access without any signal is the failure this one line prevents.
+	const accessUntil = $derived(access?.expires_at ? formatDateLocal(access.expires_at) : '');
 </script>
 
 <nav class="flex h-full flex-col gap-1 p-3" aria-label="Navigasi ruang data">
@@ -125,6 +129,12 @@
 				<WorkspaceStatusBadge status={workspace.status} class="mt-0.5" />
 			</div>
 		</div>
+	{/if}
+
+	{#if accessUntil}
+		<p class="mb-2 px-1 text-[0.6875rem] leading-snug text-muted">
+			{t('ws.access.until')} <span class="font-mono">{accessUntil}</span>
+		</p>
 	{/if}
 
 	<div class="mb-1 border-t border-base-content/10"></div>
