@@ -28,7 +28,7 @@ networks:
 services:
   gotenberg:
     image: gotenberg/gotenberg:8.36
-    command: ['sh', '-c', 'test -w /tmp || exit 1; find /tmp -mindepth 1 -delete; exec gotenberg --api-timeout=150s']
+    command: ['sh', '-c', 'test -w /tmp || exit 1; find /tmp -mindepth 1 -delete; exec gotenberg --api-timeout=150s --chromium-disable-routes=true']
     volumes:
       - /srv/rakda/gotenberg-tmp:/tmp
     logging: *logging

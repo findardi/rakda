@@ -53,6 +53,7 @@ type App struct {
 	pageCacheSweep   func(ctx context.Context)
 	archiveSweep     func(ctx context.Context)
 	downloadJobSweep func(ctx context.Context)
+	renditionWork    func(ctx context.Context)
 }
 
 func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.Storage, viewer contentservice.Viewer, caches contentservice.CacheDeps) *App {
@@ -93,6 +94,18 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 	if err != nil {
 		log.Printf("invalid TEXT_SWEEP_BATCH, fallback to 10: %v", err)
 		textSweepBatch = 10
+	}
+
+	renditionWorkers, err := config.GetEnvInt("RENDITION_WORKERS", 1)
+	if err != nil {
+		log.Printf("invalid RENDITION_WORKERS, fallback to 1: %v", err)
+		renditionWorkers = 1
+	}
+
+	renditionSweepInterval, err := config.GetEnvDuration("RENDITION_SWEEP_INTERVAL", 30*time.Second)
+	if err != nil {
+		log.Printf("invalid RENDITION_SWEEP_INTERVAL, fallback to 30s: %v", err)
+		renditionSweepInterval = 30 * time.Second
 	}
 
 	ocrSweepInterval, err := config.GetEnvDuration("OCR_SWEEP_INTERVAL", time.Minute)
@@ -186,10 +199,17 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 	activitysvc := activityservice.NewActivityService(activityrepo.New(pool))
 	authsvc := authservice.NewAuthService(authrepo.New(pool), otpGen, jwtGen, mailer, nil)
 	accessSvc := accessservice.NewAccessService(accessrepo.New(pool), mailer, authsvc, otpGen, webURL, activitysvc)
+	rendition := contentservice.RenditionDeps{
+		Workers:  renditionWorkers,
+		Interval: renditionSweepInterval,
+		Wake:     make(chan struct{}, 1),
+	}
+	log.Printf("viewer: rendition workers=%d sweep interval=%s", rendition.Workers, rendition.Interval)
+
 	contentSvc := contentservice.NewContentService(contentrepo.New(pool), store, viewer, trashRetention, activitysvc, contentservice.StampDeps{Sync: downloadStampConcurrency, Async: downloadStampAsyncConcurrency}, contentservice.ArchiveDeps{
 		Concurrency: archiveConcurrency,
 		TTL:         archiveTTL,
-	}, caches)
+	}, caches, rendition)
 
 	// Dibangun di sini, bukan di dalam qa.NewModule, karena arsip 13-b butuh
 	// eksportir Q&A sementara QAService butuh ContentService. Urutannya:
@@ -205,7 +225,7 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 		TTL:            archiveTTL,
 		ActivityExport: activitysvc,
 		QAExport:       qaSvc,
-	}, caches)
+	}, caches, rendition)
 	activityModule := activity.NewModule(pool, jwtGen)
 	qaModule := qa.NewModule(pool, jwtGen, contentSvc, activitysvc)
 
@@ -249,6 +269,9 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 		downloadJobSweep: func(ctx context.Context) {
 			contentSvc.RunDownloadJobSweeper(ctx, downloadJobSweepInterval)
 		},
+		renditionWork: func(ctx context.Context) {
+			contentSvc.RunRenditionWorkers(ctx)
+		},
 	}
 }
 
@@ -259,7 +282,7 @@ func (a *App) Run() error {
 	var background sync.WaitGroup
 
 	for _, task := range []func(context.Context){
-		a.reap, a.sweep, a.ocrSweep, a.bboxSweep, a.pageCacheSweep, a.archiveSweep, a.downloadJobSweep,
+		a.reap, a.sweep, a.ocrSweep, a.bboxSweep, a.pageCacheSweep, a.archiveSweep, a.downloadJobSweep, a.renditionWork,
 	} {
 		background.Add(1)
 

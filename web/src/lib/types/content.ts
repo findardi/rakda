@@ -68,6 +68,7 @@ export interface ViewMetaData {
 	version_id: string;
 	version_no: number;
 	page_count: number;
+	rendition_status: RenditionStatus;
 	can_download: boolean;
 	can_download_original: boolean;
 	watermark_download_max_pages: number;

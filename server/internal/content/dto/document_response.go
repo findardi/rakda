@@ -53,6 +53,7 @@ type ViewMetaResponse struct {
 	VersionID                 string `json:"version_id"`
 	VersionNo                 int32  `json:"version_no"`
 	PageCount                 int    `json:"page_count"`
+	RenditionStatus           string `json:"rendition_status"`
 	CanDownload               bool   `json:"can_download"`
 	CanDownloadOriginal       bool   `json:"can_download_original"`
 	WatermarkDownloadMaxPages int    `json:"watermark_download_max_pages"`

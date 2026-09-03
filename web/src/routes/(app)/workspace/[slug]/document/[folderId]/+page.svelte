@@ -175,9 +175,9 @@
 		}
 	}
 
-	// Conversions now run server-side the moment an upload or retry lands, so a
-	// pending state is genuinely in motion — refresh until none is left rather
-	// than showing a spinner over data that never changes.
+	// A pending state is genuinely in motion: the rendition worker is woken the
+	// moment an upload, retry or restore lands, so refresh until none is left
+	// rather than showing a spinner over data that never changes.
 	const anyConverting = $derived(
 		documents.some(
 			(d) => d.rendition_status === 'pending' || d.staged_rendition_status === 'pending'

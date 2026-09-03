@@ -11,7 +11,8 @@ import (
 )
 
 type Querier interface {
-	ClearVersionRenditionFailure(ctx context.Context, id pgtype.UUID) error
+	ClaimPendingRendition(ctx context.Context, stale pgtype.Interval) (DocumentVersion, error)
+	ClearVersionRenditionFailure(ctx context.Context, id pgtype.UUID) (int64, error)
 	CountPendingArchives(ctx context.Context, workspaceID pgtype.UUID) (int32, error)
 	CreateArchive(ctx context.Context, arg CreateArchiveParams) (WorkspaceArchive, error)
 	CreateDefaultFolder(ctx context.Context, arg CreateDefaultFolderParams) (Folder, error)
@@ -83,8 +84,10 @@ type Querier interface {
 	PurgeFolder(ctx context.Context, id pgtype.UUID) error
 	ReindexDocumentSiblings(ctx context.Context, arg ReindexDocumentSiblingsParams) error
 	ReindexFolderSiblings(ctx context.Context, arg ReindexFolderSiblingsParams) error
+	ReleaseRenditionClaim(ctx context.Context, id pgtype.UUID) error
 	RemoveFolderAccess(ctx context.Context, arg RemoveFolderAccessParams) error
 	RenameFolder(ctx context.Context, arg RenameFolderParams) (Folder, error)
+	RequestRendition(ctx context.Context, id pgtype.UUID) error
 	ResolveFolderAccess(ctx context.Context, arg ResolveFolderAccessParams) (ResolveFolderAccessRow, error)
 	RestoreDocument(ctx context.Context, arg RestoreDocumentParams) error
 	RestoreDocumentsSweptBy(ctx context.Context, deletedRootFolderID pgtype.UUID) error
@@ -114,6 +117,7 @@ type Querier interface {
 	SetStagedVersion(ctx context.Context, arg SetStagedVersionParams) error
 	SetVersionRendition(ctx context.Context, arg SetVersionRenditionParams) error
 	SetVersionRenditionFailure(ctx context.Context, arg SetVersionRenditionFailureParams) error
+	SetVersionRenditionTransientFailure(ctx context.Context, arg SetVersionRenditionTransientFailureParams) error
 	SetVersionTextExtracted(ctx context.Context, id pgtype.UUID) error
 	SetVersionTextFailure(ctx context.Context, arg SetVersionTextFailureParams) error
 	SoftDeleteDocument(ctx context.Context, arg SoftDeleteDocumentParams) error

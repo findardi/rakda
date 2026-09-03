@@ -7,7 +7,6 @@ import (
 	"image"
 	"image/jpeg"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -169,6 +168,8 @@ func (s *ContentService) CompletedUpload(ctx context.Context, req dto.CompleteUp
 		return dto.DocumentResponse{}, fmt.Errorf("delete document: %w", err)
 	}
 
+	s.wakeRenditionWorker()
+
 	return dto.DocumentResponse{
 		ID:               uuidString(doc.ID),
 		FolderID:         uuidString(doc.FolderID),
@@ -274,7 +275,7 @@ func (s *ContentService) CompletedVersion(ctx context.Context, req dto.CompleteV
 		}
 
 		// Staged, not current: the pointer moves only after the rendition proves
-		// out (ensureRendition → PromoteStagedVersion). Until then every reader
+		// out (rendition worker → PromoteStagedVersion). Until then every reader
 		// keeps getting the old version, so a broken upload never breaks the room.
 		if err := q.SetStagedVersion(ctx, contentdb.SetStagedVersionParams{
 			ID:              dID,
@@ -293,7 +294,7 @@ func (s *ContentService) CompletedVersion(ctx context.Context, req dto.CompleteV
 		return dto.DocumentResponse{}, fmt.Errorf("create version: %w", err)
 	}
 
-	s.convertVersionAsync(req.WorkspaceID, dID, ver.ID)
+	s.wakeRenditionWorker()
 
 	cur, err := s.repo.GetCurrentVersion(ctx, dID)
 	if err != nil {
@@ -316,35 +317,6 @@ func (s *ContentService) CompletedVersion(ctx context.Context, req dto.CompleteV
 		CreatedAt:             doc.CreatedAt.Time,
 		UpdatedAt:             ver.CreatedAt.Time,
 	}, nil
-}
-
-// convertVersionAsync runs the rendition conversion detached from the request,
-// so completing an upload or a retry answers immediately while gotenberg works.
-// It re-reads both rows: the staged pointer was written after the caller's doc
-// was loaded, and promotion in ensureRendition trusts the row it is handed.
-// Every failure path only logs — the version stays pending/failed and the next
-// open of it converts lazily, exactly as before this kick existed.
-func (s *ContentService) convertVersionAsync(workspaceID string, documentID, versionID pgtype.UUID) {
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), asyncConvertTimeout)
-		defer cancel()
-
-		doc, err := s.repo.GetDocumentByID(ctx, documentID)
-		if err != nil {
-			log.Printf("async convert: get document: %v", err)
-			return
-		}
-
-		version, err := s.repo.GetVersionByID(ctx, versionID)
-		if err != nil {
-			log.Printf("async convert: get version: %v", err)
-			return
-		}
-
-		if _, _, err := s.ensureRendition(ctx, workspaceID, doc, version); err != nil {
-			log.Printf("async convert version %s: %v", uuidString(versionID), err)
-		}
-	}()
 }
 
 func (s *ContentService) ListDocuments(ctx context.Context, workspaceID, folderID string, actor Actor) ([]dto.DocumentResponse, error) {
@@ -466,7 +438,7 @@ func (s *ContentService) DownloadDocument(ctx context.Context, workspaceID, docu
 		return DownloadResult{}, err
 	}
 
-	renditionKey, pageCount, err := s.ensureRendition(ctx, workspaceID, doc, version)
+	renditionKey, pageCount, err := s.renditionState(ctx, doc, version)
 	if err != nil {
 		return DownloadResult{}, err
 	}
@@ -561,13 +533,18 @@ func (s *ContentService) RetryRendition(ctx context.Context, workspaceID, docume
 		return err
 	}
 
-	if err := s.repo.ClearVersionRenditionFailure(ctx, version.ID); err != nil {
+	cleared, err := s.repo.ClearVersionRenditionFailure(ctx, version.ID)
+	if err != nil {
 		return fmt.Errorf("clear rendition failure: %w", err)
 	}
 
-	// The retry does the work, not just permits it: without this kick the toast
-	// would promise a conversion that only the next reader's open triggers.
-	s.convertVersionAsync(workspaceID, doc.ID, version.ID)
+	if cleared == 0 {
+		return nil
+	}
+
+	// The retry does the work, not just permits it: ClearVersionRenditionFailure
+	// made the row claimable and this wake spares it the wait for the next tick.
+	s.wakeRenditionWorker()
 
 	s.activity.Record(ctx, s.activityEntry(workspaceID, actor,
 		activityservice.ActionRenditionRetried, activityservice.TargetVersion,
@@ -1197,6 +1174,8 @@ func (s *ContentService) RestoreVersion(ctx context.Context, workspaceID, docume
 	if err != nil {
 		return dto.DocumentResponse{}, err
 	}
+
+	s.wakeRenditionWorker()
 
 	// SetCurrentVersion stamps updated_at; the row read before the transaction
 	// still carries the old one. It also cleared any staged version — the

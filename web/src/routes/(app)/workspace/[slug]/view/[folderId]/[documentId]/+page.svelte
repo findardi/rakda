@@ -3,7 +3,7 @@
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { fade } from 'svelte/transition';
-	import { goto } from '$app/navigation';
+	import { goto, invalidate } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { canManageAccess } from '$lib/access/roles';
@@ -24,6 +24,7 @@
 	const forbidden = $derived(data.forbidden);
 	const notViewable = $derived(data.notViewable);
 	const failed = $derived(data.failed);
+	const pending = $derived(data.pending);
 
 	// Empty for guests (upstream withholds history from them) and for documents
 	// that never got a second version.
@@ -511,7 +512,9 @@
 	// --- download (view-and-download access) ---
 	let downloading = $state(false);
 
-	const canDownload = $derived(!!meta && (meta.can_download || meta.can_download_original));
+	const canDownload = $derived(
+		!!meta && meta.rendition_status === 'ready' && (meta.can_download || meta.can_download_original)
+	);
 	const downloadBlocked = $derived(
 		!!meta &&
 			!meta.can_download_original &&
@@ -585,17 +588,24 @@
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({ workspaceId: workspace.id, documentId, versionId: retryVersionId })
 		})
-			.then((res) => {
+			.then(async (res) => {
 				if (!res.ok) throw new Error(String(res.status));
-				// The retry started the conversion server-side; reloading joins it
-				// and lands on the pages once they exist.
-				window.location.reload();
+				await invalidate('rakda:view-meta');
+				retrying = false;
 			})
 			.catch(() => {
 				retrying = false;
 				showToast(t('doc.view.failed.retryErr'), 'error');
 			});
 	}
+
+	$effect(() => {
+		if (!pending) return;
+		const timer = setInterval(() => {
+			if (document.visibilityState === 'visible') void invalidate('rakda:view-meta');
+		}, 5_000);
+		return () => clearInterval(timer);
+	});
 </script>
 
 <svelte:head>
@@ -1111,6 +1121,16 @@
 				<div>
 					<p class="text-[0.9375rem] font-medium">{t('doc.view.unsupported.title')}</p>
 					<p class="mt-1 text-sm text-muted text-pretty">{t('doc.view.unsupported.body')}</p>
+				</div>
+			</div>
+		</div>
+	{:else if pending}
+		<div class="flex flex-1 items-center justify-center overflow-y-auto px-6 py-16">
+			<div class="flex max-w-sm flex-col items-center gap-4 text-center">
+				<span class="loading loading-spinner loading-md text-muted/70" aria-hidden="true"></span>
+				<div>
+					<p class="text-[0.9375rem] font-medium">{t('doc.view.preparing.title')}</p>
+					<p class="mt-1 text-sm text-muted text-pretty">{t('doc.view.preparing.body')}</p>
 				</div>
 			</div>
 		</div>

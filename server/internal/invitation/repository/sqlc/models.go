@@ -83,21 +83,24 @@ type DocumentPageText struct {
 }
 
 type DocumentVersion struct {
-	ID                pgtype.UUID        `json:"id"`
-	DocumentID        pgtype.UUID        `json:"document_id"`
-	VersionNo         int32              `json:"version_no"`
-	Mime              string             `json:"mime"`
-	Size              int64              `json:"size"`
-	StorageKey        string             `json:"storage_key"`
-	UploadedBy        pgtype.UUID        `json:"uploaded_by"`
-	CreatedAt         pgtype.Timestamptz `json:"created_at"`
-	RenditionKey      *string            `json:"rendition_key"`
-	PageCount         *int32             `json:"page_count"`
-	RenditionError    *string            `json:"rendition_error"`
-	RenditionFailedAt pgtype.Timestamptz `json:"rendition_failed_at"`
-	TextExtractedAt   pgtype.Timestamptz `json:"text_extracted_at"`
-	TextError         *string            `json:"text_error"`
-	TextFailedAt      pgtype.Timestamptz `json:"text_failed_at"`
+	ID                 pgtype.UUID        `json:"id"`
+	DocumentID         pgtype.UUID        `json:"document_id"`
+	VersionNo          int32              `json:"version_no"`
+	Mime               string             `json:"mime"`
+	Size               int64              `json:"size"`
+	StorageKey         string             `json:"storage_key"`
+	UploadedBy         pgtype.UUID        `json:"uploaded_by"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	RenditionKey       *string            `json:"rendition_key"`
+	PageCount          *int32             `json:"page_count"`
+	RenditionError     *string            `json:"rendition_error"`
+	RenditionFailedAt  pgtype.Timestamptz `json:"rendition_failed_at"`
+	TextExtractedAt    pgtype.Timestamptz `json:"text_extracted_at"`
+	TextError          *string            `json:"text_error"`
+	TextFailedAt       pgtype.Timestamptz `json:"text_failed_at"`
+	RenditionAttempts  int32              `json:"rendition_attempts"`
+	RenditionNextAt    pgtype.Timestamptz `json:"rendition_next_at"`
+	RenditionClaimedAt pgtype.Timestamptz `json:"rendition_claimed_at"`
 }
 
 type Faq struct {

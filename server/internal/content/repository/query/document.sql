@@ -87,20 +87,67 @@ update documents set folder_id = $2, position = $3, updated_at = now() where id 
 -- name: SetVersionRendition :exec
 update document_versions
 set rendition_key = sqlc.arg(rendition_key),
-    page_count = sqlc.arg(page_count)
+    page_count = sqlc.arg(page_count),
+    rendition_error = null,
+    rendition_next_at = null,
+    rendition_claimed_at = null
 where id = sqlc.arg(id);
 
 -- name: SetVersionRenditionFailure :exec
 update document_versions
 set rendition_error = sqlc.arg(rendition_error),
-    rendition_failed_at = now()
+    rendition_failed_at = now(),
+    rendition_claimed_at = null
 where id = sqlc.arg(id);
 
--- name: ClearVersionRenditionFailure :exec
+-- name: SetVersionRenditionTransientFailure :exec
+update document_versions
+set rendition_attempts = rendition_attempts + 1,
+    rendition_next_at = now() + sqlc.arg(backoff)::interval,
+    rendition_error = sqlc.arg(rendition_error),
+    rendition_claimed_at = null
+where id = sqlc.arg(id);
+
+-- name: ReleaseRenditionClaim :exec
+update document_versions
+set rendition_claimed_at = null
+where id = sqlc.arg(id);
+
+-- name: RequestRendition :exec
+update document_versions
+set rendition_next_at = now()
+where id = sqlc.arg(id)
+    and rendition_key is null
+    and rendition_failed_at is null
+    and rendition_next_at is null;
+
+-- name: ClearVersionRenditionFailure :execrows
 update document_versions
 set rendition_error = null,
-    rendition_failed_at = null
-where id = sqlc.arg(id);
+    rendition_failed_at = null,
+    rendition_attempts = 0,
+    rendition_next_at = now(),
+    rendition_claimed_at = null
+where id = sqlc.arg(id) and rendition_failed_at is not null;
+
+-- name: ClaimPendingRendition :one
+update document_versions set rendition_claimed_at = now()
+where id = (
+    select v.id from document_versions v
+    join documents d on d.id = v.document_id
+    where d.deleted_at is null
+        and v.rendition_key is null
+        and v.rendition_failed_at is null
+        and (d.current_version_id = v.id
+            or d.staged_version_id = v.id
+            or v.rendition_next_at is not null)
+        and (v.rendition_next_at is null or v.rendition_next_at <= now())
+        and (v.rendition_claimed_at is null
+            or v.rendition_claimed_at < now() - sqlc.arg(stale)::interval)
+    order by coalesce(v.rendition_next_at, v.created_at)
+    limit 1
+    for update of v skip locked)
+returning *;
 
 -- name: GetMaxPosition :one
 select coalesce(max(position), -1)::int as max_position

@@ -230,6 +230,10 @@ func (p *PopplerRenderer) run(ctx context.Context, name string, args ...string) 
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, fmt.Errorf("%s: %w", name, ctxErr)
+		}
+
 		msg := strings.TrimSpace(stderr.String())
 
 		if strings.Contains(msg, "Wrong page range") {

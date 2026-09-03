@@ -59,7 +59,7 @@ services:
 
   gotenberg:
     image: gotenberg/gotenberg:8.36
-    command: ['gotenberg', '--api-timeout=150s']
+    command: ['gotenberg', '--api-timeout=150s', '--chromium-disable-routes=true']
     healthcheck:
       test: ['CMD', 'curl', '-fsS', 'http://localhost:3000/health']
       interval: 10s

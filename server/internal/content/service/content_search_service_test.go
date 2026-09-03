@@ -102,7 +102,7 @@ func TestSearchBoxes(t *testing.T) {
 		},
 	}
 
-	svc := NewContentService(repo, fakeStorage{}, Viewer{}, 0, nil, StampDeps{Sync: 2, Async: 2}, ArchiveDeps{}, CacheDeps{})
+	svc := NewContentService(repo, fakeStorage{}, Viewer{}, 0, nil, StampDeps{Sync: 2, Async: 2}, ArchiveDeps{}, CacheDeps{}, RenditionDeps{})
 	res, err := svc.SearchBoxes(context.Background(), "99999999-9999-9999-9999-999999999999", docID, "laporan", Actor{UserID: "u1", Role: "owner"})
 	require.NoError(t, err)
 
@@ -116,7 +116,7 @@ func TestSearchBoxes(t *testing.T) {
 }
 
 func TestSearchBoxesStopwordOnly(t *testing.T) {
-	svc := NewContentService(&textFakeRepo{}, fakeStorage{}, Viewer{}, 0, nil, StampDeps{Sync: 2, Async: 2}, ArchiveDeps{}, CacheDeps{})
+	svc := NewContentService(&textFakeRepo{}, fakeStorage{}, Viewer{}, 0, nil, StampDeps{Sync: 2, Async: 2}, ArchiveDeps{}, CacheDeps{}, RenditionDeps{})
 	res, err := svc.SearchBoxes(context.Background(), "99999999-9999-9999-9999-999999999999", "doc", "yang dan", Actor{UserID: "u1", Role: "owner"})
 	require.NoError(t, err)
 	assert.Empty(t, res.Matches)
@@ -141,7 +141,7 @@ func TestSearchBoxesForbidden(t *testing.T) {
 		},
 	}
 
-	svc := NewContentService(repo, fakeStorage{}, Viewer{}, 0, nil, StampDeps{Sync: 2, Async: 2}, ArchiveDeps{}, CacheDeps{})
+	svc := NewContentService(repo, fakeStorage{}, Viewer{}, 0, nil, StampDeps{Sync: 2, Async: 2}, ArchiveDeps{}, CacheDeps{}, RenditionDeps{})
 	_, err := svc.SearchBoxes(context.Background(), "99999999-9999-9999-9999-999999999999", docID, "laporan", Actor{UserID: "u1", Role: "guest"})
 	require.ErrorIs(t, err, ErrContentForbidden)
 }

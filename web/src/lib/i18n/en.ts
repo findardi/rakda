@@ -527,7 +527,7 @@ export const en: Record<keyof Dict, string> = {
 	'doc.ver.stagedTitle':
 		'Served automatically once ready. Until then, the previous version stays up.',
 	'doc.ver.failedBadge': 'Failed to prepare',
-	'doc.ver.notReadyTitle': 'No PDF yet — it converts the first time it is opened.',
+	'doc.ver.notReadyTitle': 'No PDF yet — prepared in the background when opened.',
 	'doc.ver.retryPrepOf': 'Retry preparing v{n}',
 	'doc.ver.by': 'by {name}',
 	'doc.ver.viewOf': 'View version {n}',
@@ -599,6 +599,9 @@ export const en: Record<keyof Dict, string> = {
 	'doc.view.failed.retry': 'Try preparing again',
 	'doc.view.failed.retryErr': 'Could not restart preparation. Try again.',
 	'doc.view.failed.noPerm': 'Ask a room manager to prepare it again.',
+	'doc.view.preparing.title': 'Preparing this document',
+	'doc.view.preparing.body':
+		'The file is being converted for the secure viewer. This page refreshes itself once it is ready — usually within a minute.',
 	'doc.view.emptyPages': 'This document has no pages to display.',
 	'doc.view.small.title': 'This screen is too small to read documents',
 	'doc.view.small.body':

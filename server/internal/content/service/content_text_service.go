@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -58,47 +57,11 @@ func (s *ContentService) sweepTextOnce(ctx context.Context, batch int) {
 }
 
 func (s *ContentService) extractVersionText(ctx context.Context, row contentdb.ListPendingTextExtractionRow) error {
-	doc := contentdb.Document{
-		Name: row.DocumentName,
+	if row.RenditionKey == nil || row.PageCount == nil {
+		return fmt.Errorf("version %s: %w", uuidString(row.ID), ErrRenditionPending)
 	}
 
-	version := contentdb.DocumentVersion{
-		ID:                row.ID,
-		DocumentID:        row.DocumentID,
-		VersionNo:         row.VersionNo,
-		Mime:              row.Mime,
-		Size:              row.Size,
-		StorageKey:        row.StorageKey,
-		UploadedBy:        row.UploadedBy,
-		CreatedAt:         row.CreatedAt,
-		RenditionKey:      row.RenditionKey,
-		PageCount:         row.PageCount,
-		RenditionError:    row.RenditionError,
-		RenditionFailedAt: row.RenditionFailedAt,
-		TextExtractedAt:   row.TextExtractedAt,
-		TextError:         row.TextError,
-		TextFailedAt:      row.TextFailedAt,
-	}
-
-	renditionKey, pageCount, err := s.ensureRendition(ctx, uuidString(row.WorkspaceID), doc, version)
-	if errors.Is(err, ErrTooManyPages) {
-		// ensureRendition sudah menyimpan rendition sebelum mengembalikan
-		// ErrTooManyPages; dokumen di atas cap halaman tetap diekstrak.
-		fresh, verr := s.repo.GetVersionByID(ctx, row.ID)
-		if verr != nil {
-			return fmt.Errorf("get version after page cap: %w", verr)
-		}
-		if fresh.RenditionKey == nil || fresh.PageCount == nil {
-			return fmt.Errorf("%w: rendition missing after page cap", ErrTooManyPages)
-		}
-		renditionKey, pageCount = *fresh.RenditionKey, int(*fresh.PageCount)
-		err = nil
-	}
-	if err != nil {
-		// ErrRenditionFailed/ErrNotViewable sudah tercatat di rendition;
-		// sapuan berikutnya melewati versi ini lewat rendition_failed_at.
-		return fmt.Errorf("ensure rendition: %w", err)
-	}
+	renditionKey, pageCount := *row.RenditionKey, int(*row.PageCount)
 
 	pdf, err := s.renditionGet(ctx, renditionKey)
 	if err != nil {
