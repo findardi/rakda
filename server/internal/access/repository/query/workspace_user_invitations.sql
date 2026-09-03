@@ -1,9 +1,9 @@
 -- name: InsertWorkspaceInvitation :one
 with created as (
     insert into workspace_user_invitations
-        (workspace_id, email, role_id, user_id, invited_by, code_hash, status, expires_at)
+        (workspace_id, email, role_id, user_id, group_id, invited_by, code_hash, status, expires_at)
     values
-        ($1, $2, $3, $4, $5, $6, $7, $8)
+        ($1, $2, $3, $4, $5, $6, $7, $8, $9)
     returning *
 )
 select
@@ -28,10 +28,28 @@ where i.id = $1;
 select * from workspace_user_invitations where code_hash = $1;
 
 -- name: ListWorkspaceInvitations :many
+-- A pending row whose expires_at has passed reads as 'expired': nothing flips
+-- the stored status, so the lapse is derived here and the filter follows it.
 select
-    i.*,
+    i.id,
+    i.workspace_id,
+    i.email,
+    i.role_id,
+    i.user_id,
+    i.invited_by,
+    i.code_hash,
+    (case
+        when i.status = 'pending' and i.expires_at <= now() then 'expired'
+        else i.status
+    end)::text as status,
+    i.expires_at,
+    i.accepted_at,
+    i.created_at,
+    i.updated_at,
+    i.group_id,
     r.name as role_name,
-    u.username as invited_by_username
+    u.username as invited_by_username,
+    g.name as group_name
 from
     workspace_user_invitations i
 left join
@@ -40,9 +58,18 @@ left join
 left join
     users u
         on u.id = i.invited_by
+left join
+    workspace_groups g
+        on g.id = i.group_id
 where
     i.workspace_id = @workspace_id
-    and (sqlc.narg('status')::text is null or i.status = sqlc.narg('status'))
+    and (
+        sqlc.narg('status')::text is null
+        or case
+            when i.status = 'pending' and i.expires_at <= now() then 'expired'
+            else i.status
+        end = sqlc.narg('status')
+    )
 order by i.created_at desc;
 
 -- name: AcceptWorkspaceInvitation :one
@@ -83,6 +110,7 @@ with updated as (
         status = 'pending',
         role_id = @role_id,
         user_id = @user_id,
+        group_id = @group_id,
         invited_by = @invited_by,
         code_hash = @code_hash,
         expires_at = @expires_at,
@@ -90,7 +118,10 @@ with updated as (
         updated_at = now()
     where workspace_id = @workspace_id
         and lower(email) = lower(@email)
-        and status in ('revoked', 'rejected', 'expired')
+        and (
+            status in ('revoked', 'rejected', 'expired')
+            or (status = 'pending' and expires_at <= now())
+        )
     returning *
 )
 select

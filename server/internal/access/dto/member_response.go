@@ -38,6 +38,8 @@ type InvitationResponse struct {
 	Email             string    `json:"email"`
 	RoleID            string    `json:"role_id"`
 	RoleName          string    `json:"role_name"`
+	GroupID           string    `json:"group_id"`
+	GroupName         string    `json:"group_name"`
 	UserID            string    `json:"user_id"`
 	InvitedBy         string    `json:"invited_by"`
 	InvitedByUsername string    `json:"invited_by_username"`

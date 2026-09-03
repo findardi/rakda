@@ -71,6 +71,7 @@ var (
 
 	ErrGroupNameTaken     = errors.New("group name already taken")
 	ErrGroupNotFound      = errors.New("group not found")
+	ErrGroupGuestOnly     = errors.New("groups can only be assigned to the guest role")
 	ErrDeleteDefaultGroup = errors.New("group is default by system, cant deleted")
 
 	ErrAssignMemberRole = errors.New("only can assign guest role")
@@ -276,8 +277,43 @@ func (s *AccessService) AddMembers(ctx context.Context, req dto.AddMembersReques
 	if err != nil {
 		return outcome, fmt.Errorf("get role: %w", err)
 	}
+	// The actor's authority over the role is checked before the request's
+	// shape: a request the actor may not make at all must not be answered
+	// with a validation error.
 	if err := guardRoleAssignment(actor.Role, invitedRole.Name); err != nil {
 		return outcome, err
+	}
+
+	// A group may be chosen for guest invitations only. When one is given it
+	// must exist in THIS workspace — group membership drives folder access and
+	// Q&A siloing, so a foreign group id must never be accepted. Empty means
+	// "default group at acceptance time".
+	var gID pgtype.UUID
+	groupName := ""
+	if req.GroupId != "" {
+		if err := gID.Scan(req.GroupId); err != nil {
+			return outcome, fmt.Errorf("parse group id: %w", err)
+		}
+		if invitedRole.Name != permission.RoleGuest {
+			return outcome, ErrGroupGuestOnly
+		}
+
+		g, err := s.repo.GetGroup(ctx, gID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return outcome, ErrGroupNotFound
+		}
+		if err != nil {
+			return outcome, fmt.Errorf("get group: %w", err)
+		}
+		if uuidString(g.WorkspaceID) != req.WorkspaceId {
+			return outcome, ErrGroupNotFound
+		}
+		groupName = g.Name
+	}
+
+	inviteMeta := map[string]any{"role": invitedRole.Name}
+	if groupName != "" {
+		inviteMeta["group"] = groupName
 	}
 
 	seen := make(map[string]struct{})
@@ -327,12 +363,14 @@ func (s *AccessService) AddMembers(ctx context.Context, req dto.AddMembersReques
 		codeHash := s.token.Hash(rawToken)
 		expiresAt := pgtype.Timestamptz{Time: time.Now().Add(inviteTTL), Valid: true}
 
-		// Revive a previously revoked/rejected/expired invitation for this email
-		// instead of leaving a stale row and inserting a duplicate.
+		// Revive a previously revoked/rejected invitation — or a pending one
+		// whose expiry has lapsed — for this email instead of leaving a stale
+		// row and inserting a duplicate that the pending unique index rejects.
 		revived, err := s.repo.ReinviteWorkspaceInvitation(ctx, accessdb.ReinviteWorkspaceInvitationParams{
 			WorkspaceID: wsID,
 			Email:       email,
 			RoleID:      roleID,
+			GroupID:     gID,
 			UserID:      uID,
 			InvitedBy:   inID,
 			CodeHash:    codeHash,
@@ -343,7 +381,7 @@ func (s *AccessService) AddMembers(ctx context.Context, req dto.AddMembersReques
 				revived.WorkspaceName, deref(revived.InvitedByUsername), revived.ExpiresAt.Time)
 			s.activity.Record(ctx, s.activityEntry(req.WorkspaceId, actor,
 				activityservice.ActionInviteSent, activityservice.TargetInvitation,
-				uuidString(revived.ID), email, map[string]any{"role": invitedRole.Name}))
+				uuidString(revived.ID), email, inviteMeta))
 			outcome = append(outcome, dto.AddMembersResponse{
 				Email:   email,
 				Outcome: OutcomeInvited,
@@ -368,6 +406,7 @@ func (s *AccessService) AddMembers(ctx context.Context, req dto.AddMembersReques
 			Email:       email,
 			RoleID:      roleID,
 			UserID:      uID,
+			GroupID:     gID,
 			InvitedBy:   inID,
 			CodeHash:    codeHash,
 			Status:      InviteStatusPending,
@@ -389,7 +428,7 @@ func (s *AccessService) AddMembers(ctx context.Context, req dto.AddMembersReques
 			fresh.WorkspaceName, deref(fresh.InvitedByUsername), fresh.ExpiresAt.Time)
 		s.activity.Record(ctx, s.activityEntry(req.WorkspaceId, actor,
 			activityservice.ActionInviteSent, activityservice.TargetInvitation,
-			uuidString(fresh.ID), email, map[string]any{"role": invitedRole.Name}))
+			uuidString(fresh.ID), email, inviteMeta))
 		outcome = append(outcome, dto.AddMembersResponse{
 			Email:   email,
 			Outcome: OutcomeInvited,
@@ -433,6 +472,8 @@ func (s *AccessService) ListInvitations(ctx context.Context, workspaceID, status
 			Email:             r.Email,
 			RoleID:            uuidString(r.RoleID),
 			RoleName:          deref(r.RoleName),
+			GroupID:           uuidString(r.GroupID),
+			GroupName:         deref(r.GroupName),
 			UserID:            uuidString(r.UserID),
 			InvitedBy:         uuidString(r.InvitedBy),
 			InvitedByUsername: deref(r.InvitedByUsername),
@@ -669,19 +710,22 @@ func (s *AccessService) ResendInvitation(ctx context.Context, invitationID strin
 
 	rawToken := s.token.Generate()
 
-	if _, err := s.repo.ResendInvitation(ctx, accessdb.ResendInvitationParams{
+	updated, err := s.repo.ResendInvitation(ctx, accessdb.ResendInvitationParams{
 		ID:        invID,
 		CodeHash:  s.token.Hash(rawToken),
 		ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(inviteTTL), Valid: true},
-	}); err != nil {
+	})
+	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrInvitationNotResendable
 		}
 		return fmt.Errorf("resend invitation: %w", err)
 	}
 
+	// The email must carry the renewed expiry, not the one on the row fetched
+	// before the update — for a lapsed invitation that date is in the past.
 	s.sendInviteEmail(inv.Email, rawToken, inv.UserID.Valid,
-		inv.WorkspaceName, deref(inv.InvitedByUsername), inv.ExpiresAt.Time)
+		inv.WorkspaceName, deref(inv.InvitedByUsername), updated.ExpiresAt.Time)
 	s.activity.Record(ctx, s.activityEntry(uuidString(inv.WorkspaceID), actor,
 		activityservice.ActionInviteResent, activityservice.TargetInvitation,
 		invitationID, inv.Email, nil))

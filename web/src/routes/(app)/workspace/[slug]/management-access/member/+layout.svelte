@@ -76,6 +76,7 @@
 <InviteDialog
 	bind:open={inviteOpen}
 	roles={data.roles}
+	groups={data.groups}
 	{viewerRole}
 	action={`${base}/invite?/invite`}
 	pendingHref={`${base}/invite`}

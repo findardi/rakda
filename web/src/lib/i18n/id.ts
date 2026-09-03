@@ -1170,6 +1170,9 @@ export const id = {
 	'member.invite.emailPlaceholder': 'nama@perusahaan.com',
 	'member.invite.emailHint': 'Tekan Enter atau koma untuk menambahkan tiap email.',
 	'member.invite.roleLabel': 'Peran',
+	'member.invite.groupLabel': 'Grup',
+	'member.invite.groupHint':
+		'Tamu hanya melihat folder yang diberikan ke grupnya. Tanpa pilihan, Tamu masuk ke grup bawaan.',
 	'member.invite.removeChip': 'Hapus {email}',
 	'member.invite.invalidEmail': 'Format email tidak valid.',
 	'member.invite.dupe': 'Email itu sudah ditambahkan.',
@@ -1216,6 +1219,7 @@ export const id = {
 
 	// pending invitations
 	'pending.status.pending': 'Menunggu',
+	'pending.group': 'Grup',
 	'pending.expires': 'Kedaluwarsa',
 	'pending.invitedBy': 'Diundang oleh {name}',
 	'pending.resend': 'Kirim ulang',

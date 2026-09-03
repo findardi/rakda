@@ -33,6 +33,32 @@ func (q *Queries) AssignDefaultGroupIfGuest(ctx context.Context, arg AssignDefau
 	return err
 }
 
+const assignToGroup = `-- name: AssignToGroup :exec
+insert into workspace_group_members (group_id, member_id)
+select g.id, m.id
+from workspace_members m
+join workspace_roles r
+    on r.id = m.role_id and r.name = 'guest'
+join workspace_groups g
+    on g.id = $1 and g.workspace_id = m.workspace_id
+where m.workspace_id = $2 and m.user_id = $3
+on conflict (member_id) do nothing
+`
+
+type AssignToGroupParams struct {
+	GroupID     pgtype.UUID `json:"group_id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	UserID      pgtype.UUID `json:"user_id"`
+}
+
+// Assigns an accepting guest to the group chosen at invite time. No-ops when
+// the member is not a guest or the group belongs to another workspace
+// (invitations are validated on creation; this is defense in depth).
+func (q *Queries) AssignToGroup(ctx context.Context, arg AssignToGroupParams) error {
+	_, err := q.db.Exec(ctx, assignToGroup, arg.GroupID, arg.WorkspaceID, arg.UserID)
+	return err
+}
+
 const deleteGroupMember = `-- name: DeleteGroupMember :exec
 delete from workspace_group_members where
     group_id = $1 and member_id = $2

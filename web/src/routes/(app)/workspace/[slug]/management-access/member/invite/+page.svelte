@@ -160,6 +160,13 @@
 							class="rounded-selector bg-base-content/10 px-1.5 py-0.5 text-[0.6875rem] font-medium text-muted"
 							>{roleDisplayName(inv.role_name)}</span
 						>
+						{#if inv.group_name}
+							<span
+								title={t('pending.group')}
+								class="rounded-selector bg-base-content/5 px-1.5 py-0.5 text-[0.6875rem] text-muted"
+								>{inv.group_name}</span
+							>
+						{/if}
 					</div>
 					<p class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
 						<span class="inline-flex items-center gap-1.5">

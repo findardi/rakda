@@ -80,9 +80,12 @@ export interface UpdateMemberRolePayload {
 }
 
 // Bulk invite — backend field is `email` (an array, max 50), one role per batch.
+// `group_id` is optional and only meaningful for guest invites — when omitted
+// the guest lands in the room's default group on acceptance.
 export interface AddMembersPayload {
 	email: string[];
 	role_id: string;
+	group_id?: string;
 }
 
 // Per-email result. The backend never reveals registration status: existing and
@@ -104,6 +107,10 @@ export interface InvitationData {
 	email: string;
 	role_id: string;
 	role_name: string;
+	// Guest invites may carry the chosen group; empty means the default group
+	// is applied when the invitation is accepted.
+	group_id: string;
+	group_name: string;
 	user_id: string;
 	invited_by: string;
 	invited_by_username: string;
