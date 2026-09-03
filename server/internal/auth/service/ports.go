@@ -49,7 +49,7 @@ type JWTService interface {
 }
 
 type MailService interface {
-	Send(ctx context.Context, to, subject, body string) error
+	Send(ctx context.Context, to, subject, textBody, htmlBody string) error
 }
 
 type InvitePreview struct {

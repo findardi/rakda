@@ -512,10 +512,7 @@ function pump(): void {
 function settle(): void {
 	const busy = items.some((i) => i.status === 'pending' || i.status === 'uploading');
 	if (busy) return;
-	if (items.some((i) => i.status === 'done')) {
-		void invalidateAll();
-		setTimeout(clearDone, 4000);
-	}
+	if (items.some((i) => i.status === 'done')) void invalidateAll();
 }
 
 function clearDone(): void {

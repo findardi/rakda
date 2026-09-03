@@ -97,12 +97,36 @@ func (q *Queries) GetInvitationByCodeHashDetailed(ctx context.Context, codeHash 
 }
 
 const getWorkspaceInvitation = `-- name: GetWorkspaceInvitation :one
-select id, workspace_id, email, role_id, user_id, invited_by, code_hash, status, expires_at, accepted_at, created_at, updated_at from workspace_user_invitations where id = $1
+select
+    i.id, i.workspace_id, i.email, i.role_id, i.user_id, i.invited_by, i.code_hash, i.status, i.expires_at, i.accepted_at, i.created_at, i.updated_at,
+    w.name as workspace_name,
+    u.username as invited_by_username
+from workspace_user_invitations i
+join workspaces w on w.id = i.workspace_id
+left join users u on u.id = i.invited_by
+where i.id = $1
 `
 
-func (q *Queries) GetWorkspaceInvitation(ctx context.Context, id pgtype.UUID) (WorkspaceUserInvitation, error) {
+type GetWorkspaceInvitationRow struct {
+	ID                pgtype.UUID        `json:"id"`
+	WorkspaceID       pgtype.UUID        `json:"workspace_id"`
+	Email             string             `json:"email"`
+	RoleID            pgtype.UUID        `json:"role_id"`
+	UserID            pgtype.UUID        `json:"user_id"`
+	InvitedBy         pgtype.UUID        `json:"invited_by"`
+	CodeHash          string             `json:"code_hash"`
+	Status            string             `json:"status"`
+	ExpiresAt         pgtype.Timestamptz `json:"expires_at"`
+	AcceptedAt        pgtype.Timestamptz `json:"accepted_at"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	WorkspaceName     string             `json:"workspace_name"`
+	InvitedByUsername *string            `json:"invited_by_username"`
+}
+
+func (q *Queries) GetWorkspaceInvitation(ctx context.Context, id pgtype.UUID) (GetWorkspaceInvitationRow, error) {
 	row := q.db.QueryRow(ctx, getWorkspaceInvitation, id)
-	var i WorkspaceUserInvitation
+	var i GetWorkspaceInvitationRow
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
@@ -116,6 +140,8 @@ func (q *Queries) GetWorkspaceInvitation(ctx context.Context, id pgtype.UUID) (W
 		&i.AcceptedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkspaceName,
+		&i.InvitedByUsername,
 	)
 	return i, err
 }
@@ -145,11 +171,20 @@ func (q *Queries) GetWorkspaceInvitationByCodeHash(ctx context.Context, codeHash
 }
 
 const insertWorkspaceInvitation = `-- name: InsertWorkspaceInvitation :one
-insert into workspace_user_invitations
-    (workspace_id, email, role_id, user_id, invited_by, code_hash, status, expires_at)
-values
-    ($1, $2, $3, $4, $5, $6, $7, $8)
-returning id, workspace_id, email, role_id, user_id, invited_by, code_hash, status, expires_at, accepted_at, created_at, updated_at
+with created as (
+    insert into workspace_user_invitations
+        (workspace_id, email, role_id, user_id, invited_by, code_hash, status, expires_at)
+    values
+        ($1, $2, $3, $4, $5, $6, $7, $8)
+    returning id, workspace_id, email, role_id, user_id, invited_by, code_hash, status, expires_at, accepted_at, created_at, updated_at
+)
+select
+    i.id, i.workspace_id, i.email, i.role_id, i.user_id, i.invited_by, i.code_hash, i.status, i.expires_at, i.accepted_at, i.created_at, i.updated_at,
+    w.name as workspace_name,
+    u.username as invited_by_username
+from created i
+join workspaces w on w.id = i.workspace_id
+left join users u on u.id = i.invited_by
 `
 
 type InsertWorkspaceInvitationParams struct {
@@ -163,7 +198,24 @@ type InsertWorkspaceInvitationParams struct {
 	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
 }
 
-func (q *Queries) InsertWorkspaceInvitation(ctx context.Context, arg InsertWorkspaceInvitationParams) (WorkspaceUserInvitation, error) {
+type InsertWorkspaceInvitationRow struct {
+	ID                pgtype.UUID        `json:"id"`
+	WorkspaceID       pgtype.UUID        `json:"workspace_id"`
+	Email             string             `json:"email"`
+	RoleID            pgtype.UUID        `json:"role_id"`
+	UserID            pgtype.UUID        `json:"user_id"`
+	InvitedBy         pgtype.UUID        `json:"invited_by"`
+	CodeHash          string             `json:"code_hash"`
+	Status            string             `json:"status"`
+	ExpiresAt         pgtype.Timestamptz `json:"expires_at"`
+	AcceptedAt        pgtype.Timestamptz `json:"accepted_at"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	WorkspaceName     string             `json:"workspace_name"`
+	InvitedByUsername *string            `json:"invited_by_username"`
+}
+
+func (q *Queries) InsertWorkspaceInvitation(ctx context.Context, arg InsertWorkspaceInvitationParams) (InsertWorkspaceInvitationRow, error) {
 	row := q.db.QueryRow(ctx, insertWorkspaceInvitation,
 		arg.WorkspaceID,
 		arg.Email,
@@ -174,7 +226,7 @@ func (q *Queries) InsertWorkspaceInvitation(ctx context.Context, arg InsertWorks
 		arg.Status,
 		arg.ExpiresAt,
 	)
-	var i WorkspaceUserInvitation
+	var i InsertWorkspaceInvitationRow
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
@@ -188,6 +240,8 @@ func (q *Queries) InsertWorkspaceInvitation(ctx context.Context, arg InsertWorks
 		&i.AcceptedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkspaceName,
+		&i.InvitedByUsername,
 	)
 	return i, err
 }
@@ -269,19 +323,28 @@ func (q *Queries) ListWorkspaceInvitations(ctx context.Context, arg ListWorkspac
 }
 
 const reinviteWorkspaceInvitation = `-- name: ReinviteWorkspaceInvitation :one
-update workspace_user_invitations set
-    status = 'pending',
-    role_id = $1,
-    user_id = $2,
-    invited_by = $3,
-    code_hash = $4,
-    expires_at = $5,
-    accepted_at = null,
-    updated_at = now()
-where workspace_id = $6
-    and lower(email) = lower($7)
-    and status in ('revoked', 'rejected', 'expired')
-returning id, workspace_id, email, role_id, user_id, invited_by, code_hash, status, expires_at, accepted_at, created_at, updated_at
+with updated as (
+    update workspace_user_invitations set
+        status = 'pending',
+        role_id = $1,
+        user_id = $2,
+        invited_by = $3,
+        code_hash = $4,
+        expires_at = $5,
+        accepted_at = null,
+        updated_at = now()
+    where workspace_id = $6
+        and lower(email) = lower($7)
+        and status in ('revoked', 'rejected', 'expired')
+    returning id, workspace_id, email, role_id, user_id, invited_by, code_hash, status, expires_at, accepted_at, created_at, updated_at
+)
+select
+    i.id, i.workspace_id, i.email, i.role_id, i.user_id, i.invited_by, i.code_hash, i.status, i.expires_at, i.accepted_at, i.created_at, i.updated_at,
+    w.name as workspace_name,
+    u.username as invited_by_username
+from updated i
+join workspaces w on w.id = i.workspace_id
+left join users u on u.id = i.invited_by
 `
 
 type ReinviteWorkspaceInvitationParams struct {
@@ -294,7 +357,24 @@ type ReinviteWorkspaceInvitationParams struct {
 	Email       string             `json:"email"`
 }
 
-func (q *Queries) ReinviteWorkspaceInvitation(ctx context.Context, arg ReinviteWorkspaceInvitationParams) (WorkspaceUserInvitation, error) {
+type ReinviteWorkspaceInvitationRow struct {
+	ID                pgtype.UUID        `json:"id"`
+	WorkspaceID       pgtype.UUID        `json:"workspace_id"`
+	Email             string             `json:"email"`
+	RoleID            pgtype.UUID        `json:"role_id"`
+	UserID            pgtype.UUID        `json:"user_id"`
+	InvitedBy         pgtype.UUID        `json:"invited_by"`
+	CodeHash          string             `json:"code_hash"`
+	Status            string             `json:"status"`
+	ExpiresAt         pgtype.Timestamptz `json:"expires_at"`
+	AcceptedAt        pgtype.Timestamptz `json:"accepted_at"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	WorkspaceName     string             `json:"workspace_name"`
+	InvitedByUsername *string            `json:"invited_by_username"`
+}
+
+func (q *Queries) ReinviteWorkspaceInvitation(ctx context.Context, arg ReinviteWorkspaceInvitationParams) (ReinviteWorkspaceInvitationRow, error) {
 	row := q.db.QueryRow(ctx, reinviteWorkspaceInvitation,
 		arg.RoleID,
 		arg.UserID,
@@ -304,7 +384,7 @@ func (q *Queries) ReinviteWorkspaceInvitation(ctx context.Context, arg ReinviteW
 		arg.WorkspaceID,
 		arg.Email,
 	)
-	var i WorkspaceUserInvitation
+	var i ReinviteWorkspaceInvitationRow
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
@@ -318,6 +398,8 @@ func (q *Queries) ReinviteWorkspaceInvitation(ctx context.Context, arg ReinviteW
 		&i.AcceptedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkspaceName,
+		&i.InvitedByUsername,
 	)
 	return i, err
 }

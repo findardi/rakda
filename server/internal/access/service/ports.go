@@ -25,7 +25,7 @@ type AccessRepository interface {
 	GetMember(ctx context.Context, id pgtype.UUID) (accessdb.GetMemberRow, error)
 	GetMembers(ctx context.Context, workspaceID pgtype.UUID) ([]accessdb.GetMembersRow, error)
 	GetMemberByWorkspaceUser(ctx context.Context, arg accessdb.GetMemberByWorkspaceUserParams) (accessdb.WorkspaceMember, error)
-	GetWorkspaceInvitation(ctx context.Context, id pgtype.UUID) (accessdb.WorkspaceUserInvitation, error)
+	GetWorkspaceInvitation(ctx context.Context, id pgtype.UUID) (accessdb.GetWorkspaceInvitationRow, error)
 	GetGroups(ctx context.Context, workspaceID pgtype.UUID) ([]accessdb.WorkspaceGroup, error)
 	GetGroup(ctx context.Context, id pgtype.UUID) (accessdb.WorkspaceGroup, error)
 	GetGroupMembers(ctx context.Context, groupID pgtype.UUID) ([]accessdb.GetGroupMembersRow, error)
@@ -35,14 +35,14 @@ type AccessRepository interface {
 	UpdateGroupQA(ctx context.Context, arg accessdb.UpdateGroupQAParams) (accessdb.WorkspaceGroup, error)
 
 	InsertRole(ctx context.Context, arg accessdb.InsertRoleParams) (accessdb.WorkspaceRole, error)
-	InsertWorkspaceInvitation(ctx context.Context, arg accessdb.InsertWorkspaceInvitationParams) (accessdb.WorkspaceUserInvitation, error)
+	InsertWorkspaceInvitation(ctx context.Context, arg accessdb.InsertWorkspaceInvitationParams) (accessdb.InsertWorkspaceInvitationRow, error)
 	InsertGroupMember(ctx context.Context, arg accessdb.InsertGroupMemberParams) (accessdb.WorkspaceGroupMember, error)
 	MoveMemberToDefaultGroup(ctx context.Context, memberID pgtype.UUID) (int64, error)
 	ListWorkspaceInvitations(ctx context.Context, arg accessdb.ListWorkspaceInvitationsParams) ([]accessdb.ListWorkspaceInvitationsRow, error)
 
 	RevokeWorkspaceInvitation(ctx context.Context, id pgtype.UUID) (accessdb.WorkspaceUserInvitation, error)
 	ResendInvitation(ctx context.Context, arg accessdb.ResendInvitationParams) (accessdb.WorkspaceUserInvitation, error)
-	ReinviteWorkspaceInvitation(ctx context.Context, arg accessdb.ReinviteWorkspaceInvitationParams) (accessdb.WorkspaceUserInvitation, error)
+	ReinviteWorkspaceInvitation(ctx context.Context, arg accessdb.ReinviteWorkspaceInvitationParams) (accessdb.ReinviteWorkspaceInvitationRow, error)
 
 	ExecTx(ctx context.Context, fn func(q *accessdb.Queries) error) error
 	ExecTxTx(ctx context.Context, fn func(*accessdb.Queries, pgx.Tx) error) error
@@ -54,7 +54,7 @@ type ActivityRecorder interface {
 }
 
 type MailService interface {
-	Send(ctx context.Context, to, subject, body string) error
+	Send(ctx context.Context, to, subject, textBody, htmlBody string) error
 }
 
 type Tokenizer interface {
