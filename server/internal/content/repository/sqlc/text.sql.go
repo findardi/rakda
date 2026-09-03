@@ -90,7 +90,7 @@ func (q *Queries) ListPendingOCRPages(ctx context.Context, limitCount int32) ([]
 
 const listPendingTextExtraction = `-- name: ListPendingTextExtraction :many
 select
-    v.id, v.document_id, v.version_no, v.mime, v.size, v.storage_key, v.uploaded_by, v.created_at, v.rendition_key, v.page_count, v.rendition_error, v.rendition_failed_at, v.text_extracted_at, v.text_error, v.text_failed_at,
+    v.id, v.document_id, v.version_no, v.mime, v.size, v.storage_key, v.uploaded_by, v.created_at, v.rendition_key, v.page_count, v.rendition_error, v.rendition_failed_at, v.text_extracted_at, v.text_error, v.text_failed_at, v.rendition_attempts, v.rendition_next_at, v.rendition_claimed_at,
     d.name as document_name,
     d.workspace_id as workspace_id,
     d.folder_id as folder_id
@@ -101,29 +101,33 @@ where d.deleted_at is null
     and v.text_extracted_at is null
     and v.text_failed_at is null
     and v.rendition_failed_at is null
+    and v.rendition_key is not null
 order by v.created_at
 limit $1
 `
 
 type ListPendingTextExtractionRow struct {
-	ID                pgtype.UUID        `json:"id"`
-	DocumentID        pgtype.UUID        `json:"document_id"`
-	VersionNo         int32              `json:"version_no"`
-	Mime              string             `json:"mime"`
-	Size              int64              `json:"size"`
-	StorageKey        string             `json:"storage_key"`
-	UploadedBy        pgtype.UUID        `json:"uploaded_by"`
-	CreatedAt         pgtype.Timestamptz `json:"created_at"`
-	RenditionKey      *string            `json:"rendition_key"`
-	PageCount         *int32             `json:"page_count"`
-	RenditionError    *string            `json:"rendition_error"`
-	RenditionFailedAt pgtype.Timestamptz `json:"rendition_failed_at"`
-	TextExtractedAt   pgtype.Timestamptz `json:"text_extracted_at"`
-	TextError         *string            `json:"text_error"`
-	TextFailedAt      pgtype.Timestamptz `json:"text_failed_at"`
-	DocumentName      string             `json:"document_name"`
-	WorkspaceID       pgtype.UUID        `json:"workspace_id"`
-	FolderID          pgtype.UUID        `json:"folder_id"`
+	ID                 pgtype.UUID        `json:"id"`
+	DocumentID         pgtype.UUID        `json:"document_id"`
+	VersionNo          int32              `json:"version_no"`
+	Mime               string             `json:"mime"`
+	Size               int64              `json:"size"`
+	StorageKey         string             `json:"storage_key"`
+	UploadedBy         pgtype.UUID        `json:"uploaded_by"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	RenditionKey       *string            `json:"rendition_key"`
+	PageCount          *int32             `json:"page_count"`
+	RenditionError     *string            `json:"rendition_error"`
+	RenditionFailedAt  pgtype.Timestamptz `json:"rendition_failed_at"`
+	TextExtractedAt    pgtype.Timestamptz `json:"text_extracted_at"`
+	TextError          *string            `json:"text_error"`
+	TextFailedAt       pgtype.Timestamptz `json:"text_failed_at"`
+	RenditionAttempts  int32              `json:"rendition_attempts"`
+	RenditionNextAt    pgtype.Timestamptz `json:"rendition_next_at"`
+	RenditionClaimedAt pgtype.Timestamptz `json:"rendition_claimed_at"`
+	DocumentName       string             `json:"document_name"`
+	WorkspaceID        pgtype.UUID        `json:"workspace_id"`
+	FolderID           pgtype.UUID        `json:"folder_id"`
 }
 
 func (q *Queries) ListPendingTextExtraction(ctx context.Context, limit int32) ([]ListPendingTextExtractionRow, error) {
@@ -151,6 +155,9 @@ func (q *Queries) ListPendingTextExtraction(ctx context.Context, limit int32) ([
 			&i.TextExtractedAt,
 			&i.TextError,
 			&i.TextFailedAt,
+			&i.RenditionAttempts,
+			&i.RenditionNextAt,
+			&i.RenditionClaimedAt,
 			&i.DocumentName,
 			&i.WorkspaceID,
 			&i.FolderID,

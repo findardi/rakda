@@ -157,7 +157,7 @@ func (s *ContentService) getDocumentScoped(ctx context.Context, workspaceID, doc
 	return doc, nil
 }
 
-func (s *ContentService) ensureRendition(ctx context.Context, workspaceID string, doc contentdb.Document, version contentdb.DocumentVersion) (string, int, error) {
+func (s *ContentService) renditionState(ctx context.Context, doc contentdb.Document, version contentdb.DocumentVersion) (string, int, error) {
 	if version.RenditionFailedAt.Valid {
 		return "", 0, ErrRenditionFailed
 	}
@@ -171,32 +171,14 @@ func (s *ContentService) ensureRendition(ctx context.Context, workspaceID string
 		return *version.RenditionKey, int(*version.PageCount), nil
 	}
 
-	// Singleflight per version id: the detached kick from an upload or retry
-	// and a reader opening the viewer at the same moment share one gotenberg
-	// conversion instead of racing two.
-	type built struct {
-		key   string
-		pages int
-	}
-
-	v, err, _ := s.convertSF.Do(uuidString(version.ID), func() (any, error) {
-		key, pages, err := s.buildRendition(ctx, workspaceID, doc, version)
-		if err != nil {
-			return nil, err
+	if version.ID != doc.CurrentVersionID && version.ID != doc.StagedVersionID {
+		if err := s.repo.RequestRendition(ctx, version.ID); err != nil {
+			return "", 0, fmt.Errorf("request rendition: %w", err)
 		}
-		return built{key: key, pages: pages}, nil
-	})
-	if err != nil {
-		return "", 0, err
 	}
 
-	res := v.(built)
-	if res.pages > maxRenditionPages {
-		return "", 0, fmt.Errorf("%w: %d, max %d", ErrTooManyPages, res.pages, maxRenditionPages)
-	}
-
-	s.promoteStaged(ctx, doc, version)
-	return res.key, res.pages, nil
+	s.wakeRenditionWorker()
+	return "", 0, ErrRenditionPending
 }
 
 // promoteStaged serves a staged version the moment its rendition proves out —
@@ -218,114 +200,74 @@ func (s *ContentService) promoteStaged(ctx context.Context, doc contentdb.Docume
 }
 
 func (s *ContentService) buildRendition(ctx context.Context, workspaceID string, doc contentdb.Document, version contentdb.DocumentVersion) (string, int, error) {
-	versionID := uuidString(version.ID)
-
-	var (
-		renditionKey string
-		pageCount    int
-	)
-
 	if convert.IsPDF(doc.Name) {
-		renditionKey = version.StorageKey
-
-		pdf, err := s.renditionGet(ctx, renditionKey)
+		pdf, err := s.renditionGet(ctx, version.StorageKey)
 		if err != nil {
 			return "", 0, fmt.Errorf("get original pdf: %w", err)
 		}
 		defer pdf.Close()
 
-		pageCount, err = s.viewer.Renderer.PageCount(ctx, pdf)
+		pageCount, err := s.viewer.Renderer.PageCount(ctx, pdf)
 		if err != nil {
-			return "", 0, s.markRenditionFailed(ctx, version.ID, err)
-		}
-	} else {
-		renditionKey = renditionPDFKey(workspaceID, versionID)
-
-		src, err := s.store.Get(ctx, version.StorageKey)
-		if err != nil {
-			return "", 0, fmt.Errorf("get original: %w", err)
-		}
-		defer src.Close()
-
-		pdf, err := s.viewer.Converter.ToPDF(ctx, src, doc.Name)
-		if err != nil {
-			if errors.Is(err, convert.ErrUnsupportedFile) {
-				return "", 0, ErrNotViewable
-			}
-
-			return "", 0, s.markRenditionFailed(ctx, version.ID, err)
-		}
-		defer pdf.Close()
-
-		// Tumpahkan sekali ke berkas sementara (9.5-b): poppler sudah men-spool
-		// ke disk untuk PageCount, jadi menahan seluruh PDF di RAM hanyalah
-		// membayar dua kali. Berkas yang sama dipakai untuk Put lalu PageCount.
-		f, err := os.CreateTemp("", spool.Prefix+"rendition-*.pdf")
-		if err != nil {
-			return "", 0, fmt.Errorf("temp rendition: %w", err)
-		}
-		defer f.Close()
-		defer os.Remove(f.Name())
-
-		n, err := io.Copy(f, pdf)
-		if err != nil {
-			return "", 0, fmt.Errorf("spool rendition: %w", err)
+			return "", 0, fmt.Errorf("page count: %w", err)
 		}
 
-		if _, err := f.Seek(0, io.SeekStart); err != nil {
-			return "", 0, fmt.Errorf("rewind rendition: %w", err)
-		}
+		return version.StorageKey, pageCount, nil
+	}
 
-		if err := s.store.Put(ctx, renditionKey, f, n, "application/pdf"); err != nil {
-			return "", 0, fmt.Errorf("store rendition: %w", err)
-		}
+	renditionKey := renditionPDFKey(workspaceID, uuidString(version.ID))
 
-		if _, err := f.Seek(0, io.SeekStart); err != nil {
-			return "", 0, fmt.Errorf("rewind rendition: %w", err)
-		}
+	src, err := s.store.Get(ctx, version.StorageKey)
+	if err != nil {
+		return "", 0, fmt.Errorf("get original: %w", err)
+	}
+	defer src.Close()
 
-		pageCount, err = s.viewer.Renderer.PageCount(ctx, f)
-		if err != nil {
-			return "", 0, s.markRenditionFailed(ctx, version.ID, err)
-		}
+	pdf, err := s.viewer.Converter.ToPDF(ctx, src, doc.Name)
+	if err != nil {
+		return "", 0, fmt.Errorf("convert: %w", err)
+	}
+	defer pdf.Close()
 
-		if pageCount <= maxRenditionPages {
-			if _, err := f.Seek(0, io.SeekStart); err == nil {
-				s.renditionPut(renditionKey, f)
-			}
+	// Tumpahkan sekali ke berkas sementara (9.5-b): poppler sudah men-spool
+	// ke disk untuk PageCount, jadi menahan seluruh PDF di RAM hanyalah
+	// membayar dua kali. Berkas yang sama dipakai untuk PageCount lalu Put.
+	f, err := os.CreateTemp("", spool.Prefix+"rendition-*.pdf")
+	if err != nil {
+		return "", 0, fmt.Errorf("temp rendition: %w", err)
+	}
+	defer f.Close()
+	defer os.Remove(f.Name())
+
+	n, err := io.Copy(f, pdf)
+	if err != nil {
+		return "", 0, fmt.Errorf("spool rendition: %w", err)
+	}
+
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return "", 0, fmt.Errorf("rewind rendition: %w", err)
+	}
+
+	pageCount, err := s.viewer.Renderer.PageCount(ctx, f)
+	if err != nil {
+		return "", 0, fmt.Errorf("page count: %w", err)
+	}
+
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return "", 0, fmt.Errorf("rewind rendition: %w", err)
+	}
+
+	if err := s.store.Put(ctx, renditionKey, f, n, "application/pdf"); err != nil {
+		return "", 0, fmt.Errorf("store rendition: %w", err)
+	}
+
+	if pageCount <= maxRenditionPages {
+		if _, err := f.Seek(0, io.SeekStart); err == nil {
+			s.renditionPut(renditionKey, f)
 		}
 	}
 
-	pc := int32(pageCount)
-	if err := s.repo.SetVersionRendition(ctx, contentdb.SetVersionRenditionParams{
-		RenditionKey: &renditionKey,
-		PageCount:    &pc,
-		ID:           version.ID,
-	}); err != nil {
-		return "", 0, fmt.Errorf("set rendition: %w", err)
-	}
-
-	// The page-count ceiling is judged by the caller, after the count is
-	// recorded — an oversized document keeps its rendition row either way.
 	return renditionKey, pageCount, nil
-}
-
-func (s *ContentService) markRenditionFailed(ctx context.Context, versionID pgtype.UUID, cause error) error {
-	msg := cause.Error()
-
-	// Sebab aslinya hanya hidup di kolom rendition_error; tanpa baris ini
-	// log hanya memuat ErrRenditionFailed yang sudah dibungkus, dan diagnosis
-	// butuh psql ke DB (U-72).
-	log.Printf("rendition failed version %s: %s", uuidString(versionID), msg)
-
-	if err := s.repo.SetVersionRenditionFailure(ctx, contentdb.SetVersionRenditionFailureParams{
-		RenditionError: &msg,
-		ID:             versionID,
-	}); err != nil {
-		log.Printf("record rendition failure: %v", err)
-	}
-
-	return ErrRenditionFailed
 }
 
 func (s *ContentService) GetViewMeta(ctx context.Context, workspaceID, documentID, versionID string, actor Actor) (dto.ViewMetaResponse, error) {
@@ -351,14 +293,23 @@ func (s *ContentService) GetViewMeta(ctx context.Context, workspaceID, documentI
 		return dto.ViewMetaResponse{}, fmt.Errorf("get current version: %w", err)
 	}
 
-	_, pageCount, err := s.ensureRendition(ctx, workspaceID, doc, version)
-	if err != nil {
+	_, pageCount, err := s.renditionState(ctx, doc, version)
+
+	status := dto.RenditionReady
+	switch {
+	case errors.Is(err, ErrRenditionPending):
+		status, pageCount = dto.RenditionPending, 0
+	case errors.Is(err, ErrRenditionFailed):
+		status, pageCount = dto.RenditionFailed, 0
+	case err != nil:
 		return dto.ViewMetaResponse{}, err
 	}
 
-	s.activity.Record(ctx, s.activityEntry(workspaceID, actor,
-		activityservice.ActionDocumentViewed, activityservice.TargetDocument,
-		documentID, doc.Name, map[string]any{"version_no": version.VersionNo}))
+	if status == dto.RenditionReady {
+		s.activity.Record(ctx, s.activityEntry(workspaceID, actor,
+			activityservice.ActionDocumentViewed, activityservice.TargetDocument,
+			documentID, doc.Name, map[string]any{"version_no": version.VersionNo}))
+	}
 
 	return dto.ViewMetaResponse{
 		DocumentID:                uuidString(doc.ID),
@@ -367,6 +318,7 @@ func (s *ContentService) GetViewMeta(ctx context.Context, workspaceID, documentI
 		VersionID:                 uuidString(version.ID),
 		VersionNo:                 version.VersionNo,
 		PageCount:                 pageCount,
+		RenditionStatus:           status,
 		CanDownload:               access.canDownload,
 		CanDownloadOriginal:       access.canDownloadOriginal,
 		WatermarkDownloadMaxPages: maxWatermarkDownloadPages,
@@ -396,7 +348,7 @@ func (s *ContentService) GetPageImage(ctx context.Context, req dto.ViewPageReque
 		return nil, fmt.Errorf("get current version: %w", err)
 	}
 
-	renditionKey, pageCount, err := s.ensureRendition(ctx, req.WorkspaceID, doc, version)
+	renditionKey, pageCount, err := s.renditionState(ctx, doc, version)
 	if err != nil {
 		return nil, err
 	}

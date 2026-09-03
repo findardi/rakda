@@ -195,10 +195,15 @@ func (f *textFakeRepo) ExecTx(ctx context.Context, fn func(*contentdb.Queries) e
 type fakeStorage struct {
 	storage.Storage
 	getFn func(ctx context.Context, key string) (io.ReadCloser, error)
+	putFn func(ctx context.Context, key string, r io.Reader, size int64, contentType string) error
 }
 
 func (f fakeStorage) Get(ctx context.Context, key string) (io.ReadCloser, error) {
 	return f.getFn(ctx, key)
+}
+
+func (f fakeStorage) Put(ctx context.Context, key string, r io.Reader, size int64, contentType string) error {
+	return f.putFn(ctx, key, r, size, contentType)
 }
 
 func pendingRow(versionID string, pageCount *int32) contentdb.ListPendingTextExtractionRow {
@@ -231,7 +236,7 @@ func newTextTestService(t *testing.T, repo *textFakeRepo, store fakeStorage, ren
 		Renderer:      renderer,
 		TextExtractor: extractor,
 		DPI:           150,
-	}, 0, nil, StampDeps{Sync: 2, Async: 2}, ArchiveDeps{}, CacheDeps{})
+	}, 0, nil, StampDeps{Sync: 2, Async: 2}, ArchiveDeps{}, CacheDeps{}, RenditionDeps{})
 }
 
 func TestExtractVersionText(t *testing.T) {
@@ -289,31 +294,9 @@ func TestExtractVersionText(t *testing.T) {
 func TestExtractVersionTextAbovePageCap(t *testing.T) {
 	versionID := "22222222-2222-2222-2222-222222222222"
 	over := int32(maxRenditionPages + 1)
-
-	fresh := contentdb.DocumentVersion{}
-	{
-		var id pgtype.UUID
-		_ = id.Scan(versionID)
-		key := "w/renditions/" + versionID + "/rendition.pdf"
-		pc := over
-		fresh = contentdb.DocumentVersion{
-			ID:           id,
-			RenditionKey: &key,
-			PageCount:    &pc,
-		}
-	}
-
 	db := &recordingDB{}
 
-	repo := &textFakeRepo{
-		getVersionFn: func(ctx context.Context, id pgtype.UUID) (contentdb.DocumentVersion, error) {
-			return fresh, nil
-		},
-		setRenditionFn: func(ctx context.Context, arg contentdb.SetVersionRenditionParams) error {
-			return nil
-		},
-		execTxFn: db.execTx,
-	}
+	repo := &textFakeRepo{execTxFn: db.execTx}
 
 	extractor := fakeTextExtractor{
 		extractFn: func(ctx context.Context, pdf io.Reader) (string, error) {
@@ -327,18 +310,41 @@ func TestExtractVersionTextAbovePageCap(t *testing.T) {
 		},
 	}
 
-	renderer := fakeRenderer{pageCountFn: func(ctx context.Context, pdf io.Reader) (int, error) {
-		return int(over), nil
-	}}
-
-	svc := newTextTestService(t, repo, store, renderer, extractor)
-	row := pendingRow(versionID, nil)
-	row.RenditionKey = nil
-	err := svc.extractVersionText(context.Background(), row)
+	svc := newTextTestService(t, repo, store, fakeRenderer{}, extractor)
+	err := svc.extractVersionText(context.Background(), pendingRow(versionID, &over))
 	require.NoError(t, err)
 
 	assert.Equal(t, int(over), db.countSQL("insert into document_page_texts"))
 	assert.Equal(t, 1, db.countSQL("text_extracted_at = now()"))
+}
+
+func TestExtractVersionTextWithoutRendition(t *testing.T) {
+	versionID := "44444444-4444-4444-4444-444444444444"
+	pageCount := int32(1)
+
+	extracted := false
+	extractor := fakeTextExtractor{
+		extractFn: func(ctx context.Context, pdf io.Reader) (string, error) {
+			extracted = true
+			return "", nil
+		},
+	}
+
+	store := fakeStorage{
+		getFn: func(ctx context.Context, key string) (io.ReadCloser, error) {
+			t.Errorf("store.Get(%q) must not be called without a rendition", key)
+			return nil, errors.New("unexpected get")
+		},
+	}
+
+	svc := newTextTestService(t, &textFakeRepo{}, store, fakeRenderer{}, extractor)
+
+	row := pendingRow(versionID, &pageCount)
+	row.RenditionKey = nil
+
+	err := svc.extractVersionText(context.Background(), row)
+	require.ErrorIs(t, err, ErrRenditionPending)
+	assert.False(t, extracted)
 }
 
 func TestExtractVersionTextExtractorFailure(t *testing.T) {
@@ -487,7 +493,7 @@ func TestOCRSweeperOpensRenditionOncePerVersion(t *testing.T) {
 		TextExtractor: fakeTextExtractor{extractFn: func(ctx context.Context, pdf io.Reader) (string, error) { return "", nil }},
 		OCR:           ocr,
 		DPI:           150,
-	}, 0, nil, StampDeps{Sync: 2, Async: 2}, ArchiveDeps{}, CacheDeps{})
+	}, 0, nil, StampDeps{Sync: 2, Async: 2}, ArchiveDeps{}, CacheDeps{}, RenditionDeps{})
 
 	svc.sweepOCROnce(context.Background(), 10)
 
@@ -567,7 +573,7 @@ func TestOCRSweeperWritesResultAndFailure(t *testing.T) {
 		TextExtractor: fakeTextExtractor{extractFn: func(ctx context.Context, pdf io.Reader) (string, error) { return "", nil }},
 		OCR:           ocr,
 		DPI:           150,
-	}, 0, nil, StampDeps{Sync: 2, Async: 2}, ArchiveDeps{}, CacheDeps{})
+	}, 0, nil, StampDeps{Sync: 2, Async: 2}, ArchiveDeps{}, CacheDeps{}, RenditionDeps{})
 
 	svc.sweepOCROnce(context.Background(), 10)
 

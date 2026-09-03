@@ -11,6 +11,7 @@ where d.deleted_at is null
     and v.text_extracted_at is null
     and v.text_failed_at is null
     and v.rendition_failed_at is null
+    and v.rendition_key is not null
 order by v.created_at
 limit $1;
 

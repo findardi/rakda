@@ -72,7 +72,7 @@ func (g *GotenbergConverter) ToPDF(ctx context.Context, src io.Reader, filename 
 	if resp.StatusCode != http.StatusOK {
 		defer resp.Body.Close()
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return nil, fmt.Errorf("%w: status %d: %s", ErrConversionFailed, resp.StatusCode, bytes.TrimSpace(msg))
+		return nil, &StatusError{Code: resp.StatusCode, Body: string(bytes.TrimSpace(msg))}
 	}
 
 	return resp.Body, nil

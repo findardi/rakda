@@ -197,7 +197,7 @@ func (s *ContentService) storeDownloadJobResult(ctx context.Context, workspaceID
 		ID:        job.ID,
 		ObjectKey: key,
 		SizeBytes: size,
-		Ttl:       pgtype.Interval{Microseconds: downloadJobTTL.Microseconds(), Valid: true},
+		Ttl:       pgInterval(downloadJobTTL),
 	}); err != nil {
 		log.Printf("download job %s: mark ready: %v", uuidString(job.ID), err)
 		s.discardDownloadArtifact(ctx, key)

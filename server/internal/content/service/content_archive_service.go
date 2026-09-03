@@ -125,6 +125,8 @@ func (s *ContentService) CreateArchive(ctx context.Context, workspaceID string, 
 	// Sengaja lepas dari context request: perakitan berlangsung menit sementara
 	// request selesai dalam milidetik. Kematian saat deploy ditangani sweeper,
 	// yang menandai `pending` basi sebagai `failed` (precedent RetryRendition).
+	s.wakeRenditionWorker()
+
 	go func() {
 		defer func() { <-s.archiveSem }()
 		s.buildArchive(context.Background(), row, workspaceID, slug, actor)
@@ -498,9 +500,9 @@ func (s *ContentService) writeArchiveDocument(
 		entry.pageCount = *d.PageCount
 	}
 
-	key, err := s.archiveRenditionKey(ctx, workspaceID, d)
+	key, err := archiveRenditionKey(d)
 	if err != nil {
-		entry.status = "hilang: " + truncateBytes(err.Error(), 160)
+		entry.status = archiveMissingStatus(err)
 		return entry, nil
 	}
 
@@ -537,10 +539,11 @@ func (s *ContentService) writeArchiveDocument(
 	return entry, nil
 }
 
-// archiveRenditionKey mengembalikan kunci rendition bersih, membangunnya lebih
-// dulu bila dokumen belum pernah dibuka. Tanpa ini arsip ruangan yang belum
-// pernah dibaca akan hampir kosong: rendition dibuat lazy oleh pembaca pertama.
-func (s *ContentService) archiveRenditionKey(ctx context.Context, workspaceID string, d contentdb.ListArchiveDocumentsRow) (string, error) {
+// archiveRenditionKey reports the clean rendition key for one row of the
+// archive listing. It never builds one: CreateArchive wakes the rendition
+// worker instead, and a document still converting is listed as not ready,
+// the same way a failed one is listed — reported, never silently dropped.
+func archiveRenditionKey(d contentdb.ListArchiveDocumentsRow) (string, error) {
 	if d.RenditionFailedAt.Valid {
 		return "", ErrRenditionFailed
 	}
@@ -549,22 +552,15 @@ func (s *ContentService) archiveRenditionKey(ctx context.Context, workspaceID st
 		return *d.RenditionKey, nil
 	}
 
-	doc, err := s.repo.GetDocumentByID(ctx, d.ID)
-	if err != nil {
-		return "", fmt.Errorf("get document: %w", err)
+	return "", ErrRenditionPending
+}
+
+func archiveMissingStatus(err error) string {
+	if errors.Is(err, ErrRenditionPending) {
+		return "belum siap: sedang disiapkan"
 	}
 
-	version, err := s.repo.GetVersionByID(ctx, d.VersionID)
-	if err != nil {
-		return "", fmt.Errorf("get version: %w", err)
-	}
-
-	key, _, err := s.ensureRendition(ctx, workspaceID, doc, version)
-	if err != nil {
-		return "", err
-	}
-
-	return key, nil
+	return "hilang: " + truncateBytes(err.Error(), 160)
 }
 
 func splitZipPath(p string) (dir, base string) {
@@ -810,7 +806,9 @@ func (s *ContentService) writeArchiveReadme(
 	b.WriteString("  bukan pada detik ruang diarsipkan.\r\n")
 	b.WriteString("  Hanya versi berjalan yang disertakan. Riwayat versi tidak ikut.\r\n")
 	b.WriteString("  Dokumen yang konversinya gagal tercatat di indeks dengan status\r\n")
-	b.WriteString("  hilang dan tidak ada berkasnya di folder dokumen.\r\n")
+	b.WriteString("  hilang, yang masih dikonversi dengan status belum siap; keduanya\r\n")
+	b.WriteString("  tidak ada berkasnya di folder dokumen. Ekspor ulang setelah\r\n")
+	b.WriteString("  konversi selesai untuk menyertakannya.\r\n")
 	b.WriteString("  Nomor pada nama berkas dihitung ulang untuk seluruh ruang, jadi\r\n")
 	b.WriteString("  bisa berbeda dari nomor yang pernah dilihat seorang tamu.\r\n")
 	b.WriteString("  Berkas yang path-nya terlalu panjang dipindahkan ke folder\r\n")

@@ -3,6 +3,7 @@ package convert
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,17 @@ var (
 	ErrUnsupportedFile  = errors.New("unsupported file type")
 	ErrConversionFailed = errors.New("conversion failed")
 )
+
+type StatusError struct {
+	Code int
+	Body string
+}
+
+func (e *StatusError) Error() string {
+	return fmt.Sprintf("%s: status %d: %s", ErrConversionFailed.Error(), e.Code, e.Body)
+}
+
+func (e *StatusError) Unwrap() error { return ErrConversionFailed }
 
 type Converter interface {
 	ToPDF(ctx context.Context, src io.Reader, filename string) (io.ReadCloser, error)

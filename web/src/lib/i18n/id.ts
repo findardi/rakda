@@ -522,7 +522,7 @@ export const id = {
 	'doc.ver.stagedTitle':
 		'Disajikan otomatis setelah siap. Sampai saat itu, versi sebelumnya tetap tampil.',
 	'doc.ver.failedBadge': 'Gagal disiapkan',
-	'doc.ver.notReadyTitle': 'Belum punya PDF — dikonversi saat pertama kali dibuka.',
+	'doc.ver.notReadyTitle': 'Belum punya PDF — disiapkan di latar saat dibuka.',
 	'doc.ver.retryPrepOf': 'Coba siapkan ulang v{n}',
 	'doc.ver.by': 'oleh {name}',
 	'doc.ver.viewOf': 'Lihat versi {n}',
@@ -595,6 +595,9 @@ export const id = {
 	'doc.view.failed.retry': 'Coba siapkan ulang',
 	'doc.view.failed.retryErr': 'Gagal memulai penyiapan ulang. Coba lagi.',
 	'doc.view.failed.noPerm': 'Minta pengelola ruangan menyiapkannya ulang.',
+	'doc.view.preparing.title': 'Dokumen sedang disiapkan',
+	'doc.view.preparing.body':
+		'Berkas dikonversi untuk viewer aman. Halaman ini menyegarkan diri begitu siap — biasanya kurang dari semenit.',
 	'doc.view.emptyPages': 'Dokumen ini tidak punya halaman untuk ditampilkan.',
 	'doc.view.small.title': 'Layar terlalu kecil untuk membaca dokumen',
 	'doc.view.small.body':

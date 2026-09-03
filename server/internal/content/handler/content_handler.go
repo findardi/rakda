@@ -617,6 +617,8 @@ func (h *ContentHandler) GetDownloadURL(w http.ResponseWriter, r *http.Request) 
 			response.Error(w, http.StatusTooManyRequests, err.Error(), nil)
 		case errors.Is(err, service.ErrWatermarkDownloadTooLarge):
 			response.Error(w, http.StatusRequestEntityTooLarge, err.Error(), nil)
+		case errors.Is(err, service.ErrRenditionPending):
+			response.Error(w, http.StatusConflict, err.Error(), nil)
 		case errors.Is(err, service.ErrNotViewable), errors.Is(err, service.ErrStampFailed),
 			errors.Is(err, service.ErrRenditionFailed), errors.Is(err, service.ErrTooManyPages):
 			response.Error(w, http.StatusUnprocessableEntity, err.Error(), nil)
@@ -900,8 +902,7 @@ func (h *ContentHandler) GetViewMeta(w http.ResponseWriter, r *http.Request) {
 			response.Error(w, http.StatusForbidden, err.Error(), nil)
 		case errors.Is(err, service.ErrDocumentNotFound), errors.Is(err, service.ErrVersionNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
-		case errors.Is(err, service.ErrNotViewable), errors.Is(err, service.ErrRenditionFailed),
-			errors.Is(err, service.ErrTooManyPages):
+		case errors.Is(err, service.ErrNotViewable), errors.Is(err, service.ErrTooManyPages):
 			response.Error(w, http.StatusUnprocessableEntity, err.Error(), nil)
 		default:
 			log.Printf("get view meta internal error: %v", err)
@@ -952,6 +953,8 @@ func (h *ContentHandler) GetViewPage(w http.ResponseWriter, r *http.Request) {
 			response.Error(w, http.StatusForbidden, err.Error(), nil)
 		case errors.Is(err, service.ErrDocumentNotFound), errors.Is(err, service.ErrPageOutOfRange), errors.Is(err, service.ErrVersionNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
+		case errors.Is(err, service.ErrRenditionPending):
+			response.Error(w, http.StatusConflict, err.Error(), nil)
 		case errors.Is(err, service.ErrNotViewable), errors.Is(err, service.ErrRenditionFailed),
 			errors.Is(err, service.ErrTooManyPages):
 			response.Error(w, http.StatusUnprocessableEntity, err.Error(), nil)

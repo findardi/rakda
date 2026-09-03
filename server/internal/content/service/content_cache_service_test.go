@@ -174,7 +174,7 @@ func newTierCache(t *testing.T, minFree int64) *diskcache.Cache {
 func newCacheTestService(t *testing.T, repo ContentRepository, store storage.Storage, renderer render.Render, caches CacheDeps) *ContentService {
 	t.Helper()
 	return NewContentService(repo, store, Viewer{Renderer: renderer, DPI: 150}, 0, nil,
-		StampDeps{Sync: 1, Async: 1}, ArchiveDeps{}, caches)
+		StampDeps{Sync: 1, Async: 1}, ArchiveDeps{}, caches, RenditionDeps{})
 }
 
 func TestRenditionGetReadThrough(t *testing.T) {

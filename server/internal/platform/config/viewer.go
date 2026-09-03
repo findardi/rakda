@@ -19,7 +19,7 @@ type ViewerConfig struct {
 }
 
 func LoadViewerConfig() (ViewerConfig, error) {
-	convertTimeout, err := GetEnvDuration("VIEWER_CONVERT_TIMEOUT", 2*time.Minute)
+	convertTimeout, err := GetEnvDuration("VIEWER_CONVERT_TIMEOUT", 3*time.Minute)
 	if err != nil {
 		return ViewerConfig{}, err
 	}

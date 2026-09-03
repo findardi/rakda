@@ -145,7 +145,7 @@ func newDownloadTestService(t *testing.T, repo *downloadFakeRepo, request, downl
 		DownloadJobRenderer: downloadJob,
 		Watermark:           unexpectedWatermarker{},
 		DPI:                 150,
-	}, 0, nil, StampDeps{Sync: 1, Async: 1}, ArchiveDeps{}, CacheDeps{})
+	}, 0, nil, StampDeps{Sync: 1, Async: 1}, ArchiveDeps{}, CacheDeps{}, RenditionDeps{})
 }
 
 func downloadFixture(pageCount int32) *downloadFakeRepo {

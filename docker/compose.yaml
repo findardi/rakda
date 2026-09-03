@@ -46,8 +46,9 @@ services:
 
   gotenberg:
     image: gotenberg/gotenberg:8.36
-    # default --api-timeout 30s < VIEWER_CONVERT_TIMEOUT 2m di server
-    command: ['gotenberg', '--api-timeout=150s']
+    # 150s: di atas default 30s, di bawah VIEWER_CONVERT_TIMEOUT 3m di server —
+    # gotenberg menyerah lebih dulu, worker mencoba ulang
+    command: ['gotenberg', '--api-timeout=150s', '--chromium-disable-routes=true']
     ports:
       - '127.0.0.1:3000:3000'
     healthcheck:

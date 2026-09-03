@@ -11,16 +11,68 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const clearVersionRenditionFailure = `-- name: ClearVersionRenditionFailure :exec
-update document_versions
-set rendition_error = null,
-    rendition_failed_at = null
-where id = $1
+const claimPendingRendition = `-- name: ClaimPendingRendition :one
+update document_versions set rendition_claimed_at = now()
+where id = (
+    select v.id from document_versions v
+    join documents d on d.id = v.document_id
+    where d.deleted_at is null
+        and v.rendition_key is null
+        and v.rendition_failed_at is null
+        and (d.current_version_id = v.id
+            or d.staged_version_id = v.id
+            or v.rendition_next_at is not null)
+        and (v.rendition_next_at is null or v.rendition_next_at <= now())
+        and (v.rendition_claimed_at is null
+            or v.rendition_claimed_at < now() - $1::interval)
+    order by coalesce(v.rendition_next_at, v.created_at)
+    limit 1
+    for update of v skip locked)
+returning id, document_id, version_no, mime, size, storage_key, uploaded_by, created_at, rendition_key, page_count, rendition_error, rendition_failed_at, text_extracted_at, text_error, text_failed_at, rendition_attempts, rendition_next_at, rendition_claimed_at
 `
 
-func (q *Queries) ClearVersionRenditionFailure(ctx context.Context, id pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, clearVersionRenditionFailure, id)
-	return err
+func (q *Queries) ClaimPendingRendition(ctx context.Context, stale pgtype.Interval) (DocumentVersion, error) {
+	row := q.db.QueryRow(ctx, claimPendingRendition, stale)
+	var i DocumentVersion
+	err := row.Scan(
+		&i.ID,
+		&i.DocumentID,
+		&i.VersionNo,
+		&i.Mime,
+		&i.Size,
+		&i.StorageKey,
+		&i.UploadedBy,
+		&i.CreatedAt,
+		&i.RenditionKey,
+		&i.PageCount,
+		&i.RenditionError,
+		&i.RenditionFailedAt,
+		&i.TextExtractedAt,
+		&i.TextError,
+		&i.TextFailedAt,
+		&i.RenditionAttempts,
+		&i.RenditionNextAt,
+		&i.RenditionClaimedAt,
+	)
+	return i, err
+}
+
+const clearVersionRenditionFailure = `-- name: ClearVersionRenditionFailure :execrows
+update document_versions
+set rendition_error = null,
+    rendition_failed_at = null,
+    rendition_attempts = 0,
+    rendition_next_at = now(),
+    rendition_claimed_at = null
+where id = $1 and rendition_failed_at is not null
+`
+
+func (q *Queries) ClearVersionRenditionFailure(ctx context.Context, id pgtype.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, clearVersionRenditionFailure, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const createDocument = `-- name: CreateDocument :one
@@ -71,7 +123,7 @@ insert into document_versions
     (document_id, version_no, mime, size, storage_key, uploaded_by)
 values 
     ($1, $2, $3, $4, $5, $6)
-returning id, document_id, version_no, mime, size, storage_key, uploaded_by, created_at, rendition_key, page_count, rendition_error, rendition_failed_at, text_extracted_at, text_error, text_failed_at
+returning id, document_id, version_no, mime, size, storage_key, uploaded_by, created_at, rendition_key, page_count, rendition_error, rendition_failed_at, text_extracted_at, text_error, text_failed_at, rendition_attempts, rendition_next_at, rendition_claimed_at
 `
 
 type CreateDocumentVersionParams struct {
@@ -109,12 +161,15 @@ func (q *Queries) CreateDocumentVersion(ctx context.Context, arg CreateDocumentV
 		&i.TextExtractedAt,
 		&i.TextError,
 		&i.TextFailedAt,
+		&i.RenditionAttempts,
+		&i.RenditionNextAt,
+		&i.RenditionClaimedAt,
 	)
 	return i, err
 }
 
 const getCurrentVersion = `-- name: GetCurrentVersion :one
-select v.id, v.document_id, v.version_no, v.mime, v.size, v.storage_key, v.uploaded_by, v.created_at, v.rendition_key, v.page_count, v.rendition_error, v.rendition_failed_at, v.text_extracted_at, v.text_error, v.text_failed_at from document_versions v 
+select v.id, v.document_id, v.version_no, v.mime, v.size, v.storage_key, v.uploaded_by, v.created_at, v.rendition_key, v.page_count, v.rendition_error, v.rendition_failed_at, v.text_extracted_at, v.text_error, v.text_failed_at, v.rendition_attempts, v.rendition_next_at, v.rendition_claimed_at from document_versions v 
 join documents d on d.current_version_id = v.id
 where d.id = $1
 `
@@ -138,6 +193,9 @@ func (q *Queries) GetCurrentVersion(ctx context.Context, id pgtype.UUID) (Docume
 		&i.TextExtractedAt,
 		&i.TextError,
 		&i.TextFailedAt,
+		&i.RenditionAttempts,
+		&i.RenditionNextAt,
+		&i.RenditionClaimedAt,
 	)
 	return i, err
 }
@@ -248,7 +306,7 @@ func (q *Queries) GetTrashedDocumentByID(ctx context.Context, id pgtype.UUID) (D
 }
 
 const getVersionByID = `-- name: GetVersionByID :one
-select id, document_id, version_no, mime, size, storage_key, uploaded_by, created_at, rendition_key, page_count, rendition_error, rendition_failed_at, text_extracted_at, text_error, text_failed_at from document_versions where id = $1
+select id, document_id, version_no, mime, size, storage_key, uploaded_by, created_at, rendition_key, page_count, rendition_error, rendition_failed_at, text_extracted_at, text_error, text_failed_at, rendition_attempts, rendition_next_at, rendition_claimed_at from document_versions where id = $1
 `
 
 func (q *Queries) GetVersionByID(ctx context.Context, id pgtype.UUID) (DocumentVersion, error) {
@@ -270,6 +328,9 @@ func (q *Queries) GetVersionByID(ctx context.Context, id pgtype.UUID) (DocumentV
 		&i.TextExtractedAt,
 		&i.TextError,
 		&i.TextFailedAt,
+		&i.RenditionAttempts,
+		&i.RenditionNextAt,
+		&i.RenditionClaimedAt,
 	)
 	return i, err
 }
@@ -450,7 +511,7 @@ func (q *Queries) ListTrashDocuments(ctx context.Context, workspaceID pgtype.UUI
 }
 
 const listVersionByDocument = `-- name: ListVersionByDocument :many
-select id, document_id, version_no, mime, size, storage_key, uploaded_by, created_at, rendition_key, page_count, rendition_error, rendition_failed_at, text_extracted_at, text_error, text_failed_at from document_versions where document_id = $1 order by version_no desc
+select id, document_id, version_no, mime, size, storage_key, uploaded_by, created_at, rendition_key, page_count, rendition_error, rendition_failed_at, text_extracted_at, text_error, text_failed_at, rendition_attempts, rendition_next_at, rendition_claimed_at from document_versions where document_id = $1 order by version_no desc
 `
 
 func (q *Queries) ListVersionByDocument(ctx context.Context, documentID pgtype.UUID) ([]DocumentVersion, error) {
@@ -478,6 +539,9 @@ func (q *Queries) ListVersionByDocument(ctx context.Context, documentID pgtype.U
 			&i.TextExtractedAt,
 			&i.TextError,
 			&i.TextFailedAt,
+			&i.RenditionAttempts,
+			&i.RenditionNextAt,
+			&i.RenditionClaimedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -491,7 +555,7 @@ func (q *Queries) ListVersionByDocument(ctx context.Context, documentID pgtype.U
 
 const listVersionsWithUploader = `-- name: ListVersionsWithUploader :many
 select
-    v.id, v.document_id, v.version_no, v.mime, v.size, v.storage_key, v.uploaded_by, v.created_at, v.rendition_key, v.page_count, v.rendition_error, v.rendition_failed_at, v.text_extracted_at, v.text_error, v.text_failed_at,
+    v.id, v.document_id, v.version_no, v.mime, v.size, v.storage_key, v.uploaded_by, v.created_at, v.rendition_key, v.page_count, v.rendition_error, v.rendition_failed_at, v.text_extracted_at, v.text_error, v.text_failed_at, v.rendition_attempts, v.rendition_next_at, v.rendition_claimed_at,
     coalesce(u.username, u.email)::text as uploaded_by_name,
     coalesce(d.current_version_id = v.id, false)::bool as is_current,
     coalesce(d.staged_version_id = v.id, false)::bool as is_staged
@@ -503,24 +567,27 @@ order by v.version_no desc
 `
 
 type ListVersionsWithUploaderRow struct {
-	ID                pgtype.UUID        `json:"id"`
-	DocumentID        pgtype.UUID        `json:"document_id"`
-	VersionNo         int32              `json:"version_no"`
-	Mime              string             `json:"mime"`
-	Size              int64              `json:"size"`
-	StorageKey        string             `json:"storage_key"`
-	UploadedBy        pgtype.UUID        `json:"uploaded_by"`
-	CreatedAt         pgtype.Timestamptz `json:"created_at"`
-	RenditionKey      *string            `json:"rendition_key"`
-	PageCount         *int32             `json:"page_count"`
-	RenditionError    *string            `json:"rendition_error"`
-	RenditionFailedAt pgtype.Timestamptz `json:"rendition_failed_at"`
-	TextExtractedAt   pgtype.Timestamptz `json:"text_extracted_at"`
-	TextError         *string            `json:"text_error"`
-	TextFailedAt      pgtype.Timestamptz `json:"text_failed_at"`
-	UploadedByName    string             `json:"uploaded_by_name"`
-	IsCurrent         bool               `json:"is_current"`
-	IsStaged          bool               `json:"is_staged"`
+	ID                 pgtype.UUID        `json:"id"`
+	DocumentID         pgtype.UUID        `json:"document_id"`
+	VersionNo          int32              `json:"version_no"`
+	Mime               string             `json:"mime"`
+	Size               int64              `json:"size"`
+	StorageKey         string             `json:"storage_key"`
+	UploadedBy         pgtype.UUID        `json:"uploaded_by"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	RenditionKey       *string            `json:"rendition_key"`
+	PageCount          *int32             `json:"page_count"`
+	RenditionError     *string            `json:"rendition_error"`
+	RenditionFailedAt  pgtype.Timestamptz `json:"rendition_failed_at"`
+	TextExtractedAt    pgtype.Timestamptz `json:"text_extracted_at"`
+	TextError          *string            `json:"text_error"`
+	TextFailedAt       pgtype.Timestamptz `json:"text_failed_at"`
+	RenditionAttempts  int32              `json:"rendition_attempts"`
+	RenditionNextAt    pgtype.Timestamptz `json:"rendition_next_at"`
+	RenditionClaimedAt pgtype.Timestamptz `json:"rendition_claimed_at"`
+	UploadedByName     string             `json:"uploaded_by_name"`
+	IsCurrent          bool               `json:"is_current"`
+	IsStaged           bool               `json:"is_staged"`
 }
 
 // `is_current` is the served version, which restore repoints freely, so it is
@@ -552,6 +619,9 @@ func (q *Queries) ListVersionsWithUploader(ctx context.Context, documentID pgtyp
 			&i.TextExtractedAt,
 			&i.TextError,
 			&i.TextFailedAt,
+			&i.RenditionAttempts,
+			&i.RenditionNextAt,
+			&i.RenditionClaimedAt,
 			&i.UploadedByName,
 			&i.IsCurrent,
 			&i.IsStaged,
@@ -642,6 +712,31 @@ func (q *Queries) ReindexDocumentSiblings(ctx context.Context, arg ReindexDocume
 	return err
 }
 
+const releaseRenditionClaim = `-- name: ReleaseRenditionClaim :exec
+update document_versions
+set rendition_claimed_at = null
+where id = $1
+`
+
+func (q *Queries) ReleaseRenditionClaim(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, releaseRenditionClaim, id)
+	return err
+}
+
+const requestRendition = `-- name: RequestRendition :exec
+update document_versions
+set rendition_next_at = now()
+where id = $1
+    and rendition_key is null
+    and rendition_failed_at is null
+    and rendition_next_at is null
+`
+
+func (q *Queries) RequestRendition(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, requestRendition, id)
+	return err
+}
+
 const restoreDocument = `-- name: RestoreDocument :exec
 update documents set
     deleted_at = null,
@@ -726,7 +821,10 @@ func (q *Queries) SetStagedVersion(ctx context.Context, arg SetStagedVersionPara
 const setVersionRendition = `-- name: SetVersionRendition :exec
 update document_versions
 set rendition_key = $1,
-    page_count = $2
+    page_count = $2,
+    rendition_error = null,
+    rendition_next_at = null,
+    rendition_claimed_at = null
 where id = $3
 `
 
@@ -744,7 +842,8 @@ func (q *Queries) SetVersionRendition(ctx context.Context, arg SetVersionRenditi
 const setVersionRenditionFailure = `-- name: SetVersionRenditionFailure :exec
 update document_versions
 set rendition_error = $1,
-    rendition_failed_at = now()
+    rendition_failed_at = now(),
+    rendition_claimed_at = null
 where id = $2
 `
 
@@ -755,6 +854,26 @@ type SetVersionRenditionFailureParams struct {
 
 func (q *Queries) SetVersionRenditionFailure(ctx context.Context, arg SetVersionRenditionFailureParams) error {
 	_, err := q.db.Exec(ctx, setVersionRenditionFailure, arg.RenditionError, arg.ID)
+	return err
+}
+
+const setVersionRenditionTransientFailure = `-- name: SetVersionRenditionTransientFailure :exec
+update document_versions
+set rendition_attempts = rendition_attempts + 1,
+    rendition_next_at = now() + $1::interval,
+    rendition_error = $2,
+    rendition_claimed_at = null
+where id = $3
+`
+
+type SetVersionRenditionTransientFailureParams struct {
+	Backoff        pgtype.Interval `json:"backoff"`
+	RenditionError *string         `json:"rendition_error"`
+	ID             pgtype.UUID     `json:"id"`
+}
+
+func (q *Queries) SetVersionRenditionTransientFailure(ctx context.Context, arg SetVersionRenditionTransientFailureParams) error {
+	_, err := q.db.Exec(ctx, setVersionRenditionTransientFailure, arg.Backoff, arg.RenditionError, arg.ID)
 	return err
 }
 

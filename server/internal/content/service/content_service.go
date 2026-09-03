@@ -19,7 +19,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
-	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -56,11 +55,13 @@ const (
 
 	downloadJobListLimit = 20
 
-	// asyncConvertTimeout bounds the detached conversion kicked off by a version
-	// upload or a rendition retry. Generous: gotenberg on a large deck is slow,
-	// and an expiry only means the next open converts it lazily instead.
-	asyncConvertTimeout = 15 * time.Minute
+	renditionJobTimeout         = 15 * time.Minute
+	renditionBookkeepingTimeout = 30 * time.Second
+	renditionClaimStaleAge      = renditionJobTimeout + 5*time.Minute
+	maxRenditionAttempts        = 5
 )
+
+var renditionBackoff = []time.Duration{30 * time.Second, 2 * time.Minute, 10 * time.Minute, 30 * time.Minute}
 
 var (
 	ErrParentCrossWorkspace      = errors.New("parent cross workspace")
@@ -81,6 +82,7 @@ var (
 	ErrTooManyPages              = errors.New("document has too many pages to view")
 	ErrStampFailed               = errors.New("cannot produce a watermarked copy of this document")
 	ErrRenditionFailed           = errors.New("this document could not be prepared for viewing")
+	ErrRenditionPending          = errors.New("this document is still being prepared")
 	ErrPageOutOfRange            = errors.New("page out of range")
 	ErrBulkTooManyFolders        = errors.New("too many folders in one request")
 	ErrBulkTooDeep               = errors.New("folder tree in request is too deep")
@@ -125,10 +127,7 @@ type ContentService struct {
 	// diukur ulang, U-62).
 	stampAsyncSem chan struct{}
 
-	// convertSF menyatukan konversi rendition per version id: kick latar
-	// belakang (unggah versi / retry) dan pembuka viewer yang datang bersamaan
-	// berbagi satu kerja gotenberg, bukan dua.
-	convertSF singleflight.Group
+	rendition RenditionDeps
 
 	// archiveSem membatasi perakitan arsip yang berjalan bersamaan. Berbeda
 	// dari stampSem: yang dibatasi di sini bandwidth dan koneksi storage, bukan
@@ -161,7 +160,13 @@ type StampDeps struct {
 	Async int
 }
 
-func NewContentService(repo ContentRepository, store storage.Storage, viewer Viewer, trashRetention time.Duration, activity ActivityRecorder, stamp StampDeps, archive ArchiveDeps, caches CacheDeps) *ContentService {
+type RenditionDeps struct {
+	Workers  int
+	Interval time.Duration
+	Wake     chan struct{}
+}
+
+func NewContentService(repo ContentRepository, store storage.Storage, viewer Viewer, trashRetention time.Duration, activity ActivityRecorder, stamp StampDeps, archive ArchiveDeps, caches CacheDeps, rendition RenditionDeps) *ContentService {
 	if stamp.Sync < 1 {
 		stamp.Sync = 1
 	}
@@ -173,6 +178,15 @@ func NewContentService(repo ContentRepository, store storage.Storage, viewer Vie
 	}
 	if archive.TTL <= 0 {
 		archive.TTL = 30 * 24 * time.Hour
+	}
+	if rendition.Workers < 1 {
+		rendition.Workers = 1
+	}
+	if rendition.Interval <= 0 {
+		rendition.Interval = 30 * time.Second
+	}
+	if rendition.Wake == nil {
+		rendition.Wake = make(chan struct{}, 1)
 	}
 
 	// Berbagi kolam request adalah perilaku sebelum kolam unduhan ada, bukan
@@ -197,7 +211,12 @@ func NewContentService(repo ContentRepository, store storage.Storage, viewer Vie
 		renditions:     caches.Renditions,
 		pages:          caches.Pages,
 		downloads:      caches.Downloads,
+		rendition:      rendition,
 	}
+}
+
+func pgInterval(d time.Duration) pgtype.Interval {
+	return pgtype.Interval{Microseconds: d.Microseconds(), Valid: true}
 }
 
 func (s *ContentService) activityEntry(workspaceID string, actor Actor, action, targetType, targetID, targetName string, metadata map[string]any) activityservice.Entry {
@@ -469,7 +488,6 @@ func (s *ContentService) CreateFolder(ctx context.Context, req dto.CreateFolderR
 }
 
 func (s *ContentService) MoveFolder(ctx context.Context, req dto.MoveFolderRequest, actor Actor) error {
-
 	var fID, pID pgtype.UUID
 
 	if err := fID.Scan(req.FolderID); err != nil {
@@ -598,7 +616,6 @@ func (s *ContentService) MoveFolder(ctx context.Context, req dto.MoveFolderReque
 }
 
 func (s *ContentService) GetFoldersTree(ctx context.Context, workspaceID string, actor Actor) ([]dto.FolderTreeNode, error) {
-
 	var wID pgtype.UUID
 	if err := wID.Scan(workspaceID); err != nil {
 		return nil, fmt.Errorf("workspace id parse: %w", err)
