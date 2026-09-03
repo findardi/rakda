@@ -147,7 +147,10 @@
 			</section>
 		</div>
 	{:else}
+		<!-- A room row preloads the whole room subtree (layout + overview, 6–7
+		     upstream reads), so wait for mousedown instead of every pass of the pointer. -->
 		<ul
+			data-sveltekit-preload-data="tap"
 			class="mt-6 divide-y divide-base-content/10 overflow-hidden rounded-box border border-base-content/10 bg-base-100"
 		>
 			{#each data.workspaces as ws (ws.id)}

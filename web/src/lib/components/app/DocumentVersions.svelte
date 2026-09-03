@@ -472,6 +472,7 @@
 									folderId,
 									documentId
 								})}?version={encodeURIComponent(v.id)}"
+								data-sveltekit-preload-data="off"
 								title={t('doc.ver.viewOf', { n: v.version_no })}
 								aria-label={t('doc.ver.viewOf', { n: v.version_no })}
 								class="grid h-8 w-8 place-items-center rounded-field text-muted no-underline transition-colors hover:bg-base-content/5 hover:text-base-content pointer-coarse:h-11 pointer-coarse:w-11"

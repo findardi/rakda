@@ -223,6 +223,7 @@
 			{#if thread.document_ref}
 				<a
 					href={docHref}
+					data-sveltekit-preload-data="off"
 					class="inline-flex max-w-full items-center gap-1.5 rounded-selector bg-base-content/6 px-2 py-1 text-xs transition-colors hover:bg-base-content/10"
 				>
 					<svg

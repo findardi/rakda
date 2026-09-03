@@ -40,6 +40,7 @@ bun run check        # svelte-kit sync && svelte-check (type-check .svelte files
 
 ### Stack notes
 - Svelte 5 **runes mode forced** project-wide (see vite config)
+- **Link preload policy**: body stays `data-sveltekit-preload-data="hover"`. Every link into the document viewer carries `off` (its load hits `GET /view`, which writes `document_viewed` — a view must be a completed click, not even `tap`); room rows (`/workspace` list, `RoomSidebar` switcher) carry `tap` (one row = a 6–7-call room subtree load). Folder-rail and sidebar links stay `hover`; `/api/...` download links are never preloaded by SvelteKit. Any new viewer link must carry `off`.
 - Tailwind CSS **v4** via `@tailwindcss/vite` plugin (no PostCSS config)
 - DaisyUI **v5** for components
 - i18n: Indonesian (`id`) + English (`en`), default `id`. Server locale via `AsyncLocalStorage`.

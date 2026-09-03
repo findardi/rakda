@@ -216,7 +216,8 @@
 					<h2 class="px-1 pt-4 pb-1 text-xs font-medium text-muted">
 						{t('app.search.documents')}
 					</h2>
-					<ul class="flex flex-col">
+					<!-- Viewer links never preload: GET /view writes an audit row. -->
+					<ul class="flex flex-col" data-sveltekit-preload-data="off">
 						{#each results.documents as d}
 							<li>
 								<a

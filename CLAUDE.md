@@ -97,6 +97,7 @@ Dockerfiles are `docker/server.Dockerfile` and `docker/web.Dockerfile` (contexts
 - **Route groups**: `(auth)` public auth pages, `(onboarding)` workspace creation, `(app)` authenticated workspace UI.
 - **i18n**: Indonesian (`id`, default) + English (`en`) in `$lib/i18n`; UI strings go through `t()`. Server-side locale via `AsyncLocalStorage`.
 - Svelte 5 **runes mode forced** project-wide (vite config). Tailwind CSS **v4** via `@tailwindcss/vite` (deliberately no PostCSS config). DaisyUI **v5**. `.npmrc` sets `engine-strict=true`.
+- **Link preload policy**: `app.html` keeps `data-sveltekit-preload-data="hover"` globally — loads are cheap reads and instant navigation is the point. Two overrides live on the links, never on the body: **every link into the document viewer is `off`** (`view/[folderId]/[documentId]/+page.server.ts` calls `getViewMeta` → `GET /view`, which writes `document_viewed`, requests renditions and promotes staged versions — a view must be a completed click, so not even `tap`), and **room rows are `tap`** (`/workspace` list, `RoomSidebar` switcher — one row preloads the whole room subtree, 6–7 upstream reads per pointer pass). Folder-rail and sidebar module links stay `hover`. Downloads and archives are `<a href>` to `/api/...` `+server.ts` routes, which SvelteKit never preloads. A new surface that links to the viewer must carry the `off` attribute; the sites today: document rows, search results, overview recents, activity read links, Q&A document chip, version links.
 
 ## Domain model (VDR semantics)
 

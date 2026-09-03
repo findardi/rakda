@@ -105,7 +105,9 @@
 					<path d="m7 15 5 5 5-5M7 9l5-5 5 5" />
 				</svg>
 			</button>
+			<!-- Same reason as the room list: one row = one full room subtree load. -->
 			<ul
+				data-sveltekit-preload-data="tap"
 				class="dropdown-content z-dropdown mt-1 max-h-80 w-full min-w-52 overflow-y-auto rounded-box border border-base-content/10 bg-base-100 p-1.5 shadow-lg"
 			>
 				{#each rooms as room (room.id)}

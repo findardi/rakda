@@ -572,6 +572,7 @@
 										<li>
 											<a
 												href={docHref(d)}
+												data-sveltekit-preload-data="off"
 												class="flex items-baseline justify-between gap-3 border-b border-base-content/5 py-2 text-sm underline-offset-2 last:border-b-0 hover:underline"
 											>
 												<span class="min-w-0 truncate">{d.name}</span>

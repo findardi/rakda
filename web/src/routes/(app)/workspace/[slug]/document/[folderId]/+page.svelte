@@ -727,7 +727,9 @@
 
 					<!-- Opens the secure viewer. The folder is in the path so the reader's
 					     back link returns here. Non-viewable files land on the viewer's
-					     download-only state — the server owns viewability. -->
+					     download-only state — the server owns viewability.
+					     No hover preload: the viewer load hits GET /view, which writes the
+					     document_viewed audit row — a view must be a click, never a pointer. -->
 					<a
 						href={resolve('/(app)/workspace/[slug]/view/[folderId]/[documentId]', {
 							slug,
@@ -735,6 +737,7 @@
 							documentId: doc.id
 						})}
 						draggable="false"
+						data-sveltekit-preload-data="off"
 						title={doc.name}
 						aria-label={t('doc.docs.viewOf', { name: doc.name })}
 						aria-keyshortcuts={canReorder ? 'Alt+ArrowUp Alt+ArrowDown' : undefined}

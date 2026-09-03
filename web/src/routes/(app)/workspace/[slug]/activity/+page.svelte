@@ -271,6 +271,7 @@
 					{#if readHref}
 						<a
 							href={readHref}
+							data-sveltekit-preload-data="off"
 							class="text-muted underline decoration-base-content/30 underline-offset-2 hover:text-base-content hover:decoration-current"
 							>{t('activity.link.readers')}</a
 						>

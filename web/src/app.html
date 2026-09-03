@@ -6,6 +6,13 @@
 		<meta name="text-scale" content="scale" />
 		%sveltekit.head%
 	</head>
+	<!--
+	  Preload policy: hover is the default because most loads are cheap reads and
+	  instant navigation is the point. Two overrides live on the links themselves:
+	  every link into the document viewer is "off" (its load hits GET /view, which
+	  writes a document_viewed audit row — a view must be a click), and room rows
+	  are "tap" (one row = one full room subtree load). Never change this globally.
+	-->
 	<body data-sveltekit-preload-data="hover">
 		<div style="display: contents">%sveltekit.body%</div>
 	</body>
