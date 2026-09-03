@@ -11,6 +11,7 @@ import (
 
 	"github.com/findardi/rakda/server/internal/auth/dto"
 	authdb "github.com/findardi/rakda/server/internal/auth/repository/sqlc"
+	"github.com/findardi/rakda/server/internal/platform/sender"
 	"github.com/findardi/rakda/server/internal/platform/token"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -131,8 +132,7 @@ func (s *AuthService) RegisterUser(ctx context.Context, req dto.RegisterRequest)
 		return dto.RegisterResponse{}, fmt.Errorf("register tx: %w", err)
 	}
 
-	s.sendEmailAsync(email, "Verify your email",
-		fmt.Sprintf("Your verification code is: %s (valid for 5 minutes)", code))
+	s.sendEmailAsync(email, sender.BuildVerifyEmail(code))
 
 	return dto.RegisterResponse{
 		ID:       uuidString(user.ID),
@@ -141,14 +141,15 @@ func (s *AuthService) RegisterUser(ctx context.Context, req dto.RegisterRequest)
 }
 
 // sendEmailAsync fires the email in the background; request ctx would be cancelled, so use Background.
-func (s *AuthService) sendEmailAsync(to, subject, body string) {
+func (s *AuthService) sendEmailAsync(to string, em sender.Email) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
-		if err := s.mail.Send(ctx, to, subject, body); err != nil {
+		if err := s.mail.Send(ctx, to, em.Subject, em.Text, em.HTML); err != nil {
 			log.Printf("send email to %s failed: %v", to, err)
 		}
 	}()
+
 }
 
 func (s *AuthService) LoginUser(ctx context.Context, req dto.LoginRequest) (dto.LoginResponse, error) {
@@ -213,8 +214,7 @@ func (s *AuthService) ResendOTP(ctx context.Context, email string) error {
 		return fmt.Errorf("update otp: %w", err)
 	}
 
-	s.sendEmailAsync(email, "Verify your email",
-		fmt.Sprintf("Your verification code is: %s (valid for 5 minutes)", code))
+	s.sendEmailAsync(email, sender.BuildVerifyEmail(code))
 
 	return nil
 }
@@ -401,8 +401,7 @@ func (s *AuthService) ForgotPassword(ctx context.Context, req dto.ForgotPassword
 		return fmt.Errorf("forgot password tx: %w", err)
 	}
 
-	s.sendEmailAsync(email, "Reset Password",
-		fmt.Sprintf("Your verification code is: %s (valid for 5 minutes)", code))
+	s.sendEmailAsync(email, sender.BuildResetPasswordEmail(code))
 
 	return nil
 }

@@ -12,6 +12,7 @@ import (
 	accessdb "github.com/findardi/rakda/server/internal/access/repository/sqlc"
 	activityservice "github.com/findardi/rakda/server/internal/activity/service"
 	"github.com/findardi/rakda/server/internal/platform/permission"
+	"github.com/findardi/rakda/server/internal/platform/sender"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -338,7 +339,8 @@ func (s *AccessService) AddMembers(ctx context.Context, req dto.AddMembersReques
 			ExpiresAt:   expiresAt,
 		})
 		if err == nil {
-			s.sendInviteEmail(email, rawToken, registered)
+			s.sendInviteEmail(email, rawToken, registered,
+				revived.WorkspaceName, deref(revived.InvitedByUsername), revived.ExpiresAt.Time)
 			s.activity.Record(ctx, s.activityEntry(req.WorkspaceId, actor,
 				activityservice.ActionInviteSent, activityservice.TargetInvitation,
 				uuidString(revived.ID), email, map[string]any{"role": invitedRole.Name}))
@@ -383,7 +385,8 @@ func (s *AccessService) AddMembers(ctx context.Context, req dto.AddMembersReques
 			return outcome, fmt.Errorf("insert invitation %s: %w", email, err)
 		}
 
-		s.sendInviteEmail(email, rawToken, registered)
+		s.sendInviteEmail(email, rawToken, registered,
+			fresh.WorkspaceName, deref(fresh.InvitedByUsername), fresh.ExpiresAt.Time)
 		s.activity.Record(ctx, s.activityEntry(req.WorkspaceId, actor,
 			activityservice.ActionInviteSent, activityservice.TargetInvitation,
 			uuidString(fresh.ID), email, map[string]any{"role": invitedRole.Name}))
@@ -444,19 +447,13 @@ func (s *AccessService) ListInvitations(ctx context.Context, workspaceID, status
 
 // sendInviteEmail fires the invite email in the background; the request ctx
 // would be cancelled, so use a fresh one. Failure is logged, not fatal.
-func (s *AccessService) sendInviteEmail(to, token string, registered bool) {
+func (s *AccessService) sendInviteEmail(to, token string, registered bool, workspaceName, invitedBy string, expiresAt time.Time) {
+	em := sender.BuildInviteEmail(s.webURL, invitedBy, workspaceName, token, registered, expiresAt)
+
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
-
-		var body string
-		if registered {
-			body = fmt.Sprintf("You have been invited to join a workspace. Open your invitations to accept: %s/invitation", s.webURL)
-		} else {
-			body = fmt.Sprintf("You have been invited to join a workspace. Accept and set up your account: %s/invitations/accept?token=%s", s.webURL, token)
-		}
-
-		if err := s.mail.Send(ctx, to, "You're invited to a workspace", body); err != nil {
+		if err := s.mail.Send(ctx, to, em.Subject, em.Text, em.HTML); err != nil {
 			log.Printf("send invite email to %s failed: %v", to, err)
 		}
 	}()
@@ -683,7 +680,8 @@ func (s *AccessService) ResendInvitation(ctx context.Context, invitationID strin
 		return fmt.Errorf("resend invitation: %w", err)
 	}
 
-	s.sendInviteEmail(inv.Email, rawToken, inv.UserID.Valid)
+	s.sendInviteEmail(inv.Email, rawToken, inv.UserID.Valid,
+		inv.WorkspaceName, deref(inv.InvitedByUsername), inv.ExpiresAt.Time)
 	s.activity.Record(ctx, s.activityEntry(uuidString(inv.WorkspaceID), actor,
 		activityservice.ActionInviteResent, activityservice.TargetInvitation,
 		invitationID, inv.Email, nil))

@@ -1,0 +1,12 @@
+{{.Headline}}
+
+{{.Lead}}
+
+Kode verifikasi Anda: {{.Code}}
+
+Kode berlaku 5 menit. Jangan bagikan kode ini kepada siapa pun. Rakda tidak
+akan pernah memintanya di luar email ini.
+
+---
+Anda menerima email ini karena {{.Reason}}.
+Rakda · Virtual data room untuk kerja sama yang rahasia.

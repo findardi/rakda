@@ -1,12 +1,28 @@
 -- name: InsertWorkspaceInvitation :one
-insert into workspace_user_invitations
-    (workspace_id, email, role_id, user_id, invited_by, code_hash, status, expires_at)
-values
-    ($1, $2, $3, $4, $5, $6, $7, $8)
-returning *;
+with created as (
+    insert into workspace_user_invitations
+        (workspace_id, email, role_id, user_id, invited_by, code_hash, status, expires_at)
+    values
+        ($1, $2, $3, $4, $5, $6, $7, $8)
+    returning *
+)
+select
+    i.*,
+    w.name as workspace_name,
+    u.username as invited_by_username
+from created i
+join workspaces w on w.id = i.workspace_id
+left join users u on u.id = i.invited_by;
 
 -- name: GetWorkspaceInvitation :one
-select * from workspace_user_invitations where id = $1;
+select
+    i.*,
+    w.name as workspace_name,
+    u.username as invited_by_username
+from workspace_user_invitations i
+join workspaces w on w.id = i.workspace_id
+left join users u on u.id = i.invited_by
+where i.id = $1;
 
 -- name: GetWorkspaceInvitationByCodeHash :one
 select * from workspace_user_invitations where code_hash = $1;
@@ -62,19 +78,28 @@ where id = $1 and status in ('pending', 'expired')
 returning *;
 
 -- name: ReinviteWorkspaceInvitation :one
-update workspace_user_invitations set
-    status = 'pending',
-    role_id = @role_id,
-    user_id = @user_id,
-    invited_by = @invited_by,
-    code_hash = @code_hash,
-    expires_at = @expires_at,
-    accepted_at = null,
-    updated_at = now()
-where workspace_id = @workspace_id
-    and lower(email) = lower(@email)
-    and status in ('revoked', 'rejected', 'expired')
-returning *;
+with updated as (
+    update workspace_user_invitations set
+        status = 'pending',
+        role_id = @role_id,
+        user_id = @user_id,
+        invited_by = @invited_by,
+        code_hash = @code_hash,
+        expires_at = @expires_at,
+        accepted_at = null,
+        updated_at = now()
+    where workspace_id = @workspace_id
+        and lower(email) = lower(@email)
+        and status in ('revoked', 'rejected', 'expired')
+    returning *
+)
+select
+    i.*,
+    w.name as workspace_name,
+    u.username as invited_by_username
+from updated i
+join workspaces w on w.id = i.workspace_id
+left join users u on u.id = i.invited_by;
 
 -- name: GetInvitationByCodeHashDetailed :one
 select 

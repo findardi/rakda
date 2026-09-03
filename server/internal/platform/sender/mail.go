@@ -17,7 +17,7 @@ func New(cfg config.MailConfig) *Mailer {
 	}
 }
 
-func (m *Mailer) Send(ctx context.Context, to, subject, body string) error {
+func (m *Mailer) Send(ctx context.Context, to, subject, textBody, htmlBody string) error {
 	client, err := mail.NewClient(m.cfg.Host,
 		mail.WithPort(m.cfg.Port),
 		mail.WithSMTPAuth(mail.SMTPAuthPlain),
@@ -38,7 +38,8 @@ func (m *Mailer) Send(ctx context.Context, to, subject, body string) error {
 		return err
 	}
 	msg.Subject(subject)
-	msg.SetBodyString(mail.TypeTextPlain, body)
+	msg.SetBodyString(mail.TypeTextPlain, textBody)
+	msg.AddAlternativeString(mail.TypeTextHTML, htmlBody)
 
 	return client.DialAndSendWithContext(ctx, msg)
 

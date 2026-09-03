@@ -1,0 +1,12 @@
+Anda diundang ke ruang data
+
+{{.InvitedBy}} mengundang Anda untuk mengakses {{.WorkspaceName}} di Rakda.
+
+{{if .Registered}}Buka daftar undangan Anda untuk menerima atau menolak:
+{{.Link}}{{else}}Buat akun Anda untuk menerima undangan:
+{{.Link}}{{end}}
+{{if .ExpiresLabel}}Undangan berlaku sampai {{.ExpiresLabel}}.{{end}}
+
+---
+Anda menerima email ini karena {{.Reason}}.
+Rakda · Virtual data room untuk kerja sama yang rahasia.

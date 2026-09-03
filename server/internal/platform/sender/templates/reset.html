@@ -1,0 +1,17 @@
+<h1 style="margin:0 0 12px;font-family:Arial,Helvetica,sans-serif;font-size:20px;color:#111C23;">{{.Headline}}</h1>
+<p style="margin:0 0 20px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.7;color:#111C23;">{{.Lead}}</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
+  <tr>
+    <td align="center" style="background-color:#F7FBFC;border:1px solid #E3EAEC;border-radius:8px;padding:14px 24px;">
+      <span style="font-family:'Courier New',Courier,monospace;font-size:26px;font-weight:700;letter-spacing:6px;color:#006B82;">{{.Code}}</span>
+    </td>
+  </tr>
+</table>
+<p style="margin:0 0 16px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:#5E6F76;">
+  Kode berlaku <strong>5 menit</strong>. Jangan bagikan kode ini kepada siapa pun.
+  Rakda tidak akan pernah memintanya di luar email ini.
+</p>
+{{if .Closing}}<p style="margin:0 0 16px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.6;color:#111C23;">{{.Closing}}</p>{{end}}
+<p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:#5E6F76;">
+  Anda menerima email ini karena {{.Reason}}.
+</p>
