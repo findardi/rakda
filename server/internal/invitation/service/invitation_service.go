@@ -135,6 +135,19 @@ func (s *InvitationService) AcceptInvitation(ctx context.Context, invitationID s
 			return fmt.Errorf("add member: %w", err)
 		}
 
+		// A group picked at invite time wins over the default fallback. The
+		// insert only fires for guests, so a later role change on the
+		// invitation can never drag a non-guest into a group.
+		if inv.GroupID.Valid {
+			if err := q.AssignToGroup(ctx, invitationdb.AssignToGroupParams{
+				GroupID:     inv.GroupID,
+				WorkspaceID: inv.WorkspaceID,
+				UserID:      uID,
+			}); err != nil {
+				return fmt.Errorf("assign invited group: %w", err)
+			}
+		}
+
 		if err := q.AssignDefaultGroupIfGuest(ctx, invitationdb.AssignDefaultGroupIfGuestParams{
 			WorkspaceID: inv.WorkspaceID,
 			UserID:      uID,

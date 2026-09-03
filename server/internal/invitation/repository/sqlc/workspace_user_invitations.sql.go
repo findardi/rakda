@@ -18,7 +18,7 @@ update workspace_user_invitations set
     accepted_at = now(),
     updated_at = now()
 where id = $1 and status = 'pending'
-returning id, workspace_id, email, role_id, user_id, invited_by, code_hash, status, expires_at, accepted_at, created_at, updated_at
+returning id, workspace_id, email, role_id, user_id, invited_by, code_hash, status, expires_at, accepted_at, created_at, updated_at, group_id
 `
 
 type AcceptWorkspaceInvitationParams struct {
@@ -42,6 +42,7 @@ func (q *Queries) AcceptWorkspaceInvitation(ctx context.Context, arg AcceptWorks
 		&i.AcceptedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.GroupID,
 	)
 	return i, err
 }
@@ -68,9 +69,35 @@ func (q *Queries) AssignDefaultGroupIfGuest(ctx context.Context, arg AssignDefau
 	return err
 }
 
+const assignToGroup = `-- name: AssignToGroup :exec
+insert into workspace_group_members (group_id, member_id)
+select g.id, m.id
+from workspace_members m
+join workspace_roles r
+    on r.id = m.role_id and r.name = 'guest'
+join workspace_groups g
+    on g.id = $1 and g.workspace_id = m.workspace_id
+where m.workspace_id = $2 and m.user_id = $3
+on conflict (member_id) do nothing
+`
+
+type AssignToGroupParams struct {
+	GroupID     pgtype.UUID `json:"group_id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	UserID      pgtype.UUID `json:"user_id"`
+}
+
+// Assigns the accepting guest to the group chosen at invite time. No-ops when
+// the member is not a guest or the group does not belong to the workspace
+// (invitations are validated on creation; this is defense in depth).
+func (q *Queries) AssignToGroup(ctx context.Context, arg AssignToGroupParams) error {
+	_, err := q.db.Exec(ctx, assignToGroup, arg.GroupID, arg.WorkspaceID, arg.UserID)
+	return err
+}
+
 const getMyInvitations = `-- name: GetMyInvitations :many
 select 
-    wi.id, wi.workspace_id, wi.email, wi.role_id, wi.user_id, wi.invited_by, wi.code_hash, wi.status, wi.expires_at, wi.accepted_at, wi.created_at, wi.updated_at,
+    wi.id, wi.workspace_id, wi.email, wi.role_id, wi.user_id, wi.invited_by, wi.code_hash, wi.status, wi.expires_at, wi.accepted_at, wi.created_at, wi.updated_at, wi.group_id,
     u.username as invited_name,
     r.name as role_name,
     w.name as workspace_name
@@ -99,6 +126,7 @@ type GetMyInvitationsRow struct {
 	AcceptedAt    pgtype.Timestamptz `json:"accepted_at"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	GroupID       pgtype.UUID        `json:"group_id"`
 	InvitedName   *string            `json:"invited_name"`
 	RoleName      *string            `json:"role_name"`
 	WorkspaceName *string            `json:"workspace_name"`
@@ -126,6 +154,7 @@ func (q *Queries) GetMyInvitations(ctx context.Context, userID pgtype.UUID) ([]G
 			&i.AcceptedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.GroupID,
 			&i.InvitedName,
 			&i.RoleName,
 			&i.WorkspaceName,
@@ -141,7 +170,7 @@ func (q *Queries) GetMyInvitations(ctx context.Context, userID pgtype.UUID) ([]G
 }
 
 const getWorkspaceInvitation = `-- name: GetWorkspaceInvitation :one
-select id, workspace_id, email, role_id, user_id, invited_by, code_hash, status, expires_at, accepted_at, created_at, updated_at from workspace_user_invitations where id = $1
+select id, workspace_id, email, role_id, user_id, invited_by, code_hash, status, expires_at, accepted_at, created_at, updated_at, group_id from workspace_user_invitations where id = $1
 `
 
 func (q *Queries) GetWorkspaceInvitation(ctx context.Context, id pgtype.UUID) (WorkspaceUserInvitation, error) {
@@ -160,6 +189,7 @@ func (q *Queries) GetWorkspaceInvitation(ctx context.Context, id pgtype.UUID) (W
 		&i.AcceptedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.GroupID,
 	)
 	return i, err
 }
@@ -188,7 +218,7 @@ update workspace_user_invitations set
     status = 'rejected',
     updated_at = now()
 where id = $1 and status = 'pending'
-returning id, workspace_id, email, role_id, user_id, invited_by, code_hash, status, expires_at, accepted_at, created_at, updated_at
+returning id, workspace_id, email, role_id, user_id, invited_by, code_hash, status, expires_at, accepted_at, created_at, updated_at, group_id
 `
 
 func (q *Queries) RejectWorkspaceInvitation(ctx context.Context, id pgtype.UUID) (WorkspaceUserInvitation, error) {
@@ -207,6 +237,7 @@ func (q *Queries) RejectWorkspaceInvitation(ctx context.Context, id pgtype.UUID)
 		&i.AcceptedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.GroupID,
 	)
 	return i, err
 }

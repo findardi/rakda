@@ -13,6 +13,10 @@ import (
 type Querier interface {
 	AcceptWorkspaceInvitation(ctx context.Context, arg AcceptWorkspaceInvitationParams) (WorkspaceUserInvitation, error)
 	AssignDefaultGroupIfGuest(ctx context.Context, arg AssignDefaultGroupIfGuestParams) error
+	// Assigns the accepting guest to the group chosen at invite time. No-ops when
+	// the member is not a guest or the group does not belong to the workspace
+	// (invitations are validated on creation; this is defense in depth).
+	AssignToGroup(ctx context.Context, arg AssignToGroupParams) error
 	GetMyInvitations(ctx context.Context, userID pgtype.UUID) ([]GetMyInvitationsRow, error)
 	GetWorkspaceInvitation(ctx context.Context, id pgtype.UUID) (WorkspaceUserInvitation, error)
 	InsertMember(ctx context.Context, arg InsertMemberParams) error

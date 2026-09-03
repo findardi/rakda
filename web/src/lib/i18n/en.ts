@@ -1164,6 +1164,9 @@ export const en: Record<keyof Dict, string> = {
 	'member.invite.emailPlaceholder': 'name@company.com',
 	'member.invite.emailHint': 'Press Enter or comma to add each email.',
 	'member.invite.roleLabel': 'Role',
+	'member.invite.groupLabel': 'Group',
+	'member.invite.groupHint':
+		'Guests only see folders granted to their group. Without a choice, the guest joins the default group.',
 	'member.invite.removeChip': 'Remove {email}',
 	'member.invite.invalidEmail': 'Invalid email format.',
 	'member.invite.dupe': 'That email is already added.',
@@ -1210,6 +1213,7 @@ export const en: Record<keyof Dict, string> = {
 
 	// pending invitations
 	'pending.status.pending': 'Pending',
+	'pending.group': 'Group',
 	'pending.expires': 'Expires',
 	'pending.invitedBy': 'Invited by {name}',
 	'pending.resend': 'Resend',

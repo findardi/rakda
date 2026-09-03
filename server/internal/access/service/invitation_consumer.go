@@ -71,6 +71,19 @@ func (s *AccessService) ConsumeInvitation(ctx context.Context, tx pgx.Tx, token,
 		return fmt.Errorf("add member: %w", err)
 	}
 
+	// A group picked at invite time wins over the default fallback. The
+	// insert only fires for guests, so a non-guest invite is never dragged
+	// into a group.
+	if inv.GroupID.Valid {
+		if err := q.AssignToGroup(ctx, accessdb.AssignToGroupParams{
+			GroupID:     inv.GroupID,
+			WorkspaceID: inv.WorkspaceID,
+			UserID:      uID,
+		}); err != nil {
+			return fmt.Errorf("assign invited group: %w", err)
+		}
+	}
+
 	if err := q.AssignDefaultGroupIfGuest(ctx, accessdb.AssignDefaultGroupIfGuestParams{
 		WorkspaceID: inv.WorkspaceID,
 		UserID:      uID,

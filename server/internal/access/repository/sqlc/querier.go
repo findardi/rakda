@@ -14,6 +14,10 @@ type Querier interface {
 	AcceptWorkspaceInvitation(ctx context.Context, arg AcceptWorkspaceInvitationParams) (WorkspaceUserInvitation, error)
 	AddMember(ctx context.Context, arg AddMemberParams) (WorkspaceMember, error)
 	AssignDefaultGroupIfGuest(ctx context.Context, arg AssignDefaultGroupIfGuestParams) error
+	// Assigns an accepting guest to the group chosen at invite time. No-ops when
+	// the member is not a guest or the group belongs to another workspace
+	// (invitations are validated on creation; this is defense in depth).
+	AssignToGroup(ctx context.Context, arg AssignToGroupParams) error
 	CreateDefaultGroup(ctx context.Context, arg CreateDefaultGroupParams) (WorkspaceGroup, error)
 	CreateGroup(ctx context.Context, arg CreateGroupParams) (WorkspaceGroup, error)
 	DeleteGroup(ctx context.Context, id pgtype.UUID) error
@@ -36,6 +40,8 @@ type Querier interface {
 	InsertGroupMember(ctx context.Context, arg InsertGroupMemberParams) (WorkspaceGroupMember, error)
 	InsertRole(ctx context.Context, arg InsertRoleParams) (WorkspaceRole, error)
 	InsertWorkspaceInvitation(ctx context.Context, arg InsertWorkspaceInvitationParams) (InsertWorkspaceInvitationRow, error)
+	// A pending row whose expires_at has passed reads as 'expired': nothing flips
+	// the stored status, so the lapse is derived here and the filter follows it.
 	ListWorkspaceInvitations(ctx context.Context, arg ListWorkspaceInvitationsParams) ([]ListWorkspaceInvitationsRow, error)
 	MoveGroupMembersToDefaultGroup(ctx context.Context, groupID pgtype.UUID) (int64, error)
 	MoveMemberToDefaultGroup(ctx context.Context, memberID pgtype.UUID) (int64, error)

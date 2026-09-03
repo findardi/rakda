@@ -39,6 +39,7 @@ export const actions: Actions = {
 
 		const form = await request.formData();
 		const roleId = (form.get('roleId') ?? '').toString();
+		const groupId = (form.get('groupId') ?? '').toString();
 		const emails = [
 			...new Set(
 				form
@@ -54,7 +55,11 @@ export const actions: Actions = {
 		const wsId = await resolveWorkspaceId(locals.session, params.slug);
 		if (!wsId) return fail(404, { message: t('ws.detail.notFound') });
 
-		const res = await addMembers(locals.session, wsId, { email: emails, role_id: roleId });
+		const res = await addMembers(locals.session, wsId, {
+			email: emails,
+			role_id: roleId,
+			group_id: groupId || undefined
+		});
 		if (!res.ok) {
 			if (res.status === 401) redirect(303, '/login');
 			return fail(res.status || 400, {

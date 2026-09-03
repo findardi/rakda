@@ -7,10 +7,16 @@
 	import { roleDisplayName } from '$lib/access/permissions';
 	import { assignableRoles } from '$lib/access/roles';
 	import { t } from '$lib/i18n';
-	import type { AddMemberResult, WorkspaceRoleData } from '$lib/types/workspace';
+	import type {
+		AddMemberResult,
+		GroupWorkspaceData,
+		WorkspaceRoleData
+	} from '$lib/types/workspace';
 
 	type Props = {
 		roles: WorkspaceRoleData[];
+		/** Room groups — the picker offers these for guest invitations only. */
+		groups: GroupWorkspaceData[];
 		/** The inviter's own role — limits which roles they may grant. */
 		viewerRole: string;
 		/** Form action URL — same-route (`?/invite`) or a cross-route path. */
@@ -25,6 +31,7 @@
 
 	let {
 		roles,
+		groups,
 		viewerRole,
 		action,
 		open = $bindable(false),
@@ -40,6 +47,12 @@
 		roleOptions.find((r) => r.name === 'guest')?.id ?? roleOptions.at(-1)?.id ?? ''
 	);
 
+	// Groups only exist for guests: the picker shows for guest invitations and
+	// preselects the room's default group, so the "no choice" state is exactly
+	// the pre-existing behaviour — the guest lands in the default group.
+	const isGuestRole = $derived((roleOptions.find((r) => r.id === roleId)?.name ?? '') === 'guest');
+	const defaultGroupId = $derived(groups.find((g) => g.is_default)?.id ?? groups[0]?.id ?? '');
+
 	const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 	const MAX_EMAILS = 50;
 
@@ -48,6 +61,7 @@
 	let draft = $state('');
 	let chipError = $state<string | null>(null);
 	let roleId = $state('');
+	let groupId = $state('');
 	let submitting = $state(false);
 	let formError = $state<string | null>(null);
 	let results = $state<AddMemberResult[] | null>(null);
@@ -68,6 +82,7 @@
 		formError = null;
 		results = null;
 		roleId = defaultRoleId;
+		groupId = defaultGroupId;
 	}
 
 	function focusInput() {
@@ -146,6 +161,13 @@
 		formData.delete('email');
 		for (const e of emails) formData.append('email', e);
 		formData.set('roleId', roleId);
+		// Only guest invitations may carry a group; the backend falls back to
+		// the default group when none arrives.
+		if (isGuestRole) {
+			formData.set('groupId', groupId);
+		} else {
+			formData.delete('groupId');
+		}
 
 		submitting = true;
 		formError = null;
@@ -320,6 +342,27 @@
 						{/each}
 					</select>
 				</div>
+
+				{#if isGuestRole}
+					<div class="mt-4">
+						<label class="text-sm font-medium" for="invite-group"
+							>{t('member.invite.groupLabel')}</label
+						>
+						<select
+							id="invite-group"
+							name="groupId"
+							bind:value={groupId}
+							class="select mt-1.5 w-full"
+						>
+							{#each groups as g (g.id)}
+								<option value={g.id}>
+									{g.name}{g.is_default ? ` · ${t('group.default.badge')}` : ''}
+								</option>
+							{/each}
+						</select>
+						<p class="mt-1.5 text-xs text-muted">{t('member.invite.groupHint')}</p>
+					</div>
+				{/if}
 
 				<div class="mt-6 flex flex-wrap justify-end gap-2">
 					<Button type="button" variant="ghost" onclick={() => dialog?.close()}>

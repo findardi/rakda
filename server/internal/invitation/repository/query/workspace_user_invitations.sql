@@ -51,3 +51,17 @@ join workspace_groups g
     on g.workspace_id = m.workspace_id and g.is_default
 where m.workspace_id = sqlc.arg(workspace_id) and m.user_id = sqlc.arg(user_id)
 on conflict (member_id) do nothing;
+
+-- name: AssignToGroup :exec
+-- Assigns the accepting guest to the group chosen at invite time. No-ops when
+-- the member is not a guest or the group does not belong to the workspace
+-- (invitations are validated on creation; this is defense in depth).
+insert into workspace_group_members (group_id, member_id)
+select g.id, m.id
+from workspace_members m
+join workspace_roles r
+    on r.id = m.role_id and r.name = 'guest'
+join workspace_groups g
+    on g.id = sqlc.arg(group_id) and g.workspace_id = m.workspace_id
+where m.workspace_id = sqlc.arg(workspace_id) and m.user_id = sqlc.arg(user_id)
+on conflict (member_id) do nothing;
