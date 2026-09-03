@@ -1,15 +1,19 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { canManageAccess } from '$lib/access/roles';
+import { canEditWorkspace, canManageAccess } from '$lib/access/roles';
 import {
 	createArchive,
 	deleteArchive,
 	deleteWorkspace,
+	getHeroPresets,
 	getWorkspaces,
 	getWorkspaceSummary,
 	listActivity,
 	listArchives,
+	removeWorkspaceLogo,
+	setWorkspaceHero,
 	updateWorkspace,
-	updateWorkspaceStatus
+	updateWorkspaceStatus,
+	uploadWorkspaceLogo
 } from '$lib/server/api';
 import { t } from '$lib/i18n';
 import type { WorkspaceStatus } from '$lib/types/workspace';
@@ -21,21 +25,28 @@ import type { Actions, PageServerLoad } from './$types';
 // confirmation reuses summary.guest_count for its counted button.
 export const load: PageServerLoad = async ({ locals, parent }) => {
 	const { access, workspace } = await parent();
-	if (!locals.session) return { guestCount: 0, archives: [], summary: null, recentActivity: [] };
+	if (!locals.session) {
+		return { guestCount: 0, archives: [], summary: null, recentActivity: [], heroPresets: [] };
+	}
 
 	const isManager = canManageAccess(access.role);
+	// The preset picker is owner-only; everyone else renders the hero from the
+	// hue/phase the workspace record already carries.
+	const isOwner = canEditWorkspace(access.role);
 
-	const [summary, archives, activity] = await Promise.all([
+	const [summary, archives, activity, presets] = await Promise.all([
 		isManager ? getWorkspaceSummary(locals.session, workspace.id) : null,
 		isManager ? listArchives(locals.session, workspace.id) : null,
-		isManager ? listActivity(locals.session, workspace.id, { limit: 5 }) : null
+		isManager ? listActivity(locals.session, workspace.id, { limit: 5 }) : null,
+		isOwner ? getHeroPresets(locals.session) : null
 	]);
 
 	return {
 		summary: summary?.ok ? summary.data : null,
 		guestCount: summary?.ok ? summary.data.guest_count : 0,
 		archives: archives?.ok ? archives.data : [],
-		recentActivity: activity?.ok ? activity.data.items : []
+		recentActivity: activity?.ok ? activity.data.items : [],
+		heroPresets: presets?.ok ? presets.data : []
 	};
 };
 
@@ -101,6 +112,61 @@ export const actions: Actions = {
 			redirect(303, `/workspace/${res.data.slug}`);
 		}
 		return { updated: res.data };
+	},
+
+	uploadLogo: async ({ locals, request, params }) => {
+		if (!locals.session) redirect(303, '/login');
+
+		const form = await request.formData();
+		const file = form.get('file');
+		if (!(file instanceof File) || file.size === 0) {
+			return fail(400, { message: t('err.generic') });
+		}
+
+		const id = await resolveId(locals.session, params.slug);
+		if (!id) return fail(404, { message: t('ws.detail.notFound') });
+
+		const res = await uploadWorkspaceLogo(locals.session, id, file);
+		if (!res.ok) {
+			if (res.status === 401) redirect(303, '/login');
+			return fail(res.status || 400, { message: res.message || t('err.generic') });
+		}
+
+		return { logoUpdated: true };
+	},
+
+	removeLogo: async ({ locals, params }) => {
+		if (!locals.session) redirect(303, '/login');
+
+		const id = await resolveId(locals.session, params.slug);
+		if (!id) return fail(404, { message: t('ws.detail.notFound') });
+
+		const res = await removeWorkspaceLogo(locals.session, id);
+		if (!res.ok) {
+			if (res.status === 401) redirect(303, '/login');
+			return fail(res.status || 400, { message: res.message || t('err.generic') });
+		}
+
+		return { logoRemoved: true };
+	},
+
+	setHero: async ({ locals, request, params }) => {
+		if (!locals.session) redirect(303, '/login');
+
+		const form = await request.formData();
+		// Empty = automatic; the backend validates the key against its own list.
+		const preset = (form.get('preset') ?? '').toString();
+
+		const id = await resolveId(locals.session, params.slug);
+		if (!id) return fail(404, { message: t('ws.detail.notFound') });
+
+		const res = await setWorkspaceHero(locals.session, id, preset);
+		if (!res.ok) {
+			if (res.status === 401) redirect(303, '/login');
+			return fail(res.status || 400, { message: res.message || t('err.generic') });
+		}
+
+		return { heroUpdated: true };
 	},
 
 	createArchive: async ({ locals, params }) => {

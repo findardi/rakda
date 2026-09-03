@@ -5,6 +5,7 @@
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { WorkspaceStatusBadge } from '$lib/components/app';
 	import { Alert, Button, Field, TextareaField } from '$lib/components/common';
+	import { workspaceLogoUrl } from '$lib/branding';
 	import { t } from '$lib/i18n';
 	import type { WorkspaceData } from '$lib/types/workspace';
 	import type { PageProps } from './$types';
@@ -158,10 +159,18 @@
 							? 'bg-primary/5'
 							: ''}"
 					>
-						<span
-							class="grid h-9 w-9 flex-none place-items-center rounded-field bg-primary/10 text-sm font-semibold text-primary"
-							>{ws.name.charAt(0).toUpperCase()}</span
-						>
+						{#if ws.logo}
+							<img
+								src={workspaceLogoUrl(ws)}
+								alt=""
+								class="h-9 w-9 flex-none rounded-field border border-base-content/10 bg-base-100 object-contain p-0.5"
+							/>
+						{:else}
+							<span
+								class="grid h-9 w-9 flex-none place-items-center rounded-field bg-primary/10 text-sm font-semibold text-primary"
+								>{ws.name.charAt(0).toUpperCase()}</span
+							>
+						{/if}
 						<div class="min-w-0 flex-1">
 							<p class="truncate text-[0.9375rem] font-medium">{ws.name}</p>
 							<p class="truncate font-mono text-xs text-muted">{ws.slug}</p>

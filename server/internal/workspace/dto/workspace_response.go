@@ -12,6 +12,15 @@ type WorkspaceResponse struct {
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 
+	// Branding. Logo is a version token ("" = no logo) that keys the logo
+	// endpoint's cache; HeroPreset is the chosen curated preset ("" = automatic);
+	// HeroHue/HeroPhase are the resolved values the hero renders from either way,
+	// so the web never recomputes an identity the server already owns.
+	Logo       string `json:"logo"`
+	HeroPreset string `json:"hero_preset"`
+	HeroHue    int    `json:"hero_hue"`
+	HeroPhase  int    `json:"hero_phase"`
+
 	// Diisi hanya oleh daftar ruangan: peran pemanggil di ruangan itu, dan
 	// stempel aktivitas terakhir yang memberi daftar urutan bermakna.
 	Role           string     `json:"role,omitempty"`
@@ -25,6 +34,13 @@ type WorkspaceListResponse struct {
 	Workspaces []WorkspaceResponse `json:"workspaces"`
 	OwnedCount int                 `json:"owned_count"`
 	OwnedLimit int                 `json:"owned_limit"`
+}
+
+// HeroPresetResponse is one curated hero identity the picker can preview.
+type HeroPresetResponse struct {
+	Key   string `json:"key"`
+	Hue   int    `json:"hue"`
+	Phase int    `json:"phase"`
 }
 
 type WorkspaceSummaryResponse struct {

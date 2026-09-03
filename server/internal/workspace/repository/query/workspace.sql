@@ -82,3 +82,19 @@ where wm.user_id = sqlc.arg(user_id)
   and wm.status = 'active'
   and (wm.expires_at is null or wm.expires_at > now())
 order by last_activity_at desc nulls last, w.created_at desc, w.id;
+-- name: UpdateWorkspaceLogo :one
+-- NULL clears the logo. The object is written before this runs and removed
+-- after, so the row never points at a key that does not exist.
+update workspaces set
+    logo_key = $2,
+    updated_at = now()
+where id = $1
+returning *;
+
+-- name: UpdateWorkspaceHeroPreset :one
+-- NULL means "automatic from the slug", the default every room is born with.
+update workspaces set
+    hero_preset = $2,
+    updated_at = now()
+where id = $1
+returning *;

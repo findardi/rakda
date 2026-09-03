@@ -22,6 +22,11 @@ type Querier interface {
 	GetWorkspaces(ctx context.Context, userID pgtype.UUID) ([]GetWorkspacesRow, error)
 	GetWorkspacesByOwner(ctx context.Context, ownerID pgtype.UUID) ([]Workspace, error)
 	UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (Workspace, error)
+	// NULL means "automatic from the slug", the default every room is born with.
+	UpdateWorkspaceHeroPreset(ctx context.Context, arg UpdateWorkspaceHeroPresetParams) (Workspace, error)
+	// NULL clears the logo. The object is written before this runs and removed
+	// after, so the row never points at a key that does not exist.
+	UpdateWorkspaceLogo(ctx context.Context, arg UpdateWorkspaceLogoParams) (Workspace, error)
 	UpdateWorkspaceStatus(ctx context.Context, arg UpdateWorkspaceStatusParams) (Workspace, error)
 }
 

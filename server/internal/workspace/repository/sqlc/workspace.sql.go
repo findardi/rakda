@@ -16,7 +16,7 @@ insert into workspaces
     (owner_id, name, slug, description, status)
 values 
     ($1, $2, $3, $4, $5)
-returning id, owner_id, name, slug, description, status, created_at, updated_at
+returning id, owner_id, name, slug, description, status, created_at, updated_at, logo_key, hero_preset
 `
 
 type CreateWorkspaceParams struct {
@@ -45,6 +45,8 @@ func (q *Queries) CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LogoKey,
+		&i.HeroPreset,
 	)
 	return i, err
 }
@@ -80,7 +82,7 @@ func (q *Queries) GetMemberRoleName(ctx context.Context, arg GetMemberRoleNamePa
 }
 
 const getWorkspaceByID = `-- name: GetWorkspaceByID :one
-select id, owner_id, name, slug, description, status, created_at, updated_at from workspaces where id = $1
+select id, owner_id, name, slug, description, status, created_at, updated_at, logo_key, hero_preset from workspaces where id = $1
 `
 
 func (q *Queries) GetWorkspaceByID(ctx context.Context, id pgtype.UUID) (Workspace, error) {
@@ -95,12 +97,14 @@ func (q *Queries) GetWorkspaceByID(ctx context.Context, id pgtype.UUID) (Workspa
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LogoKey,
+		&i.HeroPreset,
 	)
 	return i, err
 }
 
 const getWorkspaceByNameAndOwner = `-- name: GetWorkspaceByNameAndOwner :one
-select id, owner_id, name, slug, description, status, created_at, updated_at from workspaces 
+select id, owner_id, name, slug, description, status, created_at, updated_at, logo_key, hero_preset from workspaces 
 where owner_id = $1 and name = $2
 `
 
@@ -121,12 +125,14 @@ func (q *Queries) GetWorkspaceByNameAndOwner(ctx context.Context, arg GetWorkspa
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LogoKey,
+		&i.HeroPreset,
 	)
 	return i, err
 }
 
 const getWorkspaceBySlugAndOwner = `-- name: GetWorkspaceBySlugAndOwner :one
-select id, owner_id, name, slug, description, status, created_at, updated_at from workspaces 
+select id, owner_id, name, slug, description, status, created_at, updated_at, logo_key, hero_preset from workspaces 
 where owner_id = $1 and slug = $2
 `
 
@@ -147,12 +153,14 @@ func (q *Queries) GetWorkspaceBySlugAndOwner(ctx context.Context, arg GetWorkspa
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LogoKey,
+		&i.HeroPreset,
 	)
 	return i, err
 }
 
 const getWorkspaceForMember = `-- name: GetWorkspaceForMember :one
-select w.id, w.owner_id, w.name, w.slug, w.description, w.status, w.created_at, w.updated_at from workspaces w
+select w.id, w.owner_id, w.name, w.slug, w.description, w.status, w.created_at, w.updated_at, w.logo_key, w.hero_preset from workspaces w
 join workspace_members m on m.workspace_id = w.id
 where w.id = $1
   and m.user_id = $2
@@ -177,6 +185,8 @@ func (q *Queries) GetWorkspaceForMember(ctx context.Context, arg GetWorkspaceFor
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LogoKey,
+		&i.HeroPreset,
 	)
 	return i, err
 }
@@ -209,7 +219,7 @@ func (q *Queries) GetWorkspaceSummary(ctx context.Context, workspaceID pgtype.UU
 
 const getWorkspaces = `-- name: GetWorkspaces :many
 select
-    w.id, w.owner_id, w.name, w.slug, w.description, w.status, w.created_at, w.updated_at,
+    w.id, w.owner_id, w.name, w.slug, w.description, w.status, w.created_at, w.updated_at, w.logo_key, w.hero_preset,
     r.name as role_name,
     (
         select max(a.created_at)
@@ -234,6 +244,8 @@ type GetWorkspacesRow struct {
 	Status         string             `json:"status"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	LogoKey        *string            `json:"logo_key"`
+	HeroPreset     *string            `json:"hero_preset"`
 	RoleName       string             `json:"role_name"`
 	LastActivityAt pgtype.Timestamptz `json:"last_activity_at"`
 }
@@ -256,6 +268,8 @@ func (q *Queries) GetWorkspaces(ctx context.Context, userID pgtype.UUID) ([]GetW
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.LogoKey,
+			&i.HeroPreset,
 			&i.RoleName,
 			&i.LastActivityAt,
 		); err != nil {
@@ -270,7 +284,7 @@ func (q *Queries) GetWorkspaces(ctx context.Context, userID pgtype.UUID) ([]GetW
 }
 
 const getWorkspacesByOwner = `-- name: GetWorkspacesByOwner :many
-select id, owner_id, name, slug, description, status, created_at, updated_at from workspaces where owner_id = $1
+select id, owner_id, name, slug, description, status, created_at, updated_at, logo_key, hero_preset from workspaces where owner_id = $1
 `
 
 func (q *Queries) GetWorkspacesByOwner(ctx context.Context, ownerID pgtype.UUID) ([]Workspace, error) {
@@ -291,6 +305,8 @@ func (q *Queries) GetWorkspacesByOwner(ctx context.Context, ownerID pgtype.UUID)
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.LogoKey,
+			&i.HeroPreset,
 		); err != nil {
 			return nil, err
 		}
@@ -309,7 +325,7 @@ update workspaces set
     description = $4,
     updated_at = now()
 where id = $1
-returning id, owner_id, name, slug, description, status, created_at, updated_at
+returning id, owner_id, name, slug, description, status, created_at, updated_at, logo_key, hero_preset
 `
 
 type UpdateWorkspaceParams struct {
@@ -336,6 +352,73 @@ func (q *Queries) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LogoKey,
+		&i.HeroPreset,
+	)
+	return i, err
+}
+
+const updateWorkspaceHeroPreset = `-- name: UpdateWorkspaceHeroPreset :one
+update workspaces set
+    hero_preset = $2,
+    updated_at = now()
+where id = $1
+returning id, owner_id, name, slug, description, status, created_at, updated_at, logo_key, hero_preset
+`
+
+type UpdateWorkspaceHeroPresetParams struct {
+	ID         pgtype.UUID `json:"id"`
+	HeroPreset *string     `json:"hero_preset"`
+}
+
+// NULL means "automatic from the slug", the default every room is born with.
+func (q *Queries) UpdateWorkspaceHeroPreset(ctx context.Context, arg UpdateWorkspaceHeroPresetParams) (Workspace, error) {
+	row := q.db.QueryRow(ctx, updateWorkspaceHeroPreset, arg.ID, arg.HeroPreset)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.Name,
+		&i.Slug,
+		&i.Description,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LogoKey,
+		&i.HeroPreset,
+	)
+	return i, err
+}
+
+const updateWorkspaceLogo = `-- name: UpdateWorkspaceLogo :one
+update workspaces set
+    logo_key = $2,
+    updated_at = now()
+where id = $1
+returning id, owner_id, name, slug, description, status, created_at, updated_at, logo_key, hero_preset
+`
+
+type UpdateWorkspaceLogoParams struct {
+	ID      pgtype.UUID `json:"id"`
+	LogoKey *string     `json:"logo_key"`
+}
+
+// NULL clears the logo. The object is written before this runs and removed
+// after, so the row never points at a key that does not exist.
+func (q *Queries) UpdateWorkspaceLogo(ctx context.Context, arg UpdateWorkspaceLogoParams) (Workspace, error) {
+	row := q.db.QueryRow(ctx, updateWorkspaceLogo, arg.ID, arg.LogoKey)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.Name,
+		&i.Slug,
+		&i.Description,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LogoKey,
+		&i.HeroPreset,
 	)
 	return i, err
 }
@@ -345,7 +428,7 @@ update workspaces set
     status = $1,
     updated_at = now()
 where id = $2 and status = $3
-returning id, owner_id, name, slug, description, status, created_at, updated_at
+returning id, owner_id, name, slug, description, status, created_at, updated_at, logo_key, hero_preset
 `
 
 type UpdateWorkspaceStatusParams struct {
@@ -366,6 +449,8 @@ func (q *Queries) UpdateWorkspaceStatus(ctx context.Context, arg UpdateWorkspace
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LogoKey,
+		&i.HeroPreset,
 	)
 	return i, err
 }

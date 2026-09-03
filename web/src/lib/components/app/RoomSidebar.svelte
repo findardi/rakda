@@ -2,6 +2,7 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { t } from '$lib/i18n';
+	import { workspaceLogoUrl } from '$lib/branding';
 	import { formatDateLocal } from '$lib/format';
 	import { canManageAccess } from '$lib/access/roles';
 	import WorkspaceStatusBadge from './WorkspaceStatusBadge.svelte';
@@ -39,6 +40,7 @@
 	// A dated membership shows its date where the member sees the room: losing
 	// access without any signal is the failure this one line prevents.
 	const accessUntil = $derived(access?.expires_at ? formatDateLocal(access.expires_at) : '');
+	const logoSrc = $derived(workspaceLogoUrl(workspace));
 </script>
 
 <nav class="flex h-full flex-col gap-1 p-3" aria-label="Navigasi ruang data">
@@ -72,10 +74,18 @@
 				class="flex w-full items-center gap-2.5 rounded-field px-1 py-1 text-left transition-colors hover:bg-base-content/5"
 				aria-label={t('ws.switcher.open')}
 			>
-				<span
-					class="grid h-6 w-6 flex-none place-items-center rounded-field bg-primary/10 text-xs font-semibold text-primary"
-					>{workspace.name.charAt(0).toUpperCase()}</span
-				>
+				{#if logoSrc}
+					<img
+						src={logoSrc}
+						alt=""
+						class="h-6 w-6 flex-none rounded-field border border-base-content/10 bg-base-100 object-contain"
+					/>
+				{:else}
+					<span
+						class="grid h-6 w-6 flex-none place-items-center rounded-field bg-primary/10 text-xs font-semibold text-primary"
+						>{workspace.name.charAt(0).toUpperCase()}</span
+					>
+				{/if}
 				<div class="min-w-0 flex-1">
 					<span class="block truncate text-sm font-semibold tracking-[-0.01em]"
 						>{workspace.name}</span
@@ -119,10 +129,18 @@
 		</div>
 	{:else}
 		<div class="mt-1 mb-2 flex items-center gap-2.5 px-1">
-			<span
-				class="grid h-6 w-6 flex-none place-items-center rounded-field bg-primary/10 text-xs font-semibold text-primary"
-				>{workspace.name.charAt(0).toUpperCase()}</span
-			>
+			{#if logoSrc}
+				<img
+					src={logoSrc}
+					alt=""
+					class="h-6 w-6 flex-none rounded-field border border-base-content/10 bg-base-100 object-contain"
+				/>
+			{:else}
+				<span
+					class="grid h-6 w-6 flex-none place-items-center rounded-field bg-primary/10 text-xs font-semibold text-primary"
+					>{workspace.name.charAt(0).toUpperCase()}</span
+				>
+			{/if}
 			<div class="min-w-0">
 				<span class="block truncate text-sm font-semibold tracking-[-0.01em]">{workspace.name}</span
 				>
