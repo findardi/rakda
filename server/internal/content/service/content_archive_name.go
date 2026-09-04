@@ -5,6 +5,7 @@ import (
 	"path"
 	"regexp"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -31,6 +32,32 @@ func sanitizeComponent(name string) string {
 	}
 
 	return truncateBytes(s, maxComponentBytes)
+}
+
+// archiveRootName adalah nama direktori akar di dalam ZIP sekaligus nama
+// berkas unduhan. Seluruh ruang: "{slug}-arsip-{tanggal}" (tidak berubah).
+// Satu folder: "{slug}-{folder}-arsip-{tanggal}" — spasi pada nama folder
+// menjadi "-", dan nama dipotong agar keseluruhan tetap di bawah
+// maxComponentBytes; bila slug tidak menyisakan minShortNameBytes untuk
+// folder, jatuh ke bentuk jamak. Beberapa folder:
+// "{slug}-arsip-sebagian-{tanggal}"; daftar foldernya ada di BACA-DULU.
+func archiveRootName(slug string, at time.Time, scopeNames []string) string {
+	base := sanitizeComponent(slug)
+	date := at.Format("2006-01-02")
+
+	switch len(scopeNames) {
+	case 0:
+		return base + "-arsip-" + date
+	case 1:
+		budget := maxComponentBytes - len(base) - len("-") - len("-arsip-") - len(date)
+		if budget >= minShortNameBytes {
+			folder := strings.ReplaceAll(sanitizeComponent(scopeNames[0]), " ", "-")
+			return base + "-" + truncateBytes(folder, budget) + "-arsip-" + date
+		}
+		return base + "-arsip-sebagian-" + date
+	default:
+		return base + "-arsip-sebagian-" + date
+	}
 }
 
 func sanitizeFileName(name string) string {

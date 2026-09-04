@@ -15,6 +15,7 @@ import {
 	updateWorkspaceStatus,
 	uploadWorkspaceLogo
 } from '$lib/server/api';
+import { isUuid } from '$lib/dnd';
 import { t } from '$lib/i18n';
 import type { WorkspaceStatus } from '$lib/types/workspace';
 import type { Actions, PageServerLoad } from './$types';
@@ -169,17 +170,27 @@ export const actions: Actions = {
 		return { heroUpdated: true };
 	},
 
-	createArchive: async ({ locals, params }) => {
+	// One action for both surfaces: the overview dialog posts the checked root
+	// ids, the folder rail posts one id cross-route. No ids = the whole room.
+	createArchive: async ({ locals, params, request }) => {
 		if (!locals.session) redirect(303, '/login');
+
+		const form = await request.formData();
+		const folderIds = [...new Set(form.getAll('folder_ids').map(String).filter(Boolean))];
+		// A non-UUID can only come from a tampered form; the server would 400 too.
+		if (folderIds.some((v) => !isUuid(v))) return fail(400, { message: t('err.generic') });
 
 		const id = await resolveId(locals.session, params.slug);
 		if (!id) return fail(404, { message: t('ws.detail.notFound') });
 
-		const res = await createArchive(locals.session, id);
+		const res = await createArchive(locals.session, id, folderIds);
 		if (!res.ok) {
 			if (res.status === 401) redirect(303, '/login');
 			if (res.status === 409) return fail(409, { message: t('archive.err.pending') });
 			if (res.status === 429) return fail(429, { message: t('archive.err.busy') });
+			if (res.status === 404 && folderIds.length) {
+				return fail(404, { message: t('archive.err.folderNotFound') });
+			}
 			return fail(res.status || 400, { message: res.message || t('err.generic') });
 		}
 

@@ -3,6 +3,7 @@ package service
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -141,4 +142,33 @@ func TestValidateNodeName(t *testing.T) {
 		_, valid := validateNodeName(in)
 		assert.False(t, valid, "input %q seharusnya ditolak", in)
 	}
+}
+
+func TestArchiveRootName(t *testing.T) {
+	at := time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC)
+
+	cases := []struct {
+		name  string
+		slug  string
+		scope []string
+		want  string
+	}{
+		{name: "whole room unchanged", slug: "ruang-1a2b3c4d", want: "ruang-1a2b3c4d-arsip-2026-09-04"},
+		{name: "one folder, spaces and slash sanitized", slug: "ruang-1a2b3c4d", scope: []string{"Anggaran Dasar/2024"}, want: "ruang-1a2b3c4d-Anggaran-Dasar-2024-arsip-2026-09-04"},
+		{name: "several folders", slug: "ruang-1a2b3c4d", scope: []string{"A", "B"}, want: "ruang-1a2b3c4d-arsip-sebagian-2026-09-04"},
+		{name: "long slug leaves no room for a folder", slug: strings.Repeat("s", 110), scope: []string{"Keuangan"}, want: strings.Repeat("s", 110) + "-arsip-sebagian-2026-09-04"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, archiveRootName(tc.slug, at, tc.scope))
+		})
+	}
+
+	t.Run("long folder name is truncated within the component budget", func(t *testing.T) {
+		got := archiveRootName("ruang-1a2b3c4d", at, []string{strings.Repeat("k", 400)})
+		assert.LessOrEqual(t, len(got), maxComponentBytes)
+		assert.True(t, strings.HasSuffix(got, "-arsip-2026-09-04"), got)
+		assert.True(t, strings.HasPrefix(got, "ruang-1a2b3c4d-kkk"), got)
+	})
 }

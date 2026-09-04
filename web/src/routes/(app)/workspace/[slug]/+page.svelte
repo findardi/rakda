@@ -5,7 +5,7 @@
 	import { resolve } from '$app/paths';
 	import type { ActionResult, SubmitFunction } from '@sveltejs/kit';
 	import { Alert, Button, Field, TextareaField, Toaster, showToast } from '$lib/components/common';
-	import { WorkspaceStatusBadge } from '$lib/components/app';
+	import { ArchiveScopeDialog, WorkspaceStatusBadge } from '$lib/components/app';
 	import {
 		canDeleteWorkspace,
 		canEditWorkspace,
@@ -16,7 +16,7 @@
 	} from '$lib/access/roles';
 	import { describeActivity } from '$lib/activity/describe';
 	import { heroColor as heroColorFor, workspaceLogoUrl } from '$lib/branding';
-	import { formatBytes } from '$lib/format';
+	import { formatBytes, formatNameList } from '$lib/format';
 	import { t, type TKey } from '$lib/i18n';
 	import { readRecents, type RecentDocument, type RecentFolder } from '$lib/recents';
 	import type { ActivityItem } from '$lib/types/activity';
@@ -104,21 +104,18 @@
 		return () => clearInterval(timer);
 	});
 
-	let exportSubmitting = $state(false);
-	const submitExport: SubmitFunction = () => {
-		exportSubmitting = true;
-		return async ({ result }) => {
-			exportSubmitting = false;
-			if (result.type === 'success') {
-				await invalidateAll();
-				showToast(t('archive.queued'), 'success');
-			} else if (result.type === 'failure') {
-				showToast((result.data?.message as string) ?? t('err.generic'), 'error');
-			} else {
-				showToast(t('err.generic'), 'error');
-			}
-		};
-	};
+	// The scope picker doubles as the confirm step: building a package holds the
+	// room's single pending slot for minutes and mints a 30-day artifact.
+	let scopeOpen = $state(false);
+
+	// Names are content, so they render in the body face; only counts are mono.
+	function scopeLabel(a: ArchiveData): string {
+		if (a.scope !== 'folders') return t('archive.scope.room');
+		const names = a.scope_folder_names ?? [];
+		if (names.length === 0) return t('archive.scope.partialUnnamed');
+		if (names.length === 1) return t('archive.scope.one', { name: names[0] });
+		return t('archive.scope.many', { n: names.length, names: formatNameList(names) });
+	}
 
 	let archiveDeleteDialog = $state<HTMLDialogElement>();
 	let archiveDeleteTarget = $state<ArchiveData | null>(null);
@@ -642,16 +639,16 @@
 						<h2 class="text-sm font-semibold">{t('archive.title')}</h2>
 						<p class="mt-1 max-w-[52ch] text-sm text-muted text-pretty">{t('archive.body')}</p>
 					</div>
-					<form method="POST" action="?/createArchive" use:enhance={submitExport} class="flex-none">
+					<div class="flex-none">
 						<Button
-							type="submit"
+							type="button"
 							variant="ghost"
-							loading={exportSubmitting}
 							disabled={archivePending}
+							onclick={() => (scopeOpen = true)}
 						>
 							{t('archive.create')}
 						</Button>
-					</form>
+					</div>
 				</div>
 
 				{#if archives.length === 0}
@@ -678,6 +675,12 @@
 												</span>
 											{/if}
 										{/if}
+									</p>
+									<p
+										class="mt-0.5 text-xs text-muted"
+										title={a.scope_folder_names?.join(', ') ?? undefined}
+									>
+										{scopeLabel(a)}
 									</p>
 									<p class="mt-0.5 font-mono text-xs text-muted">
 										{fmtDate(a.created_at)} · {a.requested_by_name} · {t('archive.expires', {
@@ -1077,5 +1080,14 @@
 		<button aria-label={t('ws.dialog.cancel')}></button>
 	</form>
 </dialog>
+
+{#if managesRoom}
+	<ArchiveScopeDialog
+		workspaceId={ws.id}
+		action="?/createArchive"
+		bind:open={scopeOpen}
+		onqueued={() => showToast(t('archive.queued'), 'success')}
+	/>
+{/if}
 
 <Toaster />

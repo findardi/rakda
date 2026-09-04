@@ -194,7 +194,7 @@ export const id = {
 	// Archive packages
 	'archive.title': 'Paket arsip',
 	'archive.body':
-		'Satu berkas ZIP berisi PDF setiap dokumen, indeks, dan jejak audit. Dirakit di latar belakang dan disimpan 30 hari; ZIP yang sudah Anda unduh tetap berlaku.',
+		'Satu berkas ZIP berisi PDF setiap dokumen dan indeksnya — seluruh ruang (dengan jejak audit) atau hanya folder yang Anda pilih. Dirakit di latar belakang dan disimpan 30 hari; ZIP yang sudah Anda unduh tetap berlaku.',
 	'archive.create': 'Buat paket arsip',
 	'archive.queued': 'Paket arsip sedang dirakit.',
 	'archive.empty': 'Belum ada paket arsip.',
@@ -214,6 +214,27 @@ export const id = {
 	'archive.err.busy': 'Server sedang merakit paket arsip lain. Coba lagi sebentar.',
 	'archive.err.notFound': 'Paket arsip tidak ditemukan.',
 	'archive.err.notReady': 'Paket arsip belum siap diunduh.',
+	'archive.scope.title': 'Buat paket arsip',
+	'archive.scope.desc':
+		'Pilih folder tingkat atas yang masuk ke paket. Subfolder dan dokumen di dalamnya ikut serta.',
+	'archive.scope.all': 'Semua folder',
+	'archive.scope.count': '{n} dari {total}',
+	'archive.scope.itemLabel': 'Sertakan {name}',
+	'archive.scope.loading': 'Memuat daftar folder…',
+	'archive.scope.err.load': 'Gagal memuat daftar folder.',
+	'archive.scope.noAudit':
+		'Paket sebagian tidak menyertakan jejak audit — hanya paket seluruh ruang yang membawanya.',
+	'archive.scope.submitAll': 'Buat paket arsip — seluruh ruang',
+	'archive.scope.submitCount': 'Buat paket arsip — {n} dari {total} folder',
+	'archive.scope.room': 'Seluruh ruang',
+	'archive.scope.one': 'Folder: {name}',
+	'archive.scope.many': '{n} folder: {names}',
+	'archive.scope.more': '+{n}',
+	'archive.scope.partialUnnamed': 'Sebagian folder',
+	'archive.queuedFolder': 'Paket arsip folder “{name}” sedang dirakit.',
+	'archive.queuedLink': 'Lihat paket arsip',
+	'archive.err.folderNotFound':
+		'Salah satu folder sudah tidak ada. Muat ulang halaman dan coba lagi.',
 
 	// Overview
 	'ws.overview.summary': 'Ringkasan',
@@ -369,6 +390,13 @@ export const id = {
 	'doc.action.deleteOf': 'Hapus {name}',
 	'doc.action.access': 'Atur akses',
 	'doc.action.accessOf': 'Atur akses folder {name}',
+	'doc.action.more': 'Tindakan lain',
+	'doc.action.moreOf': 'Tindakan lain untuk {name}',
+	'doc.action.archive': 'Buat paket arsip folder ini',
+	'doc.archive.title': 'Paket arsip folder',
+	'doc.archive.body':
+		'Paket berisi PDF setiap dokumen di “{name}” dan {n} subfolder-nya, dengan indeks yang bisa diklik. Dirakit di latar belakang dan muncul di Ikhtisar.',
+	'doc.archive.submit': 'Buat paket arsip',
 	'doc.move.title': 'Pindahkan folder',
 	'doc.move.desc': 'Pilih lokasi baru untuk “{name}”.',
 	'doc.move.dest': 'Tujuan',
@@ -774,6 +802,8 @@ export const id = {
 	'activity.action.qa_settings_changed': 'mengubah setelan Q&A grup “{target}”',
 	'activity.action.workspace_status_changed': 'mengubah status ruang dari {from} menjadi {to}',
 	'activity.action.archive_exported': 'membuat paket arsip “{target}”',
+	'activity.action.archive_exported_folders':
+		'membuat paket arsip “{target}” untuk folder {folders}',
 	'activity.action.workspace_renamed': 'mengganti nama ruang dari “{from}” menjadi “{to}”',
 	'activity.action.workspace_described': 'memperbarui deskripsi ruang “{target}”',
 	'activity.action.workspace_logo_set': 'mengganti logo ruang “{target}”',

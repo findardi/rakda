@@ -1,8 +1,9 @@
 -- name: CreateArchive :one
 insert into workspace_archives
-    (workspace_id, requested_by, requested_by_name, expires_at)
+    (workspace_id, requested_by, requested_by_name, expires_at,
+     scope_folder_ids, scope_folder_names)
 values
-    ($1, $2, $3, $4)
+    ($1, $2, $3, $4, $5, $6)
 returning *;
 
 -- name: SetArchiveObjectKey :exec
