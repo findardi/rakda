@@ -85,3 +85,10 @@ export function formatDateTime(iso: string): string {
 	const s = d.toISOString();
 	return `${s.slice(0, 10)} ${s.slice(11, 16)} UTC`;
 }
+
+// "A, B, +3" — the first `max` names in full, then a count of the rest. Used
+// wherever a scoped archive package names its folders.
+export function formatNameList(names: string[], max = 2): string {
+	if (names.length <= max) return names.join(', ');
+	return `${names.slice(0, max).join(', ')}, ${t('archive.scope.more', { n: names.length - max })}`;
+}

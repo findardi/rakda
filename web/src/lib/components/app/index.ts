@@ -11,3 +11,4 @@ export { default as ViewerPage } from './ViewerPage.svelte';
 export { default as DocumentVersions } from './DocumentVersions.svelte';
 export { default as DocumentEngagement } from './DocumentEngagement.svelte';
 export { default as FolderTemplatePicker } from './FolderTemplatePicker.svelte';
+export { default as ArchiveScopeDialog } from './ArchiveScopeDialog.svelte';

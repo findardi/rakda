@@ -25,17 +25,20 @@ func (q *Queries) CountPendingArchives(ctx context.Context, workspaceID pgtype.U
 
 const createArchive = `-- name: CreateArchive :one
 insert into workspace_archives
-    (workspace_id, requested_by, requested_by_name, expires_at)
+    (workspace_id, requested_by, requested_by_name, expires_at,
+     scope_folder_ids, scope_folder_names)
 values
-    ($1, $2, $3, $4)
-returning id, workspace_id, requested_by, requested_by_name, status, object_key, size_bytes, checksum_sha256, document_count, missing_count, error, created_at, completed_at, expires_at
+    ($1, $2, $3, $4, $5, $6)
+returning id, workspace_id, requested_by, requested_by_name, status, object_key, size_bytes, checksum_sha256, document_count, missing_count, error, created_at, completed_at, expires_at, scope_folder_ids, scope_folder_names
 `
 
 type CreateArchiveParams struct {
-	WorkspaceID     pgtype.UUID        `json:"workspace_id"`
-	RequestedBy     pgtype.UUID        `json:"requested_by"`
-	RequestedByName string             `json:"requested_by_name"`
-	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
+	WorkspaceID      pgtype.UUID        `json:"workspace_id"`
+	RequestedBy      pgtype.UUID        `json:"requested_by"`
+	RequestedByName  string             `json:"requested_by_name"`
+	ExpiresAt        pgtype.Timestamptz `json:"expires_at"`
+	ScopeFolderIds   []pgtype.UUID      `json:"scope_folder_ids"`
+	ScopeFolderNames []string           `json:"scope_folder_names"`
 }
 
 func (q *Queries) CreateArchive(ctx context.Context, arg CreateArchiveParams) (WorkspaceArchive, error) {
@@ -44,6 +47,8 @@ func (q *Queries) CreateArchive(ctx context.Context, arg CreateArchiveParams) (W
 		arg.RequestedBy,
 		arg.RequestedByName,
 		arg.ExpiresAt,
+		arg.ScopeFolderIds,
+		arg.ScopeFolderNames,
 	)
 	var i WorkspaceArchive
 	err := row.Scan(
@@ -61,6 +66,8 @@ func (q *Queries) CreateArchive(ctx context.Context, arg CreateArchiveParams) (W
 		&i.CreatedAt,
 		&i.CompletedAt,
 		&i.ExpiresAt,
+		&i.ScopeFolderIds,
+		&i.ScopeFolderNames,
 	)
 	return i, err
 }
@@ -81,7 +88,7 @@ func (q *Queries) DeleteArchive(ctx context.Context, arg DeleteArchiveParams) er
 }
 
 const getArchive = `-- name: GetArchive :one
-select id, workspace_id, requested_by, requested_by_name, status, object_key, size_bytes, checksum_sha256, document_count, missing_count, error, created_at, completed_at, expires_at from workspace_archives
+select id, workspace_id, requested_by, requested_by_name, status, object_key, size_bytes, checksum_sha256, document_count, missing_count, error, created_at, completed_at, expires_at, scope_folder_ids, scope_folder_names from workspace_archives
 where id = $1 and workspace_id = $2
 `
 
@@ -108,6 +115,8 @@ func (q *Queries) GetArchive(ctx context.Context, arg GetArchiveParams) (Workspa
 		&i.CreatedAt,
 		&i.CompletedAt,
 		&i.ExpiresAt,
+		&i.ScopeFolderIds,
+		&i.ScopeFolderNames,
 	)
 	return i, err
 }
@@ -294,7 +303,7 @@ func (q *Queries) ListArchiveMembers(ctx context.Context, workspaceID pgtype.UUI
 }
 
 const listArchives = `-- name: ListArchives :many
-select id, workspace_id, requested_by, requested_by_name, status, object_key, size_bytes, checksum_sha256, document_count, missing_count, error, created_at, completed_at, expires_at from workspace_archives
+select id, workspace_id, requested_by, requested_by_name, status, object_key, size_bytes, checksum_sha256, document_count, missing_count, error, created_at, completed_at, expires_at, scope_folder_ids, scope_folder_names from workspace_archives
 where workspace_id = $1
 order by created_at desc
 `
@@ -323,6 +332,8 @@ func (q *Queries) ListArchives(ctx context.Context, workspaceID pgtype.UUID) ([]
 			&i.CreatedAt,
 			&i.CompletedAt,
 			&i.ExpiresAt,
+			&i.ScopeFolderIds,
+			&i.ScopeFolderNames,
 		); err != nil {
 			return nil, err
 		}

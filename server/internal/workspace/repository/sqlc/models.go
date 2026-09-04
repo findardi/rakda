@@ -213,20 +213,22 @@ type Workspace struct {
 }
 
 type WorkspaceArchive struct {
-	ID              pgtype.UUID        `json:"id"`
-	WorkspaceID     pgtype.UUID        `json:"workspace_id"`
-	RequestedBy     pgtype.UUID        `json:"requested_by"`
-	RequestedByName string             `json:"requested_by_name"`
-	Status          string             `json:"status"`
-	ObjectKey       string             `json:"object_key"`
-	SizeBytes       int64              `json:"size_bytes"`
-	ChecksumSha256  string             `json:"checksum_sha256"`
-	DocumentCount   int32              `json:"document_count"`
-	MissingCount    int32              `json:"missing_count"`
-	Error           string             `json:"error"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
-	CompletedAt     pgtype.Timestamptz `json:"completed_at"`
-	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
+	ID               pgtype.UUID        `json:"id"`
+	WorkspaceID      pgtype.UUID        `json:"workspace_id"`
+	RequestedBy      pgtype.UUID        `json:"requested_by"`
+	RequestedByName  string             `json:"requested_by_name"`
+	Status           string             `json:"status"`
+	ObjectKey        string             `json:"object_key"`
+	SizeBytes        int64              `json:"size_bytes"`
+	ChecksumSha256   string             `json:"checksum_sha256"`
+	DocumentCount    int32              `json:"document_count"`
+	MissingCount     int32              `json:"missing_count"`
+	Error            string             `json:"error"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	CompletedAt      pgtype.Timestamptz `json:"completed_at"`
+	ExpiresAt        pgtype.Timestamptz `json:"expires_at"`
+	ScopeFolderIds   []pgtype.UUID      `json:"scope_folder_ids"`
+	ScopeFolderNames []string           `json:"scope_folder_names"`
 }
 
 type WorkspaceGroup struct {

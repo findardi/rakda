@@ -54,6 +54,7 @@ func archiveResponse(row contentdb.WorkspaceArchive) dto.ArchiveResponse {
 		Error:           row.Error,
 		CreatedAt:       row.CreatedAt.Time,
 		ExpiresAt:       row.ExpiresAt.Time,
+		Scope:           dto.ArchiveScopeRoom,
 	}
 
 	if row.CompletedAt.Valid {
@@ -61,10 +62,112 @@ func archiveResponse(row contentdb.WorkspaceArchive) dto.ArchiveResponse {
 		res.CompletedAt = &t
 	}
 
+	if len(row.ScopeFolderIds) > 0 {
+		res.Scope = dto.ArchiveScopeFolders
+		res.ScopeFolderIDs = make([]string, 0, len(row.ScopeFolderIds))
+		for _, id := range row.ScopeFolderIds {
+			res.ScopeFolderIDs = append(res.ScopeFolderIDs, uuidString(id))
+		}
+		res.ScopeFolderNames = append([]string(nil), row.ScopeFolderNames...)
+	}
+
 	return res
 }
 
-func (s *ContentService) CreateArchive(ctx context.Context, workspaceID string, actor Actor) (dto.ArchiveResponse, error) {
+// archiveScope adalah cakupan yang sudah divalidasi. ids nil = seluruh ruang;
+// keduanya selalu sejajar (dijaga juga oleh check constraint di basis data).
+type archiveScope struct {
+	ids   []pgtype.UUID
+	names []string
+}
+
+// resolveArchiveScope memvalidasi setiap id terhadap folder hidup ruangan
+// sebelum ada yang ditulis — validate-all-first seperti BulkDeleteFolders: id
+// yang tidak ada atau milik ruangan lain adalah ErrFolderNotFound. Id ganda
+// dibuang dengan urutan permintaan dipertahankan; folder yang bersarang di
+// bawah folder terpilih lain dibiarkan — walk menulis subtree-nya sekali saja.
+// Sumbernya ListArchiveFolders, kueri yang sama yang dipakai perakitan, supaya
+// tidak ada dua definisi "folder hidup" yang bisa berbeda.
+func (s *ContentService) resolveArchiveScope(ctx context.Context, wID pgtype.UUID, folderIDs []string) (archiveScope, error) {
+	if len(folderIDs) == 0 {
+		return archiveScope{}, nil
+	}
+
+	ids, err := scanUniqueUUIDs(folderIDs)
+	if err != nil {
+		return archiveScope{}, ErrFolderNotFound
+	}
+
+	folders, err := s.repo.ListArchiveFolders(ctx, wID)
+	if err != nil {
+		return archiveScope{}, fmt.Errorf("list archive folders: %w", err)
+	}
+
+	nameByID := make(map[string]string, len(folders))
+	for _, f := range folders {
+		nameByID[uuidString(f.ID)] = f.Name
+	}
+
+	names := make([]string, 0, len(ids))
+	for _, id := range ids {
+		name, ok := nameByID[uuidString(id)]
+		if !ok {
+			return archiveScope{}, ErrFolderNotFound
+		}
+		names = append(names, name)
+	}
+
+	return archiveScope{ids: ids, names: names}, nil
+}
+
+// archiveScopeSet mengubah kolom cakupan baris menjadi set kunci uuidString.
+// nil berarti seluruh ruang — pembeda yang dipakai walk dan penulis audit.
+func archiveScopeSet(ids []pgtype.UUID) map[string]struct{} {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	set := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		set[uuidString(id)] = struct{}{}
+	}
+
+	return set
+}
+
+// archiveScopeMissing menyebut folder cakupan yang tidak lagi ditemui saat
+// perakitan (dihapus di antara validasi dan build). Namanya dari potret baris,
+// jadi tetap terbaca meski foldernya sudah tidak ada.
+func archiveScopeMissing(row contentdb.WorkspaceArchive, seen map[string]struct{}) []string {
+	var missing []string
+	for i, id := range row.ScopeFolderIds {
+		if _, ok := seen[uuidString(id)]; ok {
+			continue
+		}
+
+		name := uuidString(id)
+		if i < len(row.ScopeFolderNames) {
+			name = row.ScopeFolderNames[i]
+		}
+		missing = append(missing, name)
+	}
+
+	return missing
+}
+
+func archiveScopeMetadata(row contentdb.WorkspaceArchive) map[string]any {
+	if len(row.ScopeFolderIds) == 0 {
+		return map[string]any{"scope": dto.ArchiveScopeRoom}
+	}
+
+	return map[string]any{
+		"scope":        dto.ArchiveScopeFolders,
+		"folder_count": len(row.ScopeFolderIds),
+		"folder_names": append([]string(nil), row.ScopeFolderNames...),
+	}
+}
+
+func (s *ContentService) CreateArchive(ctx context.Context, workspaceID string, actor Actor, req dto.CreateArchiveRequest) (dto.ArchiveResponse, error) {
 	if !actor.managesRoom() {
 		return dto.ArchiveResponse{}, ErrContentForbidden
 	}
@@ -85,6 +188,13 @@ func (s *ContentService) CreateArchive(ctx context.Context, workspaceID string, 
 		return dto.ArchiveResponse{}, fmt.Errorf("get workspace slug: %w", err)
 	}
 
+	// Cakupan divalidasi sebelum pemeriksaan pending dan semafor: permintaan
+	// yang salah dijawab sebagai kesalahan klien apa pun keadaan antrean.
+	scope, err := s.resolveArchiveScope(ctx, wID, req.FolderIDs)
+	if err != nil {
+		return dto.ArchiveResponse{}, err
+	}
+
 	pending, err := s.repo.CountPendingArchives(ctx, wID)
 	if err != nil {
 		return dto.ArchiveResponse{}, fmt.Errorf("count pending archives: %w", err)
@@ -100,10 +210,12 @@ func (s *ContentService) CreateArchive(ctx context.Context, workspaceID string, 
 	}
 
 	row, err := s.repo.CreateArchive(ctx, contentdb.CreateArchiveParams{
-		WorkspaceID:     wID,
-		RequestedBy:     uID,
-		RequestedByName: actor.Name,
-		ExpiresAt:       pgtype.Timestamptz{Time: time.Now().Add(s.archiveTTL), Valid: true},
+		WorkspaceID:      wID,
+		RequestedBy:      uID,
+		RequestedByName:  actor.Name,
+		ExpiresAt:        pgtype.Timestamptz{Time: time.Now().Add(s.archiveTTL), Valid: true},
+		ScopeFolderIds:   scope.ids,
+		ScopeFolderNames: scope.names,
 	})
 	if err != nil {
 		<-s.archiveSem
@@ -186,7 +298,7 @@ func (s *ContentService) GetArchiveObject(ctx context.Context, workspaceID, arch
 	return ArchiveObject{
 		Key:      row.ObjectKey,
 		Size:     row.SizeBytes,
-		FileName: archiveRootName(slug, row.CreatedAt.Time) + ".zip",
+		FileName: archiveRootName(slug, row.CreatedAt.Time, row.ScopeFolderNames) + ".zip",
 	}, nil
 }
 
@@ -238,10 +350,6 @@ func (s *ContentService) getArchive(ctx context.Context, workspaceID, archiveID 
 	}
 
 	return row, nil
-}
-
-func archiveRootName(slug string, at time.Time) string {
-	return fmt.Sprintf("%s-arsip-%s", sanitizeComponent(slug), at.Format("2006-01-02"))
 }
 
 type countingWriter struct{ n int64 }
@@ -298,13 +406,14 @@ func (s *ContentService) buildArchive(ctx context.Context, row contentdb.Workspa
 		return
 	}
 
+	meta := archiveScopeMetadata(row)
+	meta["document_count"] = summary.documents
+	meta["missing_count"] = summary.missing
+	meta["size_bytes"] = counter.n
+
 	s.activity.Record(ctx, s.activityEntry(workspaceID, actor,
 		activityservice.ActionArchiveExported, activityservice.TargetArchive,
-		uuidString(row.ID), archiveRootName(slug, row.CreatedAt.Time), map[string]any{
-			"document_count": summary.documents,
-			"missing_count":  summary.missing,
-			"size_bytes":     counter.n,
-		}))
+		uuidString(row.ID), archiveRootName(slug, row.CreatedAt.Time, row.ScopeFolderNames), meta))
 }
 
 type archiveSummary struct {
@@ -395,15 +504,22 @@ func (s *ContentService) writeArchiveContents(
 	}
 
 	createdAt := row.CreatedAt.Time
-	root := archiveRootName(slug, createdAt)
+	root := archiveRootName(slug, createdAt, row.ScopeFolderNames)
 	docsRoot := root + "/" + archiveDocumentsDir
+
+	// scope nil = seluruh ruang. Paket berlingkup tetap menelusuri pohon utuh:
+	// nomor dan sufiks dedup dihitung atas SEMUA saudara supaya identik dengan
+	// paket seluruh ruang, dan hanya node dalam cakupan yang ditulis — nomor
+	// yang melompat menandai folder di luar cakupan, bukan berkas yang hilang.
+	scope := archiveScopeSet(row.ScopeFolderIds)
+	seen := make(map[string]struct{}, len(scope))
 
 	index := make([]archiveIndexRow, 0, len(docs))
 	folderPaths := map[string]string{}
 	usedPaths := map[string]struct{}{}
 
-	var walk func(parentKey, numberPrefix string, dirs, dirsPlain []string) error
-	walk = func(parentKey, numberPrefix string, dirs, dirsPlain []string) error {
+	var walk func(parentKey, numberPrefix string, dirs, dirsPlain []string, included bool) error
+	walk = func(parentKey, numberPrefix string, dirs, dirsPlain []string, included bool) error {
 		n, ok := tree[parentKey]
 		if !ok {
 			return nil
@@ -418,13 +534,23 @@ func (s *ContentService) writeArchiveContents(
 			number := archiveNumber(numberPrefix, seq, siblings)
 			plain := dedupName(usedHere, sanitizeComponent(f.Name))
 
-			folderPaths[uuidString(f.ID)] = strings.Join(append(append([]string{}, dirsPlain...), plain), " / ")
+			fid := uuidString(f.ID)
+			childIncluded := included
+			if _, chosen := scope[fid]; chosen {
+				childIncluded = true
+				seen[fid] = struct{}{}
+			}
+
+			if childIncluded {
+				folderPaths[fid] = strings.Join(append(append([]string{}, dirsPlain...), plain), " / ")
+			}
 
 			if err := walk(
-				uuidString(f.ID),
+				fid,
 				number,
 				append(append([]string{}, dirs...), number+" "+plain),
 				append(append([]string{}, dirsPlain...), plain),
+				childIncluded,
 			); err != nil {
 				return err
 			}
@@ -434,6 +560,11 @@ func (s *ContentService) writeArchiveContents(
 			seq++
 			number := archiveNumber(numberPrefix, seq, siblings)
 			plain := dedupName(usedHere, sanitizeFileName(d.Name))
+
+			// Di luar cakupan: nomor dan nama sudah dihitung, tidak ada I/O.
+			if !included {
+				continue
+			}
 
 			entry, err := s.writeArchiveDocument(ctx, zw, workspaceID, d, archivePath{
 				root:      docsRoot,
@@ -458,7 +589,7 @@ func (s *ContentService) writeArchiveContents(
 		return nil
 	}
 
-	if err := walk("", "", nil, nil); err != nil {
+	if err := walk("", "", nil, nil, scope == nil); err != nil {
 		return summary, err
 	}
 
@@ -466,11 +597,17 @@ func (s *ContentService) writeArchiveContents(
 		return summary, err
 	}
 
-	if err := s.writeArchiveAudit(ctx, zw, root, workspaceID, wID, folderPaths, actor, createdAt); err != nil {
-		return summary, err
+	// Jejak audit bersifat seluruh ruang — nama dokumen di luar cakupan, semua
+	// grup dan anggota — jadi hanya paket seluruh ruang yang membawanya. Paket
+	// berlingkup paling mungkin diserahkan ke pihak ketiga; BACA-DULU
+	// menjelaskan ketiadaannya.
+	if scope == nil {
+		if err := s.writeArchiveAudit(ctx, zw, root, workspaceID, wID, folderPaths, actor, createdAt); err != nil {
+			return summary, err
+		}
 	}
 
-	if err := s.writeArchiveReadme(zw, root, row, summary, createdAt); err != nil {
+	if err := s.writeArchiveReadme(zw, root, row, summary, createdAt, archiveScopeMissing(row, seen)); err != nil {
 		return summary, err
 	}
 
@@ -782,21 +919,51 @@ func (s *ContentService) writeArchiveReadme(
 	row contentdb.WorkspaceArchive,
 	summary archiveSummary,
 	at time.Time,
+	missingScope []string,
 ) error {
 	w, err := addZipEntry(zw, root+"/BACA-DULU.txt", zip.Deflate, at)
 	if err != nil {
 		return err
 	}
 
+	_, err = io.WriteString(w, archiveReadmeText(root, row, summary, at, missingScope))
+	return err
+}
+
+// archiveReadmeText adalah salinan BACA-DULU.txt, dipisah dari penulisan ZIP
+// supaya bisa diuji tanpa merakit arsip. Teks paket seluruh ruang tidak
+// berubah; paket berlingkup menyebut cakupannya dan menjelaskan mengapa tidak
+// ada _audit/.
+func archiveReadmeText(root string, row contentdb.WorkspaceArchive, summary archiveSummary, at time.Time, missingScope []string) string {
+	scoped := len(row.ScopeFolderNames) > 0
+
 	var b strings.Builder
 	b.WriteString("Arsip ruang data " + root + "\r\n")
 	b.WriteString("Dibuat " + at.Format(time.RFC3339) + " oleh " + row.RequestedByName + "\r\n")
+	if scoped {
+		b.WriteString("Cakupan paket: " + strconv.Itoa(len(row.ScopeFolderNames)) + " folder (bukan seluruh ruang)\r\n")
+		for _, name := range row.ScopeFolderNames {
+			b.WriteString("  - " + name + "\r\n")
+		}
+		if len(missingScope) > 0 {
+			b.WriteString("Folder cakupan yang sudah tidak ada saat perakitan: " + strings.Join(missingScope, ", ") + "\r\n")
+		}
+	}
 	b.WriteString("\r\n")
 	b.WriteString("Isi paket\r\n")
-	b.WriteString("  dokumen/       PDF rendition setiap dokumen, tanpa watermark.\r\n")
+	if scoped {
+		b.WriteString("  dokumen/       PDF rendition setiap dokumen dalam cakupan, tanpa watermark.\r\n")
+	} else {
+		b.WriteString("  dokumen/       PDF rendition setiap dokumen, tanpa watermark.\r\n")
+	}
 	b.WriteString("  _indeks.html   Daftar dokumen yang bisa diklik.\r\n")
 	b.WriteString("  _indeks.csv    Daftar yang sama untuk diproses mesin.\r\n")
-	b.WriteString("  _audit/        Linimasa aktivitas, riwayat Q&A, matriks izin, daftar anggota.\r\n")
+	if scoped {
+		b.WriteString("  (tanpa _audit/) Jejak audit — linimasa aktivitas, riwayat Q&A, matriks izin,\r\n")
+		b.WriteString("                 daftar anggota — hanya ada di paket seluruh ruang.\r\n")
+	} else {
+		b.WriteString("  _audit/        Linimasa aktivitas, riwayat Q&A, matriks izin, daftar anggota.\r\n")
+	}
 	b.WriteString("\r\n")
 	b.WriteString("Dokumen: " + strconv.Itoa(summary.documents) + " disertakan, " +
 		strconv.Itoa(summary.missing) + " tidak disertakan.\r\n")
@@ -809,13 +976,18 @@ func (s *ContentService) writeArchiveReadme(
 	b.WriteString("  hilang, yang masih dikonversi dengan status belum siap; keduanya\r\n")
 	b.WriteString("  tidak ada berkasnya di folder dokumen. Ekspor ulang setelah\r\n")
 	b.WriteString("  konversi selesai untuk menyertakannya.\r\n")
-	b.WriteString("  Nomor pada nama berkas dihitung ulang untuk seluruh ruang, jadi\r\n")
-	b.WriteString("  bisa berbeda dari nomor yang pernah dilihat seorang tamu.\r\n")
+	if scoped {
+		b.WriteString("  Nomor pada nama berkas sama dengan nomor di paket seluruh ruang;\r\n")
+		b.WriteString("  nomor yang melompat menandai folder di luar cakupan, bukan berkas\r\n")
+		b.WriteString("  yang hilang.\r\n")
+	} else {
+		b.WriteString("  Nomor pada nama berkas dihitung ulang untuk seluruh ruang, jadi\r\n")
+		b.WriteString("  bisa berbeda dari nomor yang pernah dilihat seorang tamu.\r\n")
+	}
 	b.WriteString("  Berkas yang path-nya terlalu panjang dipindahkan ke folder\r\n")
 	b.WriteString("  " + relocatedDir + "/ dengan path asli tercatat di indeks.\r\n")
 
-	_, err = io.WriteString(w, b.String())
-	return err
+	return b.String()
 }
 
 // RunArchiveSweeper adalah sweeper keenam, bentuk kanonik RunReaper. Tiga tugas:

@@ -198,7 +198,7 @@ export const en: Record<keyof Dict, string> = {
 	// Archive packages
 	'archive.title': 'Archive packages',
 	'archive.body':
-		'One ZIP holding a PDF of every document, an index, and the audit trail. Assembled in the background and kept for 30 days; a ZIP you have downloaded stays valid.',
+		'One ZIP with a PDF of every document and an index — the whole room (with its audit trail) or only the folders you choose. Assembled in the background and kept for 30 days; a ZIP you have already downloaded stays valid.',
 	'archive.create': 'Build archive package',
 	'archive.queued': 'The archive package is being assembled.',
 	'archive.empty': 'No archive packages yet.',
@@ -218,6 +218,27 @@ export const en: Record<keyof Dict, string> = {
 	'archive.err.busy': 'The server is assembling another archive package. Try again shortly.',
 	'archive.err.notFound': 'Archive package not found.',
 	'archive.err.notReady': 'The archive package is not ready to download yet.',
+	'archive.scope.title': 'Build archive package',
+	'archive.scope.desc':
+		'Choose the top-level folders to include. Their subfolders and documents come along.',
+	'archive.scope.all': 'All folders',
+	'archive.scope.count': '{n} of {total}',
+	'archive.scope.itemLabel': 'Include {name}',
+	'archive.scope.loading': 'Loading folders…',
+	'archive.scope.err.load': 'Could not load the folder list.',
+	'archive.scope.noAudit':
+		'A partial package carries no audit trail — only a whole-room package does.',
+	'archive.scope.submitAll': 'Build archive package — whole room',
+	'archive.scope.submitCount': 'Build archive package — {n} of {total} folders',
+	'archive.scope.room': 'Whole room',
+	'archive.scope.one': 'Folder: {name}',
+	'archive.scope.many': '{n} folders: {names}',
+	'archive.scope.more': '+{n}',
+	'archive.scope.partialUnnamed': 'Some folders',
+	'archive.queuedFolder': 'The archive package for folder “{name}” is being assembled.',
+	'archive.queuedLink': 'View archive packages',
+	'archive.err.folderNotFound':
+		'One of the folders no longer exists. Reload the page and try again.',
 
 	// Overview
 	'ws.overview.summary': 'Overview',
@@ -373,6 +394,13 @@ export const en: Record<keyof Dict, string> = {
 	'doc.action.deleteOf': 'Delete {name}',
 	'doc.action.access': 'Manage access',
 	'doc.action.accessOf': 'Manage access for folder {name}',
+	'doc.action.more': 'More actions',
+	'doc.action.moreOf': 'More actions for {name}',
+	'doc.action.archive': 'Build archive package for this folder',
+	'doc.archive.title': 'Folder archive package',
+	'doc.archive.body':
+		'The package holds a PDF of every document in “{name}” and its {n} subfolders, with a clickable index. Assembled in the background and listed on the overview.',
+	'doc.archive.submit': 'Build archive package',
 	'doc.move.title': 'Move folder',
 	'doc.move.desc': 'Choose a new location for “{name}”.',
 	'doc.move.dest': 'Destination',
@@ -777,6 +805,8 @@ export const en: Record<keyof Dict, string> = {
 	'activity.action.qa_settings_changed': 'changed the Q&A settings of group “{target}”',
 	'activity.action.workspace_status_changed': 'changed the room status from {from} to {to}',
 	'activity.action.archive_exported': 'built the archive package “{target}”',
+	'activity.action.archive_exported_folders':
+		'built the archive package “{target}” for folder {folders}',
 	'activity.action.workspace_renamed': 'renamed the room from “{from}” to “{to}”',
 	'activity.action.workspace_described': 'updated the description of room “{target}”',
 	'activity.action.workspace_logo_set': 'changed the logo of room “{target}”',

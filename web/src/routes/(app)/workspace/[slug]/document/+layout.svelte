@@ -8,7 +8,15 @@
 	import { page } from '$app/state';
 	import type { ActionResult, SubmitFunction } from '@sveltejs/kit';
 	import { FolderTemplatePicker, UploadQueue } from '$lib/components/app';
-	import { Alert, Button, Field, Toaster, showToast } from '$lib/components/common';
+	import {
+		ActionMenu,
+		Alert,
+		Button,
+		Field,
+		Toaster,
+		showToast,
+		type MenuItem
+	} from '$lib/components/common';
 	import {
 		DOCUMENT_MIME,
 		FOLDER_MIME,
@@ -17,7 +25,7 @@
 		hasDirectory,
 		readTree
 	} from '$lib/dnd';
-	import { roomWritableFrom } from '$lib/access/roles';
+	import { canManageAccess, roomWritableFrom } from '$lib/access/roles';
 	import { t } from '$lib/i18n';
 	import { findNode } from '$lib/tree';
 	import type { FolderTreeNode } from '$lib/types/content';
@@ -56,6 +64,86 @@
 	const canEditDoc = $derived(perms.includes('document:edit') && writable);
 	const canAssign = $derived(perms.includes('group:assign') && writable);
 	const canAct = $derived(canCreate || canEdit || canDelete || canAssign);
+
+	// Archive export is manager-only and deliberately NOT gated by `writable`:
+	// POST /archives is a RequireRoomWritable exception on the server, because an
+	// archived room is exactly where a package is most needed.
+	const role = $derived((page.data as { access?: MyAccessWorkspace }).access?.role ?? '');
+	const managesRoom = $derived(canManageAccess(role));
+	const overviewHref = $derived(resolve('/(app)/workspace/[slug]', { slug }));
+
+	const ICON_BTN =
+		'grid h-8 w-8 place-items-center rounded-field text-muted transition-colors hover:bg-base-content/5 hover:text-base-content pointer-coarse:h-11 pointer-coarse:w-11';
+	const ICON = {
+		rename: ['M12 20h9', 'M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z'],
+		move: ['M5 9V5h4M19 15v4h-4M5 5l6 6M19 19l-6-6'],
+		access: [
+			'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2',
+			'M9 7m-4 0a4 4 0 1 0 8 0a4 4 0 1 0-8 0',
+			'M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75'
+		],
+		archive: ['M21 8v13H3V8', 'M1 3h22v5H1z', 'M10 12h4'],
+		delete: [
+			'M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6',
+			'M10 11v6M14 11v6'
+		]
+	};
+
+	// The row's overflow menu. "+" stays inline as the one frequent action;
+	// everything occasional lives here, with delete last and set apart.
+	function rowMenu(node: FolderTreeNode): MenuItem[] {
+		const items: MenuItem[] = [];
+		if (canEdit) {
+			items.push({
+				id: 'rename',
+				label: t('doc.action.rename'),
+				icon: ICON.rename,
+				onselect: () => startRename(node)
+			});
+			if (!node.is_default) {
+				items.push({
+					id: 'move',
+					label: t('doc.action.move'),
+					hint: 'Alt+↑ / Alt+↓',
+					icon: ICON.move,
+					onselect: () => openMove(node)
+				});
+			}
+		}
+		if (canAssign) {
+			items.push({
+				kind: 'link',
+				id: 'access',
+				label: t('doc.action.access'),
+				href: accessHref(node.id),
+				icon: ICON.access
+			});
+		}
+		if (managesRoom) {
+			items.push({
+				id: 'archive',
+				label: t('doc.action.archive'),
+				icon: ICON.archive,
+				onselect: () => openArchive(node)
+			});
+		}
+		if (canDelete && !node.is_default) {
+			items.push(
+				{ kind: 'separator' },
+				{
+					id: 'delete',
+					label: t('doc.action.delete'),
+					danger: true,
+					icon: ICON.delete,
+					onselect: () => openDelete(node)
+				}
+			);
+		}
+		return items;
+	}
+
+	// Which row's menu is open, so its hover-revealed cluster stays visible.
+	let menuOpenId = $state<string | null>(null);
 
 	const defaultFolder = $derived(folders.find((f) => f.is_default) ?? null);
 	const activeFolder = $derived(activeId ? findNode(folders, activeId) : null);
@@ -605,7 +693,8 @@
 
 		const el = e.target as HTMLElement | null;
 		// Never steal Alt+Arrow from a field or an open dialog.
-		if (el?.closest('input, textarea, select, [contenteditable="true"], dialog')) return;
+		if (el?.closest('input, textarea, select, [contenteditable="true"], dialog, [role="menu"]'))
+			return;
 
 		// A row holding focus wins; otherwise the shortcut acts on the folder
 		// currently open, which is what the user just clicked.
@@ -818,6 +907,42 @@
 				bulkError = (result.data?.message as string) ?? t('err.generic');
 			} else {
 				bulkError = t('err.generic');
+			}
+		};
+	};
+
+	// --- folder archive package ---
+	// One short confirm (a stray menu click would hold the room's single pending
+	// slot for minutes and mint a 30-day artifact), then a cross-route post to
+	// the overview's action — the package only ever shows up there.
+	let archiveDialog = $state<HTMLDialogElement>();
+	let archiving = $state<FolderTreeNode | null>(null);
+	let archiveError = $state<string | null>(null);
+	let archiveSubmitting = $state(false);
+	const archivingKids = $derived(archiving ? descendantCount(archiving) : 0);
+
+	function openArchive(node: FolderTreeNode) {
+		archiving = node;
+		archiveError = null;
+		archiveDialog?.showModal();
+	}
+
+	const submitFolderArchive: SubmitFunction = ({ cancel }) => {
+		if (!archiving) return cancel();
+		const name = archiving.name;
+		archiveSubmitting = true;
+		return async ({ result }) => {
+			archiveSubmitting = false;
+			if (result.type === 'success') {
+				archiveDialog?.close();
+				showToast(t('archive.queuedFolder', { name }), 'success', {
+					label: t('archive.queuedLink'),
+					href: overviewHref
+				});
+			} else if (result.type === 'failure') {
+				archiveError = (result.data?.message as string) ?? t('err.generic');
+			} else {
+				archiveError = t('err.generic');
 			}
 		};
 	};
@@ -1280,9 +1405,13 @@
 									</span>
 								{/if}
 
-								{#if canAct}
+								{#if !selectMode && (canAct || managesRoom)}
+									{@const items = rowMenu(node)}
 									<div
-										class="-mt-1 ml-1 flex flex-none items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:-mt-2.5 pointer-coarse:gap-1 pointer-coarse:opacity-100"
+										class="-mt-1 ml-1 flex flex-none items-center gap-0.5 transition-opacity focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:-mt-2.5 pointer-coarse:gap-1 pointer-coarse:opacity-100 {menuOpenId ===
+										node.id
+											? 'opacity-100'
+											: 'opacity-0'}"
 									>
 										{#if canCreate}
 											<button
@@ -1290,7 +1419,7 @@
 												onclick={() => startCreate(node.id)}
 												title={t('doc.action.addSub')}
 												aria-label={t('doc.action.addSubOf', { name: node.name })}
-												class="grid h-8 w-8 place-items-center rounded-field text-muted transition-colors hover:bg-base-content/5 hover:text-base-content pointer-coarse:h-11 pointer-coarse:w-11"
+												class={ICON_BTN}
 											>
 												<svg
 													class="h-4 w-4"
@@ -1306,102 +1435,16 @@
 												</svg>
 											</button>
 										{/if}
-										{#if canEdit}
-											<button
-												type="button"
-												onclick={() => startRename(node)}
-												title={t('doc.action.rename')}
-												aria-label={t('doc.action.renameOf', { name: node.name })}
-												class="grid h-8 w-8 place-items-center rounded-field text-muted transition-colors hover:bg-base-content/5 hover:text-base-content pointer-coarse:h-11 pointer-coarse:w-11"
-											>
-												<svg
-													class="h-4 w-4"
-													viewBox="0 0 24 24"
-													fill="none"
-													stroke="currentColor"
-													stroke-width="1.8"
-													stroke-linecap="round"
-													stroke-linejoin="round"
-													aria-hidden="true"
-												>
-													<path d="M12 20h9" />
-													<path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z" />
-												</svg>
-											</button>
-											{#if !node.is_default}
-												<button
-													type="button"
-													onclick={() => openMove(node)}
-													title="{t('doc.action.move')} · {t('doc.reorder.up')}/{t(
-														'doc.reorder.down'
-													)}: Alt+↑ / Alt+↓"
-													aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
-													aria-label={t('doc.action.moveOf', { name: node.name })}
-													class="grid h-8 w-8 place-items-center rounded-field text-muted transition-colors hover:bg-base-content/5 hover:text-base-content pointer-coarse:h-11 pointer-coarse:w-11"
-												>
-													<svg
-														class="h-4 w-4"
-														viewBox="0 0 24 24"
-														fill="none"
-														stroke="currentColor"
-														stroke-width="1.8"
-														stroke-linecap="round"
-														stroke-linejoin="round"
-														aria-hidden="true"
-													>
-														<path d="M5 9V5h4M19 15v4h-4M5 5l6 6M19 19l-6-6" />
-													</svg>
-												</button>
-											{/if}
-										{/if}
-										{#if canAssign}
-											<a
-												href={accessHref(node.id)}
-												draggable="false"
-												title={t('doc.action.access')}
-												aria-label={t('doc.action.accessOf', { name: node.name })}
-												class="grid h-8 w-8 place-items-center rounded-field text-muted no-underline transition-colors hover:bg-base-content/5 hover:text-base-content pointer-coarse:h-11 pointer-coarse:w-11"
-											>
-												<svg
-													class="h-4 w-4"
-													viewBox="0 0 24 24"
-													fill="none"
-													stroke="currentColor"
-													stroke-width="1.8"
-													stroke-linecap="round"
-													stroke-linejoin="round"
-													aria-hidden="true"
-												>
-													<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-													<circle cx="9" cy="7" r="4" />
-													<path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
-												</svg>
-											</a>
-										{/if}
-										{#if canDelete && !node.is_default}
-											<button
-												type="button"
-												onclick={() => openDelete(node)}
-												title={t('doc.action.delete')}
-												aria-label={t('doc.action.deleteOf', { name: node.name })}
-												class="grid h-8 w-8 place-items-center rounded-field text-muted transition-colors hover:bg-error/10 hover:text-error pointer-coarse:h-11 pointer-coarse:w-11"
-											>
-												<svg
-													class="h-4 w-4"
-													viewBox="0 0 24 24"
-													fill="none"
-													stroke="currentColor"
-													stroke-width="1.8"
-													stroke-linecap="round"
-													stroke-linejoin="round"
-													aria-hidden="true"
-												>
-													<path
-														d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"
-													/>
-													<path d="M10 11v6M14 11v6" />
-												</svg>
-											</button>
+										{#if items.length > 0}
+											<ActionMenu
+												label={t('doc.action.moreOf', { name: node.name })}
+												{items}
+												class={ICON_BTN}
+												onopenchange={(o) => {
+													if (o) menuOpenId = node.id;
+													else if (menuOpenId === node.id) menuOpenId = null;
+												}}
+											/>
 										{/if}
 									</div>
 								{/if}
@@ -1509,6 +1552,43 @@
 					{moveSubmitting ? t('doc.move.submitting') : t('doc.move.submit')}
 				</Button>
 			</div>
+		</form>
+	</div>
+	<form method="dialog" class="modal-backdrop">
+		<button aria-label={t('doc.cancel')}></button>
+	</form>
+</dialog>
+
+<!-- Folder archive package -->
+<dialog bind:this={archiveDialog} class="modal" aria-labelledby="folder-archive-title">
+	<div class="modal-box max-w-md rounded-box border border-base-content/10 bg-base-100 p-6">
+		<h2 id="folder-archive-title" class="text-lg font-semibold tracking-[-0.01em]">
+			{t('doc.archive.title')}
+		</h2>
+		{#if archiving}
+			<p class="mt-1 text-sm text-muted text-pretty">
+				{t('doc.archive.body', { name: archiving.name, n: archivingKids })}
+			</p>
+			<p class="mt-2 max-w-prose text-xs text-warning-ink text-pretty">
+				{t('archive.scope.noAudit')}
+			</p>
+		{/if}
+
+		{#if archiveError}
+			<div class="mt-4"><Alert align="start">{archiveError}</Alert></div>
+		{/if}
+
+		<form
+			method="POST"
+			action="{overviewHref}?/createArchive"
+			use:enhance={submitFolderArchive}
+			class="mt-5 flex flex-wrap justify-end gap-2"
+		>
+			<input type="hidden" name="folder_ids" value={archiving?.id ?? ''} />
+			<Button type="button" variant="ghost" onclick={() => archiveDialog?.close()}>
+				{t('doc.cancel')}
+			</Button>
+			<Button type="submit" loading={archiveSubmitting}>{t('doc.archive.submit')}</Button>
 		</form>
 	</div>
 	<form method="dialog" class="modal-backdrop">

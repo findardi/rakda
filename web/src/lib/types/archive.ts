@@ -2,6 +2,11 @@
 
 export type ArchiveStatus = 'pending' | 'ready' | 'failed';
 
+// `room` = the whole room; `folders` = the subtrees of the listed folders. The
+// names are a snapshot taken at creation, so the list still reads correctly
+// after a folder is renamed or deleted.
+export type ArchiveScope = 'room' | 'folders';
+
 export interface ArchiveData {
 	id: string;
 	status: ArchiveStatus;
@@ -15,4 +20,7 @@ export interface ArchiveData {
 	created_at: string;
 	completed_at: string | null;
 	expires_at: string;
+	scope: ArchiveScope;
+	scope_folder_ids: string[] | null;
+	scope_folder_names: string[] | null;
 }

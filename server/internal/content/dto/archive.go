@@ -2,6 +2,20 @@ package dto
 
 import "time"
 
+const (
+	ArchiveScopeRoom    = "room"
+	ArchiveScopeFolders = "folders"
+)
+
+// CreateArchiveRequest memilih cakupan paket. folder_ids yang tidak dikirim
+// (atau null) berarti seluruh ruang; setiap id yang dikirim menyertakan
+// subtree folder itu. `[]` ditolak oleh min=1 — omitempty pada validator
+// hanya melewati slice nil, jadi daftar kosong yang eksplisit adalah kesalahan
+// klien, bukan sinonim "seluruh ruang".
+type CreateArchiveRequest struct {
+	FolderIDs []string `json:"folder_ids" validate:"omitempty,min=1,max=100,dive,uuid"`
+}
+
 type ArchiveResponse struct {
 	ID              string     `json:"id"`
 	Status          string     `json:"status"`
@@ -15,4 +29,11 @@ type ArchiveResponse struct {
 	CreatedAt       time.Time  `json:"created_at"`
 	CompletedAt     *time.Time `json:"completed_at"`
 	ExpiresAt       time.Time  `json:"expires_at"`
+
+	// Scope adalah "room" atau "folders". Kedua slice di bawah nil untuk
+	// "room"; untuk "folders" keduanya sejajar, urutan sesuai permintaan, dan
+	// nama adalah potret saat pembuatan (folder bisa diganti nama sesudahnya).
+	Scope            string   `json:"scope"`
+	ScopeFolderIDs   []string `json:"scope_folder_ids"`
+	ScopeFolderNames []string `json:"scope_folder_names"`
 }

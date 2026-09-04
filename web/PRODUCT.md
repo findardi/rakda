@@ -208,10 +208,13 @@ Salinan yang mengikat:
 Tiga ekspor CSV yang sudah lama ada — linimasa aktivitas, engagement per dokumen,
 dan Q&A — plus **paket arsip** sejak 2026-08-27.
 
-Paket arsip adalah berkas ZIP berisi seluruh dokumen ruangan (versi yang sedang
-disajikan, sebagai PDF bersih) ditambah pohon foldernya, indeks yang bisa diklik,
-dan jejak auditnya. Ia dibuat di latar, bukan diunduh langsung: ruangan besar
-butuh waktu, dan menunggu di halaman akan gagal di koneksi lambat.
+Paket arsip adalah berkas ZIP berisi dokumen ruangan (versi yang sedang
+disajikan, sebagai PDF bersih) ditambah pohon foldernya dan indeks yang bisa
+diklik — **seluruh ruang**, lengkap dengan jejak auditnya, atau hanya **folder
+yang dipilih** (*paket berlingkup*, sejak 2026-09-04: hilangkan centang di modal
+Ikhtisar, atau ⋮ → «Buat paket arsip folder ini» pada baris folder). Ia dibuat
+di latar, bukan diunduh langsung: ruangan besar butuh waktu, dan menunggu di
+halaman akan gagal di koneksi lambat.
 
 Salinan yang mengikat:
 
@@ -225,6 +228,20 @@ Salinan yang mengikat:
 - Dokumen yang gagal disiapkan **disebut jumlahnya**, tidak dihilangkan diam-diam.
 - Jangan menjanjikan paket sebagai potret detik pengarsipan — isinya adalah
   ruangan pada stempel waktu ekspor, dan indeksnya yang membuktikan.
+- Paket berlingkup **tidak membawa jejak audit** (`_audit/`). Jejak audit adalah
+  milik ruangan, bukan folder — keempat CSV-nya menyebut dokumen di luar cakupan
+  dan semua grup/anggota — dan paket berlingkup adalah yang paling mungkin
+  diserahkan ke pihak ketiga. Katakan itu di layar sebelum tombolnya ditekan,
+  dan di BACA-DULU.
+- Nomor di paket berlingkup **sama** dengan paket seluruh ruang. Nomor yang
+  melompat berarti folder di luar cakupan, bukan berkas yang hilang.
+- Cakupan tampil di setiap baris daftar paket («Seluruh ruang» / «Folder: X» /
+  «N folder: …»), dari potret nama saat pembuatan — folder boleh diganti nama
+  atau dihapus sesudahnya tanpa mengubah label.
+- Menu ⋮ pada baris folder memuat semua aksi kecuali «+» (tambah subfolder);
+  hapus selalu terakhir dan terpisah garis. Aksi folder yang tersedia di ruang
+  arsip hanya yang memang diterima server di sana (paket arsip, atur akses bila
+  diizinkan).
 
 
 ## Q&A

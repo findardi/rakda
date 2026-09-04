@@ -1,20 +1,25 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
+	"mime"
 	"net/http"
 	"strconv"
 	"strings"
 
+	"github.com/findardi/rakda/server/internal/content/dto"
 	"github.com/findardi/rakda/server/internal/content/service"
 	"github.com/findardi/rakda/server/internal/platform/response"
+	"github.com/findardi/rakda/server/internal/platform/validation"
 	"github.com/go-chi/chi/v5"
 )
 
 func (h *ContentHandler) CreateArchive(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 	wID := chi.URLParam(r, "workspaceID")
 
 	actor, ok := actorFromRequest(r)
@@ -23,12 +28,25 @@ func (h *ContentHandler) CreateArchive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := h.svc.CreateArchive(r.Context(), wID, actor)
+	// Body kosong sah — artinya seluruh ruang, bentuk yang dikirim klien lama.
+	// JSON yang rusak tetap 400.
+	var req dto.CreateArchiveRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
+		return
+	}
+
+	if errs := validation.Validate(&req); errs != nil {
+		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+		return
+	}
+
+	res, err := h.svc.CreateArchive(r.Context(), wID, actor, req)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrContentForbidden):
 			response.Error(w, http.StatusForbidden, err.Error(), nil)
-		case errors.Is(err, service.ErrArchiveNotFound):
+		case errors.Is(err, service.ErrArchiveNotFound), errors.Is(err, service.ErrFolderNotFound):
 			response.Error(w, http.StatusNotFound, err.Error(), nil)
 		case errors.Is(err, service.ErrArchiveAlreadyQueued):
 			response.Error(w, http.StatusConflict, err.Error(), nil)
@@ -135,10 +153,11 @@ func (h *ContentHandler) DownloadArchive(w http.ResponseWriter, r *http.Request)
 	}
 	defer rc.Close()
 
-	// Nama berkas selalu {slug}-arsip-{tanggal}.zip: slug sudah dibatasi
-	// [a-z0-9-] di service workspace, jadi tidak ada yang perlu di-escape.
+	// Nama berkas paket berlingkup membawa nama folder, yang bebas Unicode;
+	// FormatMediaType memilih filename= atau filename*=utf-8'' sesuai isinya,
+	// jadi header selalu ASCII dan aman disalin proxy SvelteKit apa adanya.
 	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", `attachment; filename="`+obj.FileName+`"`)
+	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": obj.FileName}))
 	w.Header().Set("Accept-Ranges", "bytes")
 	w.Header().Set("Content-Length", strconv.FormatInt(length, 10))
 

@@ -1,5 +1,5 @@
 import { roleDisplayName } from '$lib/access/permissions';
-import { formatDateLocal } from '$lib/format';
+import { formatDateLocal, formatNameList } from '$lib/format';
 import { t, type TKey } from '$lib/i18n';
 import type { ActivityItem } from '$lib/types/activity';
 
@@ -361,6 +361,20 @@ export function describeActivity(item: ActivityItem): ActivityPhrase {
 				};
 			}
 			return { key: 'activity.action.workspace_hero_changed', vars };
+
+		// A whole-room package keeps the plain sentence; a scoped one names its
+		// folders from the creation-time snapshot in the metadata.
+		case 'archive_exported': {
+			const names = Array.isArray(meta.folder_names)
+				? meta.folder_names.filter((n): n is string => typeof n === 'string')
+				: [];
+			return meta.scope === 'folders' && names.length > 0
+				? {
+						key: 'activity.action.archive_exported_folders',
+						vars: { ...vars, folders: formatNameList(names) }
+					}
+				: { key: 'activity.action.archive_exported', vars };
+		}
 
 		default:
 			return { key: PHRASE_KEY[item.action] ?? null, vars };

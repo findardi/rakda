@@ -11,8 +11,18 @@ export function listArchives(
 	return get<ArchiveData[]>(base(workspaceId), token);
 }
 
-export function createArchive(token: string, workspaceId: string): Promise<ApiResult<ArchiveData>> {
-	return post<ArchiveData>(base(workspaceId), {}, token);
+// No ids = the whole room; each id includes that folder's subtree. The overview
+// sends root ids, the folder rail one id at any depth.
+export function createArchive(
+	token: string,
+	workspaceId: string,
+	folderIds: string[] = []
+): Promise<ApiResult<ArchiveData>> {
+	return post<ArchiveData>(
+		base(workspaceId),
+		folderIds.length ? { folder_ids: folderIds } : {},
+		token
+	);
 }
 
 export function deleteArchive(
