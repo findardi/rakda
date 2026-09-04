@@ -82,9 +82,13 @@ services:
     env_file:
       - .env.dev.web
     environment:
-      # Traefik meng-append tepat satu hop XFF; XFF_DEPTH=1 mengambil hop itu
+      # Di belakang Cloudflare: Cloudflare menulis IP pembaca sebagai hop
+      # terakhirnya, Traefik (trustedIPs) mempertahankannya lalu meng-append
+      # IP edge, jadi XFF = <pembaca>, <edge> dan hop ke-2 dari kanan adalah
+      # pembaca. Request yang tidak lewat Cloudflare hanya punya satu hop:
+      # adapter-node melempar, hooks.server.ts menangkapnya sebagai "tanpa IP".
       ADDRESS_HEADER: x-forwarded-for
-      XFF_DEPTH: '1'
+      XFF_DEPTH: '2'
     logging: *logging
     depends_on:
       api:
