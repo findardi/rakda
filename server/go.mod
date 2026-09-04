@@ -10,6 +10,7 @@ require (
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/minio/minio-go/v7 v7.2.1
 	github.com/pdfcpu/pdfcpu v0.15.0
+	github.com/resend/resend-go/v3 v3.17.0
 	github.com/stretchr/testify v1.11.1
 	github.com/wneessen/go-mail v0.7.3
 	golang.org/x/crypto v0.54.0

@@ -14,6 +14,7 @@ import (
 	"github.com/findardi/rakda/server/internal/platform/database"
 	"github.com/findardi/rakda/server/internal/platform/diskcache"
 	"github.com/findardi/rakda/server/internal/platform/render"
+	"github.com/findardi/rakda/server/internal/platform/sender"
 	"github.com/findardi/rakda/server/internal/platform/spool"
 	"github.com/findardi/rakda/server/internal/platform/storage"
 	"github.com/findardi/rakda/server/internal/platform/watermark"
@@ -172,7 +173,21 @@ func main() {
 		log.Fatal("OTP_SECRET and JWT_SECRET must be set")
 	}
 
-	if err := app.New(db, otpSecret, addr, jwtSecret, store, viewer, caches).Run(); err != nil {
+	mailCfg, err := config.LoadMailConfig()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	mailer, err := sender.New(mailCfg)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Transport yang terpilih terlihat di journald, sepola log kolam poppler,
+	// supaya prod yang tanpa sengaja masih smtp ketahuan dari baris pertama.
+	log.Printf("mail: provider=%s from=%q", mailCfg.Provider, mailCfg.From)
+
+	if err := app.New(db, otpSecret, addr, jwtSecret, store, viewer, caches, mailer).Run(); err != nil {
 		log.Fatal(err)
 	}
 }

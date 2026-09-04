@@ -35,7 +35,7 @@ func LoadEnvFile(path string) error {
 
 		key, value, ok := strings.Cut(line, "=")
 		if !ok {
-			return fmt.Errorf("inbalid env line %d: %w", lineNo, err)
+			return fmt.Errorf("invalid env line %d: missing '='", lineNo)
 		}
 
 		key = strings.TrimSpace(key)

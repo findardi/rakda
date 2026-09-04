@@ -56,12 +56,10 @@ type App struct {
 	renditionWork    func(ctx context.Context)
 }
 
-func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.Storage, viewer contentservice.Viewer, caches contentservice.CacheDeps) *App {
+func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.Storage, viewer contentservice.Viewer, caches contentservice.CacheDeps, mailer sender.Sender) *App {
 	otpGen := otp.New(otpSecret)
 	jwtGen := token.New(jwtSecret)
 
-	mailCfg, _ := config.LoadMailConfig()
-	mailer := sender.New(mailCfg)
 	limiter := ratelimit.NewMemory()
 
 	ghCfg := config.LoadOAuth("OAUTH_GITHUB")
