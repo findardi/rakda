@@ -41,20 +41,13 @@
 
 	{#if form?.message}
 		<Alert variant="error">{form.message}</Alert>
-	{:else}
-		<Alert variant="success">{t('verify.sent')}</Alert>
 	{/if}
 
 	<div class="flex flex-col gap-3">
-		<span class="text-sm font-medium">{t('verify.otpTitle')}</span>
-		<OtpInput bind:value={otp} invalid={!!form?.fieldErrors?.code} autofocus />
-		{#if form?.fieldErrors?.code}
-			<p class="text-sm text-error">{form.fieldErrors.code}</p>
-		{/if}
-
 		<form
 			method="POST"
 			action="?/verify"
+			class="flex flex-col items-center gap-3"
 			use:enhance={() => {
 				verifying = true;
 				return async ({ update }) => {
@@ -63,10 +56,16 @@
 				};
 			}}
 		>
-			<input type="hidden" name="code" value={otp} />
-			<Button type="submit" full loading={verifying} disabled={otp.length < 6}>
-				{verifying ? t('verify.verifying') : t('verify.submit')}
-			</Button>
+			<label for="otp" class="text-sm font-medium">{t('verify.otpTitle')}</label>
+			<OtpInput bind:value={otp} invalid={!!form?.fieldErrors?.code} autofocus />
+			{#if form?.fieldErrors?.code}
+				<p id="otp-error" role="alert" class="text-sm text-error">{form.fieldErrors.code}</p>
+			{/if}
+			<div class="mt-1 w-full">
+				<Button type="submit" full loading={verifying} disabled={otp.length < 6}>
+					{verifying ? t('verify.verifying') : t('verify.submit')}
+				</Button>
+			</div>
 		</form>
 
 		<div class="flex items-center justify-center gap-2 text-sm">
@@ -100,7 +99,7 @@
 				</button>
 			</form>
 		</div>
-		{#if justResent}<p class="text-sm text-success">{t('verify.resent')}</p>{/if}
+		{#if justResent}<p class="text-sm text-success" role="status">{t('verify.resent')}</p>{/if}
 	</div>
 
 	<form method="POST" action="?/logout" use:enhance>

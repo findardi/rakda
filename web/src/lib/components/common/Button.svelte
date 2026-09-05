@@ -10,6 +10,8 @@
 		full?: boolean;
 		/** Counted labels can be long; let them wrap on narrow screens instead of clipping. */
 		wrap?: boolean;
+		/** Submit a form the button does not sit inside (a row inside a <table>). */
+		form?: string;
 		onclick?: () => void;
 		children: Snippet;
 	};
@@ -22,6 +24,7 @@
 		disabled = false,
 		full = false,
 		wrap = false,
+		form,
 		onclick,
 		children
 	}: Props = $props();
@@ -39,6 +42,7 @@
 
 <button
 	{type}
+	{form}
 	{onclick}
 	class="btn {variantClass} {wrap ? 'h-auto min-h-10 py-1.5 whitespace-normal' : ''}"
 	class:btn-sm={size === 'sm'}

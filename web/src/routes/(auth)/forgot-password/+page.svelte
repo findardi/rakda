@@ -106,16 +106,37 @@
 		<!-- Step 2 — OTP -->
 		{#if form?.message}
 			<Alert variant="error">{form.message}</Alert>
-		{:else}
-			<Alert variant="success">{t('forgot.sent')}</Alert>
 		{/if}
 
 		<div class="flex flex-col gap-3">
-			<span class="text-sm font-medium">{t('forgot.otpTitle')}</span>
-			<OtpInput bind:value={otp} invalid={!!form?.fieldErrors?.code} autofocus />
-			{#if form?.fieldErrors?.code}
-				<p class="text-sm text-error">{form.fieldErrors.code}</p>
-			{/if}
+			<form
+				method="POST"
+				action="?/verify"
+				class="flex flex-col items-center gap-3"
+				use:enhance={() => {
+					verifying = true;
+					return async ({ result, update }) => {
+						if (result.type === 'success' && (result.data as { valid?: boolean })?.valid) {
+							verified = true;
+							clearInterval(timer);
+						}
+						await update({ reset: false });
+						verifying = false;
+					};
+				}}
+			>
+				<input type="hidden" name="email" value={email} />
+				<label for="otp" class="text-sm font-medium">{t('forgot.otpTitle')}</label>
+				<OtpInput bind:value={otp} invalid={!!form?.fieldErrors?.code} autofocus />
+				{#if form?.fieldErrors?.code}
+					<p id="otp-error" role="alert" class="text-sm text-error">{form.fieldErrors.code}</p>
+				{/if}
+				<div class="mt-1 w-full">
+					<Button type="submit" full loading={verifying} disabled={otp.length < 6}>
+						{verifying ? t('forgot.verifying') : t('forgot.verify')}
+					</Button>
+				</div>
+			</form>
 
 			<div class="flex items-center justify-center gap-5 text-sm">
 				<span class="text-muted">
@@ -152,31 +173,8 @@
 				</form>
 			</div>
 			{#if justResent}
-				<p class="text-sm text-success">{t('forgot.resent')}</p>
+				<p class="text-sm text-success" role="status">{t('forgot.resent')}</p>
 			{/if}
-
-			<form
-				method="POST"
-				action="?/verify"
-				class="mt-1"
-				use:enhance={() => {
-					verifying = true;
-					return async ({ result, update }) => {
-						if (result.type === 'success' && (result.data as { valid?: boolean })?.valid) {
-							verified = true;
-							clearInterval(timer);
-						}
-						await update({ reset: false });
-						verifying = false;
-					};
-				}}
-			>
-				<input type="hidden" name="email" value={email} />
-				<input type="hidden" name="code" value={otp} />
-				<Button type="submit" full loading={verifying} disabled={otp.length < 6}>
-					{verifying ? t('forgot.verifying') : t('forgot.verify')}
-				</Button>
-			</form>
 		</div>
 
 		<div class="flex items-center justify-center text-center">
