@@ -46,9 +46,12 @@ export interface ActivityActor {
 
 export interface ReaderEngagement {
 	actor_id: string;
-	/** Empty when the account is gone; the panel falls back to the email snapshot. */
+	/** Empty when the account is gone; the page falls back to the email snapshot. */
 	actor_name: string;
 	actor_email: string;
+	/** The reader's *current* group — both empty once they are no longer a member. */
+	group_id: string;
+	group_name: string;
 	/** Document-level opens, deduped per 5-minute window — not a sum of page opens. */
 	opens: number;
 	pages_seen: number;
@@ -60,6 +63,8 @@ export interface ReaderEngagement {
 export interface DocumentReaders {
 	document_id: string;
 	document_name: string;
+	/** Pages of the served version; 0 until a rendition exists. */
+	page_count: number;
 	readers: ReaderEngagement[] | null;
 	total_read_ms: number;
 }
@@ -70,11 +75,13 @@ export interface ReaderPageEngagement {
 	read_ms: number;
 }
 
-// Pages with no event for this reader are absent; the viewer fills the gaps from
-// the view meta's page_count — a page they skipped is a finding, not a hole.
+// Pages with no event for this reader are absent; the chart fills the gaps from
+// page_count — a page they skipped is a finding, not a hole. Events recorded
+// against an older version can name pages beyond page_count.
 export interface ReaderPages {
 	document_id: string;
 	document_name: string;
+	page_count: number;
 	actor_id: string;
 	pages: ReaderPageEngagement[] | null;
 	total_read_ms: number;

@@ -6,7 +6,7 @@
 	import type { ActionResult, SubmitFunction } from '@sveltejs/kit';
 	import { normalizeRole, roomWritableFrom } from '$lib/access/roles';
 	import { DocumentVersions } from '$lib/components/app';
-	import { Alert, Button, showToast } from '$lib/components/common';
+	import { ActionMenu, Alert, Button, showToast, type MenuItem } from '$lib/components/common';
 	import { DOCUMENT_MIME, filesFrom, treeFromInput } from '$lib/dnd';
 	import { downloadRendition } from '$lib/download';
 	import { downloadJobs } from '$lib/download/jobs.svelte';
@@ -85,6 +85,8 @@
 	// Version history is owner/admin upstream regardless of `document:view`, so a
 	// guest never sees the disclosure rather than opening it into a 403.
 	const canSeeVersions = $derived(role === 'owner' || role === 'admin');
+	// Who read what is owner/admin knowledge — the same two roles that see history.
+	const managesRoom = $derived(canSeeVersions);
 
 	// --- bulk select (documents) ---
 	// Selection is the current view only; every drag gesture is parked while
@@ -470,6 +472,60 @@
 			}
 		};
 	};
+
+	// --- row menu (mirrors the folder rail) ---
+	// Download stays inline as the one frequent action; everything occasional
+	// lives behind ⋮, with delete last and set apart.
+	const engagementHref = (doc: DocumentData) =>
+		resolve('/(app)/workspace/[slug]/engagement/[folderId]/[documentId]', {
+			slug,
+			folderId,
+			documentId: doc.id
+		});
+
+	const ICON = {
+		readers: ['M4 19h16', 'M7 19v-4M12 19v-7M17 19v-2'],
+		move: ['M5 9V5h4M19 15v4h-4M5 5l6 6M19 19l-6-6'],
+		delete: [
+			'M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6',
+			'M10 11v6M14 11v6'
+		]
+	};
+
+	function rowMenu(doc: DocumentData): MenuItem[] {
+		const items: MenuItem[] = [];
+		if (managesRoom) {
+			items.push({
+				kind: 'link',
+				id: 'readers',
+				label: t('activity.engagement.title'),
+				href: engagementHref(doc),
+				icon: ICON.readers
+			});
+		}
+		if (canEditDoc && moveOptions.length > 0) {
+			items.push({
+				id: 'move',
+				label: t('doc.docs.move'),
+				icon: ICON.move,
+				onselect: () => openMove(doc)
+			});
+		}
+		if (canDelete) {
+			if (items.length > 0) items.push({ kind: 'separator' });
+			items.push({
+				id: 'delete',
+				label: t('doc.docs.delete'),
+				danger: true,
+				icon: ICON.delete,
+				onselect: () => openDelete(doc)
+			});
+		}
+		return items;
+	}
+
+	// Which row's menu is open, so its hover-revealed cluster stays visible.
+	let menuOpenId = $state<string | null>(null);
 </script>
 
 {#snippet fileIcon(kind: string)}
@@ -863,7 +919,10 @@
 					</time>
 
 					<div
-						class="flex flex-none items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:gap-1 pointer-coarse:opacity-100"
+						class="flex flex-none items-center gap-0.5 transition-opacity focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:gap-1 pointer-coarse:opacity-100 {menuOpenId ===
+						doc.id
+							? 'opacity-100'
+							: 'opacity-0'}"
 					>
 						{#if canDownload}
 							<!-- Non-ready renditions cannot be downloaded; the disabled state
@@ -928,52 +987,19 @@
 								</svg>
 							</a>
 						{/if}
-						{#if canEditDoc && moveOptions.length > 0}
-							<button
-								type="button"
-								onclick={() => openMove(doc)}
-								title={t('doc.docs.move')}
-								aria-label={t('doc.docs.moveOf', { name: doc.name })}
-								class="grid h-8 w-8 place-items-center rounded-field text-muted transition-colors hover:bg-base-content/5 hover:text-base-content pointer-coarse:h-11 pointer-coarse:w-11"
-							>
-								<svg
-									class="h-4 w-4"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="1.8"
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									aria-hidden="true"
-								>
-									<path d="M5 9V5h4M19 15v4h-4M5 5l6 6M19 19l-6-6" />
-								</svg>
-							</button>
-						{/if}
-						{#if canDelete}
-							<button
-								type="button"
-								onclick={() => openDelete(doc)}
-								title={t('doc.docs.delete')}
-								aria-label={t('doc.docs.deleteOf', { name: doc.name })}
-								class="grid h-8 w-8 place-items-center rounded-field text-muted transition-colors hover:bg-error/10 hover:text-error pointer-coarse:h-11 pointer-coarse:w-11"
-							>
-								<svg
-									class="h-4 w-4"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="1.8"
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									aria-hidden="true"
-								>
-									<path
-										d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"
-									/>
-									<path d="M10 11v6M14 11v6" />
-								</svg>
-							</button>
+						{#if !selectMode}
+							{@const items = rowMenu(doc)}
+							{#if items.length > 0}
+								<ActionMenu
+									label={t('doc.action.moreOf', { name: doc.name })}
+									{items}
+									class="grid h-8 w-8 place-items-center rounded-field text-muted transition-colors hover:bg-base-content/5 hover:text-base-content pointer-coarse:h-11 pointer-coarse:w-11"
+									onopenchange={(o) => {
+										if (o) menuOpenId = doc.id;
+										else if (menuOpenId === doc.id) menuOpenId = null;
+									}}
+								/>
+							{/if}
 						{/if}
 					</div>
 				</li>

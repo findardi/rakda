@@ -22,6 +22,15 @@ type engagementScope struct {
 	documentID  pgtype.UUID
 }
 
+// pageCount is 0 until the served version has a rendition; the web tier then
+// draws its page axis from the recorded events instead.
+func (s engagementScope) pageCount() int32 {
+	if s.doc.PageCount == nil {
+		return 0
+	}
+	return *s.doc.PageCount
+}
+
 func isRoomManager(role string) bool {
 	return role == permission.RoleOwner || role == permission.RoleAdmin
 }
@@ -134,6 +143,7 @@ func (s *ActivityService) GetDocumentReaders(ctx context.Context, workspaceID, d
 	res := dto.DocumentReadersResponse{
 		DocumentID:   documentID,
 		DocumentName: scope.doc.Name,
+		PageCount:    scope.pageCount(),
 		Readers:      make([]dto.ReaderEngagement, 0, len(rows)),
 	}
 
@@ -142,6 +152,8 @@ func (s *ActivityService) GetDocumentReaders(ctx context.Context, workspaceID, d
 			ActorID:    uuidString(r.ActorID),
 			ActorName:  r.ActorName,
 			ActorEmail: r.ActorEmail,
+			GroupID:    uuidString(r.GroupID),
+			GroupName:  r.GroupName,
 			Opens:      r.Opens,
 			PagesSeen:  r.PagesSeen,
 			ReadMs:     r.ReadMs,
@@ -177,6 +189,7 @@ func (s *ActivityService) GetReaderPages(ctx context.Context, workspaceID, docum
 	res := dto.ReaderDetailResponse{
 		DocumentID:   documentID,
 		DocumentName: scope.doc.Name,
+		PageCount:    scope.pageCount(),
 		ActorID:      readerID,
 		Pages:        make([]dto.ReaderPageEngagement, 0, len(rows)),
 	}
@@ -228,6 +241,7 @@ func (s *ActivityService) GetEngagementBreakdown(ctx context.Context, workspaceI
 			ActorID:    uuidString(r.ActorID),
 			ActorName:  r.ActorName,
 			ActorEmail: r.ActorEmail,
+			GroupName:  r.GroupName,
 			PageNo:     pageNo,
 			Opens:      r.Opens,
 			ReadMs:     r.ReadMs,

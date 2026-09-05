@@ -9,6 +9,6 @@ export { default as DownloadJobs } from './DownloadJobs.svelte';
 export { default as UploadQueue } from './UploadQueue.svelte';
 export { default as ViewerPage } from './ViewerPage.svelte';
 export { default as DocumentVersions } from './DocumentVersions.svelte';
-export { default as DocumentEngagement } from './DocumentEngagement.svelte';
+export { default as ReaderPageChart } from './ReaderPageChart.svelte';
 export { default as FolderTemplatePicker } from './FolderTemplatePicker.svelte';
 export { default as ArchiveScopeDialog } from './ArchiveScopeDialog.svelte';

@@ -23,6 +23,8 @@
 
 	const overviewHref = $derived(`/workspace/${workspace.slug}`);
 	const documentsHref = $derived(`/workspace/${workspace.slug}/document`);
+	// A document's reading record is a Documents surface, reached from its row.
+	const engagementHref = $derived(`/workspace/${workspace.slug}/engagement`);
 	const accessManagementHref = $derived(`/workspace/${workspace.slug}/management-access`);
 	const qaHref = $derived(resolve('/(app)/workspace/[slug]/qa', { slug: workspace.slug }));
 	const activityHref = $derived(
@@ -33,6 +35,7 @@
 	// Active for the module's own route and any of its sub-routes.
 	const isSection = (href: string) =>
 		page.url.pathname === href || page.url.pathname.startsWith(`${href}/`);
+	const docsActive = $derived(isSection(documentsHref) || isSection(engagementHref));
 	// Members/roles/groups admin surface — managers only (owner/admin).
 	const showAccess = $derived(!!access && canManageAccess(access.role));
 	// Q&A off for the guest's group = section hidden entirely; managers always see it.
@@ -190,12 +193,10 @@
 	<!-- Documents — folder index for the data room. -->
 	<a
 		href={documentsHref}
-		class="flex items-center gap-3 rounded-field px-3 py-2 text-[0.9375rem] font-medium transition-colors {isSection(
-			documentsHref
-		)
+		class="flex items-center gap-3 rounded-field px-3 py-2 text-[0.9375rem] font-medium transition-colors {docsActive
 			? 'bg-primary/10 text-primary'
 			: 'text-base-content hover:bg-base-content/5'}"
-		aria-current={isSection(documentsHref) ? 'page' : undefined}
+		aria-current={docsActive ? 'page' : undefined}
 	>
 		<svg
 			class="h-4.5 w-4.5 flex-none"

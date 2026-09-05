@@ -12,20 +12,31 @@ import (
 )
 
 const getDocumentForEvent = `-- name: GetDocumentForEvent :one
-select id, workspace_id, name from documents
-where id = $1 and deleted_at is null
+select d.id, d.workspace_id, d.name, dv.page_count
+from documents d
+left join document_versions dv on dv.id = d.current_version_id
+where d.id = $1 and d.deleted_at is null
 `
 
 type GetDocumentForEventRow struct {
 	ID          pgtype.UUID `json:"id"`
 	WorkspaceID pgtype.UUID `json:"workspace_id"`
 	Name        string      `json:"name"`
+	PageCount   *int32      `json:"page_count"`
 }
 
+// page_count is the served version's; null until a rendition exists. The
+// engagement page draws its page axis from it so it never has to call
+// GET /view, which writes an audit row.
 func (q *Queries) GetDocumentForEvent(ctx context.Context, id pgtype.UUID) (GetDocumentForEventRow, error) {
 	row := q.db.QueryRow(ctx, getDocumentForEvent, id)
 	var i GetDocumentForEventRow
-	err := row.Scan(&i.ID, &i.WorkspaceID, &i.Name)
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Name,
+		&i.PageCount,
+	)
 	return i, err
 }
 
@@ -203,6 +214,8 @@ select
     ce.actor_id,
     coalesce(u.username, '')::text as actor_name,
     max(ce.actor_email)::text as actor_email,
+    g.id as group_id,
+    coalesce(g.name, '')::text as group_name,
     (count(distinct date_bin('5 minutes', ce.created_at, timestamptz 'epoch'))
         filter (where ce.event_type = 'view_page')
     )::bigint as opens,
@@ -211,9 +224,12 @@ select
     max(ce.created_at)::timestamptz as last_read_at
 from content_events ce
 left join users u on u.id = ce.actor_id
+left join workspace_members wm on wm.workspace_id = ce.workspace_id and wm.user_id = ce.actor_id
+left join workspace_group_members wgm on wgm.member_id = wm.id
+left join workspace_groups g on g.id = wgm.group_id
 where ce.workspace_id = $1
     and ce.document_id = $2
-group by ce.actor_id, u.username
+group by ce.actor_id, u.username, g.id, g.name
 order by read_ms desc, last_read_at desc
 `
 
@@ -226,12 +242,17 @@ type ListDocumentReadersRow struct {
 	ActorID    pgtype.UUID        `json:"actor_id"`
 	ActorName  string             `json:"actor_name"`
 	ActorEmail string             `json:"actor_email"`
+	GroupID    pgtype.UUID        `json:"group_id"`
+	GroupName  string             `json:"group_name"`
 	Opens      int64              `json:"opens"`
 	PagesSeen  int64              `json:"pages_seen"`
 	ReadMs     int64              `json:"read_ms"`
 	LastReadAt pgtype.Timestamptz `json:"last_read_at"`
 }
 
+// The group is the reader's *current* one (content_events snapshots the
+// actor, not the group): a reader who left the room has none. One membership
+// per (workspace, user) and one group per member, so the joins never fan out.
 func (q *Queries) ListDocumentReaders(ctx context.Context, arg ListDocumentReadersParams) ([]ListDocumentReadersRow, error) {
 	rows, err := q.db.Query(ctx, listDocumentReaders, arg.WorkspaceID, arg.DocumentID)
 	if err != nil {
@@ -245,6 +266,8 @@ func (q *Queries) ListDocumentReaders(ctx context.Context, arg ListDocumentReade
 			&i.ActorID,
 			&i.ActorName,
 			&i.ActorEmail,
+			&i.GroupID,
+			&i.GroupName,
 			&i.Opens,
 			&i.PagesSeen,
 			&i.ReadMs,
@@ -265,6 +288,7 @@ select
     ce.actor_id,
     coalesce(u.username, '')::text as actor_name,
     max(ce.actor_email)::text as actor_email,
+    coalesce(g.name, '')::text as group_name,
     ce.page_no,
     (count(distinct date_bin('5 minutes', ce.created_at, timestamptz 'epoch'))
         filter (where ce.event_type = 'view_page')
@@ -272,10 +296,13 @@ select
     coalesce(sum(ce.duration_ms) filter (where ce.event_type = 'page_duration'), 0)::bigint as read_ms
 from content_events ce
 left join users u on u.id = ce.actor_id
+left join workspace_members wm on wm.workspace_id = ce.workspace_id and wm.user_id = ce.actor_id
+left join workspace_group_members wgm on wgm.member_id = wm.id
+left join workspace_groups g on g.id = wgm.group_id
 where ce.workspace_id = $1
     and ce.document_id = $2
     and ce.page_no is not null
-group by ce.actor_id, u.username, ce.page_no
+group by ce.actor_id, u.username, g.name, ce.page_no
 order by actor_name, ce.actor_id, ce.page_no
 `
 
@@ -288,6 +315,7 @@ type ListEngagementBreakdownRow struct {
 	ActorID    pgtype.UUID `json:"actor_id"`
 	ActorName  string      `json:"actor_name"`
 	ActorEmail string      `json:"actor_email"`
+	GroupName  string      `json:"group_name"`
 	PageNo     *int32      `json:"page_no"`
 	Opens      int64       `json:"opens"`
 	ReadMs     int64       `json:"read_ms"`
@@ -306,6 +334,7 @@ func (q *Queries) ListEngagementBreakdown(ctx context.Context, arg ListEngagemen
 			&i.ActorID,
 			&i.ActorName,
 			&i.ActorEmail,
+			&i.GroupName,
 			&i.PageNo,
 			&i.Opens,
 			&i.ReadMs,

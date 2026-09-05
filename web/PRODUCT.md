@@ -266,3 +266,25 @@ menjawab dari satu antrean bersama. Aturan produk yang mengikat salinan UI:
 - Pertanyaan dan balasan **tidak bisa diedit**; koreksi = balasan baru.
   Salinan UI tidak boleh menjanjikan penyuntingan.
 
+
+## Aktivitas baca
+
+Halaman tersendiri per dokumen (`/engagement/…`, dari menu ⋮ pada baris
+dokumen dan tautan «Lihat aktivitas baca» di linimasa), hanya untuk pemilik dan
+admin — tidak pernah di dalam viewer. Satu pembaca, satu grafik: batang per
+halaman, tinggi = lama halaman terbuka, halaman tanpa batang = tidak dibuka;
+hanya halaman terlama yang diberi label, sisanya lewat hover/fokus dan
+tampilan tabel. Daftar pembaca dikelompokkan menurut **grup saat ini** pembaca
+dengan total per grup; pembaca yang keanggotaannya sudah dicabut masuk «Bukan
+anggota lagi».
+
+Salinan yang mengikat:
+
+- Lama baca **indikatif** — dilaporkan peramban pembaca dan dihitung hanya
+  selama jendela viewer fokus. Jangan pernah menuliskannya sebagai presisi.
+- Aktivitas pemilik/admin **tidak dicatat**; keadaan kosong wajib menyebutnya.
+- Tidak ada peta panas lintas pembaca, per grup pun tidak: keputusan produk,
+  bukan keterbatasan teknis.
+- Jumlah halaman datang dari server (`page_count` versi yang disajikan);
+  halaman dari versi lama diberi catatan, tidak dibuang diam-diam.
+- Durasi ditulis «6 mnt 28 dtk», bukan «6m 28s».
