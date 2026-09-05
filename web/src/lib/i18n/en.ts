@@ -52,8 +52,7 @@ export const en: Record<keyof Dict, string> = {
 	'forgot.email': 'Email',
 	'forgot.send': 'Send code',
 	'forgot.sending': 'Sending…',
-	'forgot.sent': 'An OTP code has been sent to your email.',
-	'forgot.otpTitle': 'Enter the 6-digit code',
+	'forgot.otpTitle': 'Verification code',
 	'forgot.otpSubtitle': 'We sent a code to {email}.',
 	'forgot.expiresIn': 'Code expires in {time}',
 	'forgot.expired': 'Code expired.',
@@ -75,7 +74,6 @@ export const en: Record<keyof Dict, string> = {
 	'verify.title': 'Verify your email',
 	'verify.subtitle': 'Enter the 6-digit code we sent to {email}.',
 	'verify.otpTitle': 'Verification code',
-	'verify.sent': 'A verification code has been sent to your email.',
 	'verify.submit': 'Verify',
 	'verify.verifying': 'Verifying…',
 	'verify.noCode': "Didn't receive a code?",
@@ -317,8 +315,6 @@ export const en: Record<keyof Dict, string> = {
 
 	'password.show': 'Show password',
 	'password.hide': 'Hide password',
-
-	'otp.group': 'OTP code',
 
 	// Field-level validation (client + mapped from backend)
 	'err.required': 'Required',
@@ -1078,15 +1074,15 @@ export const en: Record<keyof Dict, string> = {
 	'level.download': 'View & download',
 	'level.none': 'No access',
 	'facc.cap.legend': 'Permissions',
-	'facc.cap.accessLegend': 'Access',
-	'facc.cap.protectLegend': 'Protection',
 	'facc.cap.view': 'View',
 	'facc.cap.download': 'Download',
 	'facc.cap.watermark': 'Watermark',
-	'facc.cap.watermarkHint': 'Documents this group opens are stamped with their identity watermark.',
+	'facc.cap.viewHint': 'Open and read documents in the viewer.',
+	'facc.cap.watermarkHint': "Pages carry the reader's identity watermark.",
+	'facc.cap.downloadHint': 'Download the watermarked PDF.',
 	'facc.cap.downloadOriginal': 'Download clean PDF',
 	'facc.cap.downloadOriginalHint':
-		'This group downloads the PDF without a watermark. The original file never leaves.',
+		'Download the clean PDF, no watermark. The original file never leaves.',
 	'facc.cap.rule': 'Clean PDF download turns on Download; Download and watermark turn on View.',
 	'facc.cap.exclusive':
 		'Watermark and clean download cannot both be on: marking the screen while handing out a clean file protects nothing.',
@@ -1094,7 +1090,6 @@ export const en: Record<keyof Dict, string> = {
 		'Watermarked downloads are limited to {max} pages. Documents over the limit cannot be downloaded and can only be read in the viewer.',
 	'facc.cap.wmLimitUnknown':
 		'Watermarked downloads are limited by page count. Documents over the limit cannot be downloaded and can only be read in the viewer.',
-	'facc.cap.wmLimitChip': 'Watermarked downloads are capped at {max} pages.',
 
 	'facc.flow':
 		'Access flows down to everything inside this folder, subfolders included — except a subfolder that sets a rule of its own.',
@@ -1149,6 +1144,8 @@ export const en: Record<keyof Dict, string> = {
 		'Folder access is granted to groups, not to people one by one. Create a group first, then share this folder with it.',
 	'facc.noGroups.cta': 'Manage groups',
 	'facc.saved': '{group} access saved.',
+	'facc.savedN': 'Access for {n} groups saved.',
+	'facc.col.all': '{cap} for all groups',
 	'facc.blockedNow': '{group} is blocked from this folder and everything inside it.',
 	'facc.revoked': '{group} access revoked from this folder.',
 	'facc.revokedInherits': 'Direct access revoked. {group} now inherits from {name}.',

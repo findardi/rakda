@@ -48,8 +48,7 @@ export const id = {
 	'forgot.email': 'Email',
 	'forgot.send': 'Kirim kode',
 	'forgot.sending': 'Mengirim…',
-	'forgot.sent': 'Kode OTP telah dikirim ke email Anda.',
-	'forgot.otpTitle': 'Masukkan kode 6 digit',
+	'forgot.otpTitle': 'Kode verifikasi',
 	'forgot.otpSubtitle': 'Kami mengirim kode ke {email}.',
 	'forgot.expiresIn': 'Kode kedaluwarsa dalam {time}',
 	'forgot.expired': 'Kode kedaluwarsa.',
@@ -71,7 +70,6 @@ export const id = {
 	'verify.title': 'Verifikasi email Anda',
 	'verify.subtitle': 'Masukkan kode 6 digit yang kami kirim ke {email}.',
 	'verify.otpTitle': 'Kode verifikasi',
-	'verify.sent': 'Kode verifikasi telah dikirim ke email Anda.',
 	'verify.submit': 'Verifikasi',
 	'verify.verifying': 'Memverifikasi…',
 	'verify.noCode': 'Tidak menerima kode?',
@@ -313,8 +311,6 @@ export const id = {
 
 	'password.show': 'Tampilkan kata sandi',
 	'password.hide': 'Sembunyikan kata sandi',
-
-	'otp.group': 'Kode OTP',
 
 	// Field-level validation (client + mapped from backend)
 	'err.required': 'Wajib diisi',
@@ -1086,15 +1082,15 @@ export const id = {
 	'level.download': 'Lihat & unduh',
 	'level.none': 'Tanpa akses',
 	'facc.cap.legend': 'Izin',
-	'facc.cap.accessLegend': 'Akses',
-	'facc.cap.protectLegend': 'Proteksi',
 	'facc.cap.view': 'Lihat',
 	'facc.cap.download': 'Unduh',
 	'facc.cap.watermark': 'Watermark',
-	'facc.cap.watermarkHint': 'Dokumen yang dibuka grup ini diberi watermark identitas mereka.',
+	'facc.cap.viewHint': 'Buka dan baca dokumen di viewer.',
+	'facc.cap.watermarkHint': 'Halaman diberi watermark identitas pembacanya.',
+	'facc.cap.downloadHint': 'Unduh PDF ber-watermark.',
 	'facc.cap.downloadOriginal': 'Unduh PDF tanpa watermark',
 	'facc.cap.downloadOriginalHint':
-		'Grup ini mengunduh PDF tanpa watermark. Berkas asli tidak pernah keluar.',
+		'Unduh PDF bersih tanpa watermark. Berkas asli tidak pernah keluar.',
 	'facc.cap.rule':
 		'Unduh PDF tanpa watermark menyalakan Unduh; Unduh dan watermark menyalakan Lihat.',
 	'facc.cap.exclusive':
@@ -1103,7 +1099,6 @@ export const id = {
 		'Unduhan dengan watermark dibatasi {max} halaman. Dokumen yang melebihi batas tidak dapat diunduh dan hanya dapat dibaca di viewer.',
 	'facc.cap.wmLimitUnknown':
 		'Unduhan dengan watermark dibatasi jumlah halaman. Dokumen yang melebihi batas tidak dapat diunduh dan hanya dapat dibaca di viewer.',
-	'facc.cap.wmLimitChip': 'Unduhan dengan watermark dibatasi {max} halaman.',
 
 	'facc.flow':
 		'Akses mengalir ke seluruh isi folder ini, termasuk subfolder — kecuali subfolder yang punya aturannya sendiri.',
@@ -1158,6 +1153,8 @@ export const id = {
 		'Akses folder diberikan ke grup, bukan ke orang per orang. Buat grup lebih dulu, lalu bagikan folder ini kepadanya.',
 	'facc.noGroups.cta': 'Kelola grup',
 	'facc.saved': 'Akses {group} disimpan.',
+	'facc.savedN': 'Akses {n} grup disimpan.',
+	'facc.col.all': '{cap} untuk semua grup',
 	'facc.blockedNow': '{group} diblokir dari folder ini dan seluruh isinya.',
 	'facc.revoked': 'Akses {group} dicabut dari folder ini.',
 	'facc.revokedInherits': 'Akses langsung dicabut. {group} kini mewarisi dari {name}.',

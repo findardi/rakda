@@ -11,7 +11,8 @@ import type {
 	DirectFolderAccess,
 	FolderAccessPanel,
 	FolderTreeNode,
-	InheritedFolderAccess
+	InheritedFolderAccess,
+	SetFolderAccessPayload
 } from '$lib/types/content';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -81,34 +82,50 @@ export const load: PageServerLoad = async ({ locals, params, parent }) => {
 	return { panel, watermarkMaxPages };
 };
 
+// Every save posts `rows`: the footer posts every changed group, add and block
+// post one. Rows apply in order; a failure reports what already landed.
+function parseRows(raw: FormDataEntryValue | null): SetFolderAccessPayload[] | null {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse((raw ?? '').toString());
+	} catch {
+		return null;
+	}
+	if (!Array.isArray(parsed) || parsed.length === 0 || parsed.length > 100) return null;
+	const rows = parsed.map((r: Record<string, unknown>) => ({
+		group_id: typeof r?.group_id === 'string' ? r.group_id : '',
+		can_view: r?.can_view === true,
+		can_download: r?.can_download === true,
+		can_watermark: r?.can_watermark === true,
+		can_download_original: r?.can_download_original === true
+	}));
+	return rows.every((r) => r.group_id) ? rows : null;
+}
+
 export const actions: Actions = {
 	setAccess: async ({ locals, params, request }) => {
 		if (!locals.session) redirect(303, '/login');
 
-		const form = await request.formData();
-		const groupId = (form.get('groupId') ?? '').toString();
-		if (!groupId) return fail(400, { message: t('facc.err.pick') });
-
-		const canView = form.get('canView') === 'true';
-		const canDownload = form.get('canDownload') === 'true';
-		const canWatermark = form.get('canWatermark') === 'true';
-		const canDownloadOriginal = form.get('canDownloadOriginal') === 'true';
+		const rows = parseRows((await request.formData()).get('rows'));
+		if (!rows) return fail(400, { message: t('facc.err.pick') });
 
 		const wsId = await resolveWorkspaceId(locals.session, params.slug);
 		if (!wsId) return fail(404, { message: t('ws.detail.notFound') });
 
-		const res = await setFolderAccess(locals.session, wsId, params.folderId, {
-			group_id: groupId,
-			can_view: canView,
-			can_download: canDownload,
-			can_watermark: canWatermark,
-			can_download_original: canDownloadOriginal
-		});
-		if (!res.ok) {
-			if (res.status === 401) redirect(303, '/login');
-			if (res.status === 404) return fail(404, { message: t('facc.err.notFound') });
-			if (res.status === 400) return fail(400, { message: t('facc.err.invalid') });
-			return fail(res.status || 400, { message: res.message || t('err.generic') });
+		const saved: string[] = [];
+		for (const row of rows) {
+			const res = await setFolderAccess(locals.session, wsId, params.folderId, row);
+			if (!res.ok) {
+				if (res.status === 401) redirect(303, '/login');
+				const message =
+					res.status === 404
+						? t('facc.err.notFound')
+						: res.status === 400
+							? t('facc.err.invalid')
+							: res.message || t('err.generic');
+				return fail(res.status || 400, { message, saved });
+			}
+			saved.push(row.group_id);
 		}
 
 		return { accessSet: true };
