@@ -153,7 +153,7 @@ func parseTimeFilter(raw string, endOfDay bool) (pgtype.Timestamptz, error) {
 		return pgtype.Timestamptz{Time: t, Valid: true}, nil
 	}
 
-	t, err := time.Parse("2006-01-02", raw)
+	t, err := time.Parse(time.DateOnly, raw)
 	if err != nil {
 		return pgtype.Timestamptz{}, ErrInvalidFilter
 	}

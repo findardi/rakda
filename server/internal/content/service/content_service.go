@@ -279,13 +279,8 @@ func validateBulkNodes(nodes []dto.BulkFolderNode, depth int) (int, error) {
 }
 
 func validateStorageKey(key, workspaceID, folderID string) error {
-	prefix := fmt.Sprintf("%s/%s/", workspaceID, folderID)
-	if !strings.HasPrefix(key, prefix) {
-		return ErrInvalidStorageKey
-	}
-
-	rest := strings.TrimPrefix(key, prefix)
-	if rest == "" || strings.Contains(rest, "/") {
+	rest, ok := strings.CutPrefix(key, workspaceID+"/"+folderID+"/")
+	if !ok || rest == "" || strings.Contains(rest, "/") {
 		return ErrInvalidStorageKey
 	}
 

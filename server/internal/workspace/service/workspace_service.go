@@ -10,6 +10,7 @@ import (
 	"github.com/findardi/rakda/server/internal/platform/ptr"
 	"log"
 	"regexp"
+	"slices"
 	"strings"
 
 	activityservice "github.com/findardi/rakda/server/internal/activity/service"
@@ -35,12 +36,7 @@ var statusTransitions = map[string][]string{
 }
 
 func canTransition(from, to string) bool {
-	for _, allowed := range statusTransitions[from] {
-		if allowed == to {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(statusTransitions[from], to)
 }
 
 type Actor struct {

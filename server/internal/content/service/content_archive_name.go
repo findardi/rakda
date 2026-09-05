@@ -43,7 +43,7 @@ func sanitizeComponent(name string) string {
 // "{slug}-arsip-sebagian-{tanggal}"; daftar foldernya ada di BACA-DULU.
 func archiveRootName(slug string, at time.Time, scopeNames []string) string {
 	base := sanitizeComponent(slug)
-	date := at.Format("2006-01-02")
+	date := at.Format(time.DateOnly)
 
 	switch len(scopeNames) {
 	case 0:

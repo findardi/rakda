@@ -1,6 +1,7 @@
 package service
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -9,7 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"time"
 
 	activityservice "github.com/findardi/rakda/server/internal/activity/service"
@@ -955,9 +956,7 @@ func (s *ContentService) CompleteMultipart(ctx context.Context, req dto.Complete
 		})
 	}
 
-	sort.Slice(parts, func(i, j int) bool {
-		return parts[i].PartNumber < parts[j].PartNumber
-	})
+	slices.SortFunc(parts, func(a, b storage.Part) int { return cmp.Compare(a.PartNumber, b.PartNumber) })
 
 	if err := s.store.CompleteMultipart(ctx, req.StorageKey, req.UploadID, req.ContentType, parts); err != nil {
 		_ = s.store.AbortMultipart(ctx, req.StorageKey, req.UploadID)

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"cmp"
 	"fmt"
 	netmail "net/mail"
 	"strconv"
@@ -39,10 +40,7 @@ type ResendConfig struct {
 }
 
 func envOr(key, fallback string) string {
-	if v := strings.TrimSpace(GetEnv(key, "")); v != "" {
-		return v
-	}
-	return fallback
+	return cmp.Or(strings.TrimSpace(GetEnv(key, "")), fallback)
 }
 
 func LoadMailConfig() (MailConfig, error) {
