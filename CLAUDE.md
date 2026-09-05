@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `server/` — Go 1.26 backend (Chi, PostgreSQL/pgx, Minio). Module path: `github.com/findardi/rakda/server`.
 - `brainstorm-folder/` — discussion and decision notes for the active phase. See "Discussion notes" below.
 
-`AGENTS.md` is the pre-existing agent instructions file; keep the two in sync when editing either.
+`AGENTS.md` is a one-line pointer to this file — there is no second copy to keep in sync.
 
 ## Skills — invoke proactively, not on request
 
@@ -138,9 +138,8 @@ Dockerfiles are `docker/server.Dockerfile` and `docker/web.Dockerfile` (contexts
 
 Two workflows in `.github/workflows/`:
 
-- **`deploy.yml`** (push to `main`): test (`go test`, `bun run check`) → build+push all three images to GHCR tagged `sha-<commit>` only → run goose migrations against the managed prod DB (secret `PROD_GOOSE_DBSTRING`; the provider must allow GitHub-runner connections) → **promote**: retag `sha-<commit>` as `:main`. The `:main` tag never moves before migrations succeed, so the server-side updater never pulls an image whose schema isn't ready.
-- **`rollback.yml`** (manual, workflow_dispatch with a commit SHA): retags `:main` back to that release's `sha-<commit>`; the updater picks it up on its next run. Goose is never rolled back automatically — migrations must stay additive.
-- **`deploy-dev.yml`** (push to `dev`): the same pipeline on the dev channel — migrates the **`rakda_dev`** database (secret `DEV_GOOSE_DBSTRING`; same managed instance, separate database and S3 bucket) and promotes **`:dev`**, pulled by a separate dev VPS (`docker/compose.dev-server.yaml`, subnet 172.30.0.0/24, pull-only — no `build:`, timer `rakda-dev-update`). Dev rolls forward (push again); `rollback.yml` targets `:main` only.
+- **`deploy.yml`** (push to `main` or `dev`): test (`go test`, `bun run check`) → build+push all three images to GHCR tagged `sha-<commit>` only → run goose migrations against the channel's managed DB (`main` → prod DB via secret `PROD_GOOSE_DBSTRING`, `dev` → the **`rakda_dev`** database via `DEV_GOOSE_DBSTRING`, same managed instance, separate database and S3 bucket; the provider must allow GitHub-runner connections) → **promote**: retag `sha-<commit>` as `:<branch>` (`:main` or `:dev`). The channel tag never moves before migrations succeed, so the server-side updater never pulls an image whose schema isn't ready. `:dev` is pulled by a separate dev VPS (`docker/compose.dev-server.yaml`, subnet 172.30.0.0/24, pull-only — no `build:`, timer `rakda-dev-update`). Dev rolls forward (push again).
+- **`rollback.yml`** (manual, workflow_dispatch with a commit SHA): retags `:main` back to that release's `sha-<commit>`; the updater picks it up on its next run. Goose is never rolled back automatically — migrations must stay additive. It targets `:main` only.
 
 The prod host runs **rootful Podman, not Docker**. Rootful is mandatory: rootless bridge networking (rootlessport) discards real client source IPs, which would silently collapse the XFF chain (watermark + rate-limit IPs). The updater is a **systemd timer** (`docker/systemd/rakda-update.{service,timer}`) running `podman compose pull` + `up -d` every 5 minutes — Watchtower was dropped as a Docker-API-only tool. **The server holds no source checkout and no git**: `/opt/rakda/docker/` contains only deploy artifacts (compose, `traefik/`, env files, `systemd/`) copied from the laptop with `scp`; env files are edited in the repo's gitignored copies and copied one-way, never edited on the server (U-67). Never write a runbook step that runs `git` on the server. GHCR images are private: one-time `podman login ghcr.io` with a `read:packages` PAT. Enable `podman-restart.service` so containers come back after reboot. **Host disk hygiene (17-a):** the updater's third `ExecStart` is `podman image prune -f` (dangling only — rollback re-pulls from GHCR); container logs are forced to `journald` in both server composes (`x-logging`) and capped at 1 GB by `docker/systemd/journald-rakda.conf`; `api` spools (`rakda-view-*`, `rakda-rendition-*`, `rakda-wm-*`) live on the host bind mount `/srv/rakda/spool` via `TMPDIR` set **in compose, never in the env file**, and `gotenberg` spools on `/srv/rakda/gotenberg-tmp:/tmp` (uid 1001) with a self-sweep on container start and a `test -w /tmp || exit 1` guard — rootful podman auto-creates a missing bind-mount source as root-owned, and without the guard a forgotten `chown` would fail every conversion silently into `rendition_failed_at` instead of failing the boot. `platform/spool` owns the `rakda-` prefix (`spool.Prefix` — every new spool must use it), refuses boot if `TMPDIR` is not writable (`CheckWritable`), and sweeps orphans before anything else runs (`SweepOrphans`) — boot-time, not age-based, because compose never runs two `api` at once so every leftover is provably orphaned. The two host dirs must be created and `chown`ed (10001 / 1001) before the first `up -d`. CI does not run eslint (U-38); lint stays manual.
 
@@ -291,7 +290,7 @@ complete, and in this order:
    Completed phases. Write it assuming the step files are about to become
    unreadable, because they are.
 3. Reflect any rule change (roles, permission semantics, domain model, UI
-   constraints) into `CLAUDE.md`, `AGENTS.md`, `web/PRODUCT.md`, or
+   constraints) into `CLAUDE.md`, `web/PRODUCT.md`, or
    `web/DESIGN.md`.
 4. Show the proposed new `current-phase.md` in chat and wait for approval.
 5. Only then delete `phase-N-description.md` and every `phase-N-*.md`.

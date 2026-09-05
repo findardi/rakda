@@ -2,7 +2,7 @@ name: deploy
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
 
 env:
   IMAGE_API: ghcr.io/findardi/rakda-api
@@ -68,10 +68,11 @@ jobs:
           cache-from: type=gha,scope=web
           cache-to: type=gha,scope=web,mode=max
 
-  # Skema bergerak SEBELUM :main bergerak — updater di server (systemd timer
-  # podman compose pull) tidak pernah menarik image yang skemanya belum siap.
-  # Managed PG harus menerima koneksi runner GitHub (SSL wajib; atur trusted
-  # sources di provider).
+  # Skema bergerak SEBELUM tag channel bergerak — updater di server (systemd
+  # timer podman compose pull) tidak pernah menarik image yang skemanya belum
+  # siap. main → database prod + tag :main; dev → database rakda_dev (instance
+  # managed yang sama, database terpisah) + tag :dev. Managed PG harus menerima
+  # koneksi runner GitHub (SSL wajib; atur trusted sources di provider).
   migrate:
     needs: build
     runs-on: ubuntu-latest
@@ -84,7 +85,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - env:
-          GOOSE_DBSTRING: ${{ secrets.PROD_GOOSE_DBSTRING }}
+          GOOSE_DBSTRING: ${{ github.ref_name == 'main' && secrets.PROD_GOOSE_DBSTRING || secrets.DEV_GOOSE_DBSTRING }}
         run: |
           docker run --rm -e GOOSE_DRIVER=postgres -e GOOSE_DBSTRING \
             ${{ env.IMAGE_MIGRATE }}:sha-${{ github.sha }} up
@@ -101,6 +102,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - run: |
-          docker buildx imagetools create -t ${{ env.IMAGE_API }}:main ${{ env.IMAGE_API }}:sha-${{ github.sha }}
-          docker buildx imagetools create -t ${{ env.IMAGE_WEB }}:main ${{ env.IMAGE_WEB }}:sha-${{ github.sha }}
-          docker buildx imagetools create -t ${{ env.IMAGE_MIGRATE }}:main ${{ env.IMAGE_MIGRATE }}:sha-${{ github.sha }}
+          docker buildx imagetools create -t ${{ env.IMAGE_API }}:${{ github.ref_name }} ${{ env.IMAGE_API }}:sha-${{ github.sha }}
+          docker buildx imagetools create -t ${{ env.IMAGE_WEB }}:${{ github.ref_name }} ${{ env.IMAGE_WEB }}:sha-${{ github.sha }}
+          docker buildx imagetools create -t ${{ env.IMAGE_MIGRATE }}:${{ github.ref_name }} ${{ env.IMAGE_MIGRATE }}:sha-${{ github.sha }}

@@ -1,6 +1,7 @@
 import { roleDisplayName } from '$lib/access/permissions';
 import { formatDateLocal, formatNameList } from '$lib/format';
 import { t, type TKey } from '$lib/i18n';
+import { id } from '$lib/i18n/id';
 import type { ActivityItem } from '$lib/types/activity';
 
 export type ActivityTone = 'neutral' | 'positive' | 'negative';
@@ -98,96 +99,13 @@ function statusDisplayName(status: string): string {
 	return key ? t(key) : status;
 }
 
-const PHRASE_KEY: Record<string, TKey> = {
-	folder_created: 'activity.action.folder_created',
-	folder_renamed: 'activity.action.folder_renamed',
-	folder_moved: 'activity.action.folder_moved',
-	folder_deleted: 'activity.action.folder_deleted',
-	folder_restored: 'activity.action.folder_restored',
-	folder_purged: 'activity.action.folder_purged',
-	template_applied: 'activity.action.template_applied',
-	document_uploaded: 'activity.action.document_uploaded',
-	document_moved: 'activity.action.document_moved',
-	document_deleted: 'activity.action.document_deleted',
-	document_restored: 'activity.action.document_restored',
-	document_purged: 'activity.action.document_purged',
-	document_downloaded: 'activity.action.document_downloaded',
-	document_viewed: 'activity.action.document_viewed',
-	version_uploaded: 'activity.action.version_uploaded',
-	version_restored: 'activity.action.version_restored',
-	rendition_retried: 'activity.action.rendition_retried',
-	search_performed: 'activity.action.search_performed',
-	invite_sent: 'activity.action.invite_sent',
-	invite_resent: 'activity.action.invite_resent',
-	invite_revoked: 'activity.action.invite_revoked',
-	invite_accepted: 'activity.action.invite_accepted',
-	invite_rejected: 'activity.action.invite_rejected',
-	member_removed: 'activity.action.member_removed',
-	role_changed: 'activity.action.role_changed',
-	member_expiry_changed: 'activity.action.member_expiry_changed',
-	group_created: 'activity.action.group_created',
-	group_updated: 'activity.action.group_updated',
-	group_deleted: 'activity.action.group_deleted',
-	group_assigned: 'activity.action.group_assigned',
-	group_unassigned: 'activity.action.group_unassigned',
-	folder_access_changed: 'activity.action.folder_access_changed',
-	folder_access_removed: 'activity.action.folder_access_removed',
-	question_submitted: 'activity.action.question_submitted',
-	question_replied: 'activity.action.question_replied',
-	question_answered: 'activity.action.question_answered',
-	question_closed: 'activity.action.question_closed',
-	question_reopened: 'activity.action.question_reopened',
-	faq_published: 'activity.action.faq_published',
-	qa_settings_changed: 'activity.action.qa_settings_changed',
-	archive_exported: 'activity.action.archive_exported'
-};
-
-const LABEL_KEY: Record<string, TKey> = {
-	folder_created: 'activity.label.folder_created',
-	folder_renamed: 'activity.label.folder_renamed',
-	folder_moved: 'activity.label.folder_moved',
-	folder_deleted: 'activity.label.folder_deleted',
-	folder_restored: 'activity.label.folder_restored',
-	folder_purged: 'activity.label.folder_purged',
-	template_applied: 'activity.label.template_applied',
-	document_uploaded: 'activity.label.document_uploaded',
-	document_moved: 'activity.label.document_moved',
-	document_deleted: 'activity.label.document_deleted',
-	document_restored: 'activity.label.document_restored',
-	document_purged: 'activity.label.document_purged',
-	document_downloaded: 'activity.label.document_downloaded',
-	document_viewed: 'activity.label.document_viewed',
-	version_uploaded: 'activity.label.version_uploaded',
-	version_restored: 'activity.label.version_restored',
-	rendition_retried: 'activity.label.rendition_retried',
-	search_performed: 'activity.label.search_performed',
-	invite_sent: 'activity.label.invite_sent',
-	invite_resent: 'activity.label.invite_resent',
-	invite_revoked: 'activity.label.invite_revoked',
-	invite_accepted: 'activity.label.invite_accepted',
-	invite_rejected: 'activity.label.invite_rejected',
-	member_removed: 'activity.label.member_removed',
-	role_changed: 'activity.label.role_changed',
-	member_expiry_changed: 'activity.label.member_expiry_changed',
-	group_created: 'activity.label.group_created',
-	group_updated: 'activity.label.group_updated',
-	group_deleted: 'activity.label.group_deleted',
-	group_assigned: 'activity.label.group_assigned',
-	group_unassigned: 'activity.label.group_unassigned',
-	folder_access_changed: 'activity.label.folder_access_changed',
-	folder_access_removed: 'activity.label.folder_access_removed',
-	question_submitted: 'activity.label.question_submitted',
-	question_replied: 'activity.label.question_replied',
-	question_answered: 'activity.label.question_answered',
-	question_closed: 'activity.label.question_closed',
-	question_reopened: 'activity.label.question_reopened',
-	faq_published: 'activity.label.faq_published',
-	qa_settings_changed: 'activity.label.qa_settings_changed',
-	workspace_updated: 'activity.label.workspace_updated',
-	workspace_status_changed: 'activity.label.workspace_status_changed',
-	workspace_branding_changed: 'activity.label.workspace_branding_changed',
-	archive_exported: 'activity.label.archive_exported'
-};
+// Phrase and label keys follow the action name. `in id` keeps the fallback
+// for an action the dictionary does not know (raw action / null) instead of
+// leaking a bare key into the timeline.
+function dictKey(prefix: 'activity.action' | 'activity.label', action: string): TKey | null {
+	const key = `${prefix}.${action}`;
+	return key in id ? (key as TKey) : null;
+}
 
 const DESTRUCTIVE = new Set([
 	'folder_deleted',
@@ -226,7 +144,7 @@ function capabilitySummary(meta: Record<string, unknown>): string {
 }
 
 export function activityActionLabel(action: string): string {
-	const key = LABEL_KEY[action];
+	const key = dictKey('activity.label', action);
 	return key ? t(key) : action;
 }
 
@@ -292,7 +210,7 @@ export function describeActivity(item: ActivityItem): ActivityPhrase {
 		case 'folder_purged':
 		case 'document_purged':
 			return item.target_name
-				? { key: PHRASE_KEY[item.action], vars }
+				? { key: dictKey('activity.action', item.action), vars }
 				: {
 						key:
 							item.action === 'folder_purged'
@@ -316,7 +234,10 @@ export function describeActivity(item: ActivityItem): ActivityPhrase {
 		case 'version_uploaded':
 		case 'version_restored':
 		case 'rendition_retried':
-			return { key: PHRASE_KEY[item.action], vars: { ...vars, version: number(meta.version_no) } };
+			return {
+				key: dictKey('activity.action', item.action),
+				vars: { ...vars, version: number(meta.version_no) }
+			};
 
 		case 'question_submitted':
 			return {
@@ -377,6 +298,6 @@ export function describeActivity(item: ActivityItem): ActivityPhrase {
 		}
 
 		default:
-			return { key: PHRASE_KEY[item.action] ?? null, vars };
+			return { key: dictKey('activity.action', item.action), vars };
 	}
 }
