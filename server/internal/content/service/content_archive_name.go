@@ -73,28 +73,21 @@ func sanitizeFileName(name string) string {
 		ext = ext[:16]
 	}
 
-	budget := maxComponentBytes - len(ext)
-	if budget < 1 {
-		budget = 1
-	}
-
-	return truncateBytes(sanitizeComponent(base), budget) + ext
+	return truncateBytes(sanitizeComponent(base), max(maxComponentBytes-len(ext), 1)) + ext
 }
 
-func truncateBytes(s string, max int) string {
-	if max < 1 {
-		max = 1
-	}
-	if len(s) <= max {
+func truncateBytes(s string, limit int) string {
+	limit = max(limit, 1)
+	if len(s) <= limit {
 		return s
 	}
 
 	b := []byte(s)
-	for max > 0 && !utf8.RuneStart(b[max]) {
-		max--
+	for limit > 0 && !utf8.RuneStart(b[limit]) {
+		limit--
 	}
 
-	out := strings.TrimRight(string(b[:max]), "-. ")
+	out := strings.TrimRight(string(b[:limit]), "-. ")
 	if out == "" {
 		return "-"
 	}
@@ -109,12 +102,7 @@ func shortenFileName(name string, budget int) string {
 		base = name[:len(name)-len(ext)]
 	}
 
-	room := budget - len(ext)
-	if room < 1 {
-		room = 1
-	}
-
-	return truncateBytes(base, room) + ext
+	return truncateBytes(base, max(budget-len(ext), 1)) + ext
 }
 
 // dedupName menjamin nama unik dalam satu direktori. Perbandingan

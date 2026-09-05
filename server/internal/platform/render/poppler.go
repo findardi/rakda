@@ -26,29 +26,11 @@ type PopplerRenderer struct {
 	sem     chan struct{}
 }
 
-type PopplerOption func(*popplerOptions)
-
-type popplerOptions struct {
-	concurrency int
-	nice        int
-}
-
-func WithPopplerConcurrency(n int) PopplerOption {
-	return func(o *popplerOptions) { o.concurrency = n }
-}
-
-func WithPopplerNice(n int) PopplerOption {
-	return func(o *popplerOptions) { o.nice = n }
-}
-
-func NewPoppler(cfg config.ViewerConfig, opts ...PopplerOption) (*PopplerRenderer, error) {
-	o := popplerOptions{concurrency: cfg.RenderConcurrency}
-	for _, opt := range opts {
-		opt(&o)
-	}
-
+// NewPoppler builds one render pool. concurrency is the pool size (clamped to
+// at least 1); nice > 0 wraps every poppler call in nice(1).
+func NewPoppler(cfg config.ViewerConfig, concurrency, nice int) (*PopplerRenderer, error) {
 	bins := []string{"pdfinfo", "pdftoppm", "pdftotext"}
-	if o.nice > 0 {
+	if nice > 0 {
 		bins = append(bins, "nice")
 	}
 
@@ -58,15 +40,11 @@ func NewPoppler(cfg config.ViewerConfig, opts ...PopplerOption) (*PopplerRendere
 		}
 	}
 
-	if o.concurrency < 1 {
-		o.concurrency = 1
-	}
-
 	return &PopplerRenderer{
 		dpi:     cfg.DPI,
 		timeout: cfg.RenderTimeout,
-		nice:    o.nice,
-		sem:     make(chan struct{}, o.concurrency),
+		nice:    nice,
+		sem:     make(chan struct{}, max(concurrency, 1)),
 	}, nil
 }
 

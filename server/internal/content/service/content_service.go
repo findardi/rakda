@@ -167,21 +167,13 @@ type RenditionDeps struct {
 }
 
 func NewContentService(repo ContentRepository, store storage.Storage, viewer Viewer, trashRetention time.Duration, activity ActivityRecorder, stamp StampDeps, archive ArchiveDeps, caches CacheDeps, rendition RenditionDeps) *ContentService {
-	if stamp.Sync < 1 {
-		stamp.Sync = 1
-	}
-	if stamp.Async < 1 {
-		stamp.Async = 1
-	}
-	if archive.Concurrency < 1 {
-		archive.Concurrency = 1
-	}
+	stamp.Sync = max(stamp.Sync, 1)
+	stamp.Async = max(stamp.Async, 1)
+	archive.Concurrency = max(archive.Concurrency, 1)
 	if archive.TTL <= 0 {
 		archive.TTL = 30 * 24 * time.Hour
 	}
-	if rendition.Workers < 1 {
-		rendition.Workers = 1
-	}
+	rendition.Workers = max(rendition.Workers, 1)
 	if rendition.Interval <= 0 {
 		rendition.Interval = 30 * time.Second
 	}
@@ -235,15 +227,8 @@ func storageKey(workspaceID, folderID string) string {
 	return fmt.Sprintf("%s/%s/%s", workspaceID, folderID, uuid.NewString())
 }
 
-func clampPosition(pos, max int32) int32 {
-	if pos < 0 {
-		return 0
-	}
-	if pos > max {
-		return max
-	}
-
-	return pos
+func clampPosition(pos, limit int32) int32 {
+	return min(max(pos, 0), limit)
 }
 
 const maxNodeNameLength = 200

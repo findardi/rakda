@@ -271,10 +271,7 @@ func (m *Middleware) RateLimit(cfg RateConfig) func(http.Handler) http.Handler {
 
 			allowed, retryAfter := m.limiter.Allow(key, cfg.Limit, cfg.Window)
 			if !allowed {
-				secs := int(math.Ceil(retryAfter.Seconds()))
-				if secs < 1 {
-					secs = 1
-				}
+				secs := max(int(math.Ceil(retryAfter.Seconds())), 1)
 				w.Header().Set("Retry-After", strconv.Itoa(secs))
 				response.Error(w, http.StatusTooManyRequests, "too many requests, please try again later", nil)
 				return

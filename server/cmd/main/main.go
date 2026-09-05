@@ -82,23 +82,17 @@ func main() {
 		log.Fatal(err)
 	}
 
-	renderer, err := render.NewPoppler(viewerCfg)
+	renderer, err := render.NewPoppler(viewerCfg, viewerCfg.RenderConcurrency, 0)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	sweepRenderer, err := render.NewPoppler(viewerCfg,
-		render.WithPopplerConcurrency(viewerCfg.SweepConcurrency),
-		render.WithPopplerNice(viewerCfg.SweepNice),
-	)
+	sweepRenderer, err := render.NewPoppler(viewerCfg, viewerCfg.SweepConcurrency, viewerCfg.SweepNice)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	downloadRenderer, err := render.NewPoppler(viewerCfg,
-		render.WithPopplerConcurrency(viewerCfg.DownloadConcurrency),
-		render.WithPopplerNice(viewerCfg.DownloadNice),
-	)
+	downloadRenderer, err := render.NewPoppler(viewerCfg, viewerCfg.DownloadConcurrency, viewerCfg.DownloadNice)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -131,10 +125,7 @@ func main() {
 		ocrNice = 10
 	}
 
-	ocr, err := render.NewTesseract(ocrDPI, viewerCfg.RenderTimeout,
-		render.WithOCRConcurrency(ocrConcurrency),
-		render.WithOCRNice(ocrNice),
-	)
+	ocr, err := render.NewTesseract(ocrDPI, viewerCfg.RenderTimeout, ocrConcurrency, ocrNice)
 	if err != nil {
 		log.Fatal(err)
 	}
