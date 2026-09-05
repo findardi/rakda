@@ -365,7 +365,7 @@ func (s *ContentService) ListDocuments(ctx context.Context, workspaceID, folderI
 
 		// Staged state is manager knowledge, like the history it belongs to:
 		// a guest only ever knows the served version.
-		if actor.bypassesContentAccess() && r.StagedVersionID.Valid {
+		if actor.managesRoom() && r.StagedVersionID.Valid {
 			d.StagedVersionID = uuidString(r.StagedVersionID)
 			d.StagedVersionNo = r.StagedVersionNo
 			d.StagedRenditionStatus = renditionStatus(r.StagedRenditionKey, r.StagedRenditionFailedAt)
@@ -378,7 +378,7 @@ func (s *ContentService) ListDocuments(ctx context.Context, workspaceID, folderI
 }
 
 func (s *ContentService) ListVersions(ctx context.Context, workspaceID, documentID string, actor Actor) ([]dto.VersionResponse, error) {
-	if !actor.bypassesContentAccess() {
+	if !actor.managesRoom() {
 		return nil, ErrContentForbidden
 	}
 

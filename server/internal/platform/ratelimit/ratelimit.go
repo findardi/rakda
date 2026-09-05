@@ -1,6 +1,7 @@
 package ratelimit
 
 import (
+	"maps"
 	"sync"
 	"time"
 )
@@ -8,8 +9,6 @@ import (
 type Memory struct {
 	mu      sync.Mutex
 	buckets map[string]*window
-	now     func() time.Time
-	stop    chan struct{}
 }
 
 type window struct {
@@ -18,11 +17,7 @@ type window struct {
 }
 
 func NewMemory() *Memory {
-	m := &Memory{
-		buckets: make(map[string]*window),
-		now:     time.Now,
-		stop:    make(chan struct{}),
-	}
+	m := &Memory{buckets: make(map[string]*window)}
 
 	go m.janitor()
 
@@ -30,7 +25,7 @@ func NewMemory() *Memory {
 }
 
 func (m *Memory) Allow(key string, limit int, win time.Duration) (allowed bool, retryAfter time.Duration) {
-	now := m.now()
+	now := time.Now()
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -56,21 +51,9 @@ func (m *Memory) janitor() {
 	t := time.NewTicker(time.Minute)
 	defer t.Stop()
 
-	for {
-		select {
-		case <-m.stop:
-			return
-		case <-t.C:
-			now := m.now()
-			m.mu.Lock()
-			for k, w := range m.buckets {
-				if now.After(w.resetAt) {
-					delete(m.buckets, k)
-				}
-			}
-			m.mu.Unlock()
-		}
+	for now := range t.C {
+		m.mu.Lock()
+		maps.DeleteFunc(m.buckets, func(_ string, w *window) bool { return now.After(w.resetAt) })
+		m.mu.Unlock()
 	}
 }
-
-func (m *Memory) Close() { close(m.stop) }

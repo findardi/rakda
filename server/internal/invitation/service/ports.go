@@ -17,7 +17,6 @@ type InvitationRepo interface {
 
 	RejectWorkspaceInvitation(ctx context.Context, id pgtype.UUID) (invitationdb.WorkspaceUserInvitation, error)
 
-	ExecTx(ctx context.Context, fn func(*invitationdb.Queries) error) error
 	ExecTxTx(ctx context.Context, fn func(*invitationdb.Queries, pgx.Tx) error) error
 }
 

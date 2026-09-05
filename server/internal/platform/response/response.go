@@ -10,19 +10,11 @@ type Envelope struct {
 	Message string `json:"message"`
 	Data    any    `json:"data,omitempty"`
 	Errors  any    `json:"errors,omitempty"`
-	Meta    any    `json:"meta,omitempty"`
 }
 
 type FieldError struct {
 	Field   string `json:"field"`
 	Message string `json:"message"`
-}
-
-type Meta struct {
-	Page       int `json:"page"`
-	PerPage    int `json:"per_page"`
-	Total      int `json:"total"`
-	TotalPages int `json:"total_pages"`
 }
 
 func writeJson(w http.ResponseWriter, status int, env Envelope) {
@@ -36,15 +28,6 @@ func Success(w http.ResponseWriter, status int, message string, data any) {
 		Success: true,
 		Message: message,
 		Data:    data,
-	})
-}
-
-func SuccessWithMeta(w http.ResponseWriter, status int, messgae string, data any, meta Meta) {
-	writeJson(w, status, Envelope{
-		Success: true,
-		Message: messgae,
-		Data:    data,
-		Meta:    &meta,
 	})
 }
 

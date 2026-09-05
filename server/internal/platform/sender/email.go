@@ -9,15 +9,6 @@ import (
 	"time"
 )
 
-const (
-	ColorBg      = "#F7FBFC"
-	ColorCard    = "#FFFFFF"
-	ColorInk     = "#111C23"
-	ColorPrimary = "#006B82"
-	ColorBorder  = "#E3EAEC"
-	ColorMuted   = "#5E6F76"
-)
-
 //go:embed templates
 var templateFiles embed.FS
 

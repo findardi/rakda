@@ -1,5 +1,7 @@
 package permission
 
+import "slices"
+
 const (
 	PermWorkspaceView   = "workspace:view"
 	PermWorkspaceEdit   = "workspace:edit"
@@ -39,19 +41,6 @@ var All = []string{
 	PermDocumentView, PermDocumentUpload, PermDocumentDownload, PermDocumentEdit, PermDocumentDelete,
 }
 
-var set = func() map[string]struct{} {
-	m := make(map[string]struct{}, len(All))
-	for _, p := range All {
-		m[p] = struct{}{}
-	}
-	return m
-}()
-
-func IsValid(p string) bool {
-	_, ok := set[p]
-	return ok
-}
-
 const (
 	RoleOwner = "owner"
 	RoleAdmin = "admin"
@@ -64,47 +53,27 @@ const (
 	RoomArchive = "archive"
 )
 
-func IsValidRoomStatus(s string) bool {
-	switch s {
-	case RoomPrepare, RoomActive, RoomArchive:
-		return true
-	}
-	return false
-}
-
 type SystemRole struct {
 	Name        string
 	Permissions []string
 }
 
-func GetOwner() []string {
-	return append([]string{}, All...)
-}
-
-func GetAdmin() []string {
-	return []string{
-		PermWorkspaceView, PermWorkspaceEdit,
-		PermMemberView, PermMemberAdd, PermMemberEdit, PermMemberDelete,
-		PermRoleView,
-		PermGroupView, PermGroupCreate, PermGroupEdit, PermGroupDelete, PermGroupAssign,
-		PermFolderView, PermFolderCreate, PermFolderEdit, PermFolderDelete,
-		PermDocumentView, PermDocumentUpload, PermDocumentDownload, PermDocumentEdit, PermDocumentDelete,
-	}
-}
-
-func GetGuest() []string {
-	return []string{
-		PermWorkspaceView,
-		PermFolderView,
-		PermDocumentView,
-		PermDocumentDownload,
-	}
-}
-
 func DefaultSystemRoles() []SystemRole {
 	return []SystemRole{
-		{Name: RoleOwner, Permissions: GetOwner()},
-		{Name: RoleAdmin, Permissions: GetAdmin()},
-		{Name: RoleGuest, Permissions: GetGuest()},
+		{Name: RoleOwner, Permissions: slices.Clone(All)},
+		{Name: RoleAdmin, Permissions: []string{
+			PermWorkspaceView, PermWorkspaceEdit,
+			PermMemberView, PermMemberAdd, PermMemberEdit, PermMemberDelete,
+			PermRoleView,
+			PermGroupView, PermGroupCreate, PermGroupEdit, PermGroupDelete, PermGroupAssign,
+			PermFolderView, PermFolderCreate, PermFolderEdit, PermFolderDelete,
+			PermDocumentView, PermDocumentUpload, PermDocumentDownload, PermDocumentEdit, PermDocumentDelete,
+		}},
+		{Name: RoleGuest, Permissions: []string{
+			PermWorkspaceView,
+			PermFolderView,
+			PermDocumentView,
+			PermDocumentDownload,
+		}},
 	}
 }

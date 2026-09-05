@@ -36,7 +36,6 @@ func i32Ptr(v int32) *int32 { return &v }
 
 type fakeRecorder struct{}
 
-func (fakeRecorder) Record(context.Context, activityservice.Entry)                 {}
 func (fakeRecorder) RecordTx(context.Context, pgx.Tx, activityservice.Entry) error { return nil }
 
 type fakeChecker struct {

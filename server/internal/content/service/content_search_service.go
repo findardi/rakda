@@ -39,7 +39,7 @@ func (s *ContentService) SearchContent(ctx context.Context, workspaceID, query s
 
 	limit := int32(searchResultLimit)
 
-	if actor.bypassesContentAccess() {
+	if actor.managesRoom() {
 		allFolders, err := s.repo.SearchAllFolders(ctx, contentdb.SearchAllFoldersParams{
 			WorkspaceID: wID,
 			Query:       &query,
@@ -122,7 +122,7 @@ func (s *ContentService) searchContentL1(ctx context.Context, wID pgtype.UUID, q
 	limit := int32(contentResultLimit)
 
 	var rows []contentHitRow
-	if actor.bypassesContentAccess() {
+	if actor.managesRoom() {
 		all, err := s.repo.SearchAllContent(ctx, contentdb.SearchAllContentParams{
 			WorkspaceID: wID,
 			Query:       searchQuery,
@@ -177,7 +177,7 @@ func (s *ContentService) SearchContentPages(ctx context.Context, workspaceID, do
 
 	limit := int32(contentPagesLimit)
 
-	if actor.bypassesContentAccess() {
+	if actor.managesRoom() {
 		all, err := s.repo.SearchAllContentPages(ctx, contentdb.SearchAllContentPagesParams{
 			DocumentID: dID,
 			Query:      searchQuery,
@@ -478,7 +478,7 @@ func (s *ContentService) breadcrumbMap(ctx context.Context, wID pgtype.UUID, fol
 	}
 
 	var rows []breadcrumbRow
-	if actor.bypassesContentAccess() {
+	if actor.managesRoom() {
 		all, err := s.repo.SearchAllFolderBreadcrumbs(ctx, ids)
 		if err != nil {
 			return nil, fmt.Errorf("breadcrumbs all: %w", err)

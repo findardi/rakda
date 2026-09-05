@@ -19,9 +19,7 @@ import (
 )
 
 const (
-	MemberStatusInvited   = "invited"
-	MemberStatusActive    = "active"
-	MemberStatusSuspended = "suspended"
+	MemberStatusActive = "active"
 	// Derived only — never stored. See memberStatus.
 	MemberStatusExpired = "expired"
 )

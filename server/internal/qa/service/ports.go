@@ -25,7 +25,6 @@ type QARepository interface {
 }
 
 type ActivityRecorder interface {
-	Record(ctx context.Context, e activityservice.Entry)
 	RecordTx(ctx context.Context, tx pgx.Tx, e activityservice.Entry) error
 }
 

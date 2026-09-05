@@ -25,10 +25,6 @@ func (a Actor) managesRoom() bool {
 	return a.Role == permission.RoleOwner || a.Role == permission.RoleAdmin
 }
 
-func (a Actor) bypassesContentAccess() bool {
-	return a.managesRoom()
-}
-
 func (s *ContentService) resolveFolderAccess(ctx context.Context, workspaceID, folderID string, actor Actor) (contentdb.ResolveFolderAccessRow, error) {
 	var wID, fID, uID pgtype.UUID
 	if err := wID.Scan(workspaceID); err != nil {
@@ -68,7 +64,7 @@ func (s *ContentService) CanUserViewFolder(ctx context.Context, workspaceID, fol
 }
 
 func (s *ContentService) requireFolderView(ctx context.Context, workspaceID, folderID string, actor Actor) error {
-	if actor.bypassesContentAccess() {
+	if actor.managesRoom() {
 		return nil
 	}
 

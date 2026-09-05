@@ -13,10 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const (
-	maxPageTextBytes    = 256 << 10
-	ocrMinContentLength = 20
-)
+const maxPageTextBytes = 256 << 10
 
 func (s *ContentService) RunTextSweeper(ctx context.Context, interval time.Duration, batch int) {
 	s.sweepTextOnce(ctx, batch)

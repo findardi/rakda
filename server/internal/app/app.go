@@ -15,7 +15,7 @@ import (
 	accessrepo "github.com/findardi/rakda/server/internal/access/repository"
 	accessservice "github.com/findardi/rakda/server/internal/access/service"
 	"github.com/findardi/rakda/server/internal/activity"
-	activityrepo "github.com/findardi/rakda/server/internal/activity/repository"
+	activitydb "github.com/findardi/rakda/server/internal/activity/repository/sqlc"
 	activityservice "github.com/findardi/rakda/server/internal/activity/service"
 	"github.com/findardi/rakda/server/internal/auth"
 	authrepo "github.com/findardi/rakda/server/internal/auth/repository"
@@ -194,7 +194,7 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 		trustedProxies = nil
 	}
 
-	activitysvc := activityservice.NewActivityService(activityrepo.New(pool))
+	activitysvc := activityservice.NewActivityService(activitydb.New(pool))
 	authsvc := authservice.NewAuthService(authrepo.New(pool), otpGen, jwtGen, mailer, nil)
 	accessSvc := accessservice.NewAccessService(accessrepo.New(pool), mailer, authsvc, otpGen, webURL, activitysvc)
 	rendition := contentservice.RenditionDeps{
