@@ -18,11 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const (
-	DownloadJobStatusPending = "pending"
-	DownloadJobStatusReady   = "ready"
-	DownloadJobStatusFailed  = "failed"
-)
+const DownloadJobStatusReady = "ready"
 
 func downloadJobKey(workspaceID, jobID string) string {
 	return fmt.Sprintf("downloads/%s/%s.pdf", workspaceID, jobID)

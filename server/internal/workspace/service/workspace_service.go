@@ -63,13 +63,13 @@ var slugInvalidChars = regexp.MustCompile(`[^a-z0-9]+`)
 
 type WorkspaceService struct {
 	repo     WorkspaceRepository
-	access   AccessService
-	content  ContentProvisioner
+	access   Provisioner
+	content  Provisioner
 	activity ActivityRecorder
 	store    AssetStore
 }
 
-func NewWorkspaceService(repo WorkspaceRepository, access AccessService, content ContentProvisioner, activity ActivityRecorder, store AssetStore) *WorkspaceService {
+func NewWorkspaceService(repo WorkspaceRepository, access, content Provisioner, activity ActivityRecorder, store AssetStore) *WorkspaceService {
 	return &WorkspaceService{
 		repo:     repo,
 		access:   access,

@@ -42,10 +42,6 @@ func (f *fakeWorkspaceRepo) GetWorkspaceByNameAndOwner(ctx context.Context, arg 
 	return workspacedb.Workspace{}, pgx.ErrNoRows
 }
 
-func (f *fakeWorkspaceRepo) GetWorkspaceBySlugAndOwner(ctx context.Context, arg workspacedb.GetWorkspaceBySlugAndOwnerParams) (workspacedb.Workspace, error) {
-	return workspacedb.Workspace{}, pgx.ErrNoRows
-}
-
 func (f *fakeWorkspaceRepo) GetWorkspacesByOwner(ctx context.Context, ownerID pgtype.UUID) ([]workspacedb.Workspace, error) {
 	return nil, nil
 }

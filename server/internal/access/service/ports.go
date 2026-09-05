@@ -45,7 +45,6 @@ type AccessRepository interface {
 	ResendInvitation(ctx context.Context, arg accessdb.ResendInvitationParams) (accessdb.WorkspaceUserInvitation, error)
 	ReinviteWorkspaceInvitation(ctx context.Context, arg accessdb.ReinviteWorkspaceInvitationParams) (accessdb.ReinviteWorkspaceInvitationRow, error)
 
-	ExecTx(ctx context.Context, fn func(q *accessdb.Queries) error) error
 	ExecTxTx(ctx context.Context, fn func(*accessdb.Queries, pgx.Tx) error) error
 }
 

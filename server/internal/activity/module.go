@@ -5,7 +5,7 @@ import (
 
 	accessrepo "github.com/findardi/rakda/server/internal/access/repository"
 	"github.com/findardi/rakda/server/internal/activity/handler"
-	"github.com/findardi/rakda/server/internal/activity/repository"
+	activitydb "github.com/findardi/rakda/server/internal/activity/repository/sqlc"
 	"github.com/findardi/rakda/server/internal/activity/service"
 	auth "github.com/findardi/rakda/server/internal/auth/repository"
 	"github.com/findardi/rakda/server/internal/platform/middleware"
@@ -38,8 +38,7 @@ type Module struct {
 }
 
 func NewModule(pool *pgxpool.Pool, verifier middleware.TokenVerifier) *Module {
-	r := repository.New(pool)
-	s := service.NewActivityService(r)
+	s := service.NewActivityService(activitydb.New(pool))
 	h := handler.NewActivityHandler(s)
 
 	mw := middleware.New(verifier, userStatusReader{repo: auth.New(pool)}, nil)

@@ -16,7 +16,6 @@ type WorkspaceRepository interface {
 	DeleteWorkspace(ctx context.Context, id pgtype.UUID) error
 
 	GetWorkspaceByNameAndOwner(ctx context.Context, arg workspacedb.GetWorkspaceByNameAndOwnerParams) (workspacedb.Workspace, error)
-	GetWorkspaceBySlugAndOwner(ctx context.Context, arg workspacedb.GetWorkspaceBySlugAndOwnerParams) (workspacedb.Workspace, error)
 	GetWorkspacesByOwner(ctx context.Context, ownerID pgtype.UUID) ([]workspacedb.Workspace, error)
 	GetWorkspaces(ctx context.Context, userID pgtype.UUID) ([]workspacedb.GetWorkspacesRow, error)
 	GetWorkspaceByID(ctx context.Context, id pgtype.UUID) (workspacedb.Workspace, error)
@@ -34,7 +33,9 @@ type ActivityRecorder interface {
 	RecordTx(ctx context.Context, tx pgx.Tx, e activityservice.Entry) error
 }
 
-type AccessService interface {
+// Provisioner seeds a freshly created room inside the creating transaction.
+// access (roles, default group) and content (General folder) both implement it.
+type Provisioner interface {
 	ProvisionWorkspace(ctx context.Context, tx pgx.Tx, workspaceID, ownerID pgtype.UUID) error
 }
 
@@ -46,8 +47,4 @@ type AssetStore interface {
 	Get(ctx context.Context, key string) (io.ReadCloser, error)
 	Delete(ctx context.Context, key string) error
 	DeletePrefix(ctx context.Context, prefix string) error
-}
-
-type ContentProvisioner interface {
-	ProvisionWorkspace(ctx context.Context, tx pgx.Tx, workspaceID, ownerID pgtype.UUID) error
 }

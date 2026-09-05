@@ -65,7 +65,7 @@ func renditionPrefix(workspaceID, versionID string) string {
 }
 
 func (s *ContentService) resolveViewAccess(ctx context.Context, workspaceID, folderID string, actor Actor) (viewAccess, error) {
-	if actor.bypassesContentAccess() {
+	if actor.managesRoom() {
 		return viewAccess{
 			canView:             true,
 			canDownload:         true,
@@ -128,7 +128,7 @@ func (s *ContentService) resolveRequestVersion(ctx context.Context, doc contentd
 		return contentdb.DocumentVersion{}, ErrVersionNotFound
 	}
 
-	if v.ID != doc.CurrentVersionID && !actor.bypassesContentAccess() {
+	if v.ID != doc.CurrentVersionID && !actor.managesRoom() {
 		return contentdb.DocumentVersion{}, ErrContentForbidden
 	}
 

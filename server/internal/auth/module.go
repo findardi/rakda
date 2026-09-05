@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"net/http"
 	"time"
 
 	"github.com/findardi/rakda/server/internal/auth/handler"
@@ -47,10 +46,6 @@ func NewModule(pool *pgxpool.Pool, otp service.OTPService, jwt service.JWTServic
 		handler: h,
 		mw:      mw,
 	}
-}
-
-func (m *Module) RequireActive(next http.Handler) http.Handler {
-	return m.mw.RequireActive(next)
 }
 
 func (m *Module) RegisterRoutes(r chi.Router) {

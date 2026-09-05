@@ -24,7 +24,6 @@ type UserRepository interface {
 	CreateUserVerified(ctx context.Context, arg authdb.CreateUserVerifiedParams) (authdb.User, error)
 
 	UpdateStatus(ctx context.Context, arg authdb.UpdateStatusParams) (authdb.User, error)
-	UpdateUser(ctx context.Context, arg authdb.UpdateUserParams) (authdb.User, error)
 	UpdateUserToken(ctx context.Context, arg authdb.UpdateUserTokenParams) (authdb.UserToken, error)
 
 	DeleteUserToken(ctx context.Context, arg authdb.DeleteUserTokenParams) error

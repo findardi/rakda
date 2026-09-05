@@ -24,7 +24,6 @@ import (
 const (
 	ArchiveStatusPending = "pending"
 	ArchiveStatusReady   = "ready"
-	ArchiveStatusFailed  = "failed"
 
 	archiveStalePendingAge = 3 * time.Hour
 	archiveDocumentsDir    = "dokumen"

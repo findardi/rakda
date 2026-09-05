@@ -38,7 +38,6 @@ type Module struct {
 	handler    *handler.ContentHandler
 	mw         *middleware.Middleware
 	accessRepo *accessrepo.Repository
-	storage    storage.Storage
 }
 
 func NewModule(pool *pgxpool.Pool, verifier middleware.TokenVerifier, store storage.Storage, viewer service.Viewer, trashRetention time.Duration, activity service.ActivityRecorder, stamp service.StampDeps, archive service.ArchiveDeps, caches service.CacheDeps, rendition service.RenditionDeps) *Module {
@@ -52,7 +51,6 @@ func NewModule(pool *pgxpool.Pool, verifier middleware.TokenVerifier, store stor
 		handler:    h,
 		mw:         mw,
 		accessRepo: accessrepo.New(pool),
-		storage:    store,
 	}
 }
 

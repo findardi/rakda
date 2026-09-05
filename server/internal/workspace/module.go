@@ -41,7 +41,7 @@ type Module struct {
 	access  *accessrepo.Repository
 }
 
-func NewModule(pool *pgxpool.Pool, verifier middleware.TokenVerifier, access service.AccessService, content service.ContentProvisioner, activity service.ActivityRecorder, store storage.Storage) *Module {
+func NewModule(pool *pgxpool.Pool, verifier middleware.TokenVerifier, access, content service.Provisioner, activity service.ActivityRecorder, store storage.Storage) *Module {
 	r := repository.New(pool)
 	s := service.NewWorkspaceService(r, access, content, activity, store)
 	h := handler.NewWorkspaceHandler(s)
