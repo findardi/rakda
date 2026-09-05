@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
@@ -97,14 +96,8 @@ func (h *QAHandler) ListQuestions(w http.ResponseWriter, r *http.Request) {
 func (h *QAHandler) SubmitQuestion(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 
-	var req dto.SubmitQuestionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
-		return
-	}
-
-	if errs := validation.Validate(&req); errs != nil {
-		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+	req, ok := validation.Bind[dto.SubmitQuestionRequest](w, r)
+	if !ok {
 		return
 	}
 
@@ -196,14 +189,8 @@ func (h *QAHandler) GetQuestion(w http.ResponseWriter, r *http.Request) {
 func (h *QAHandler) ReplyQuestion(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 
-	var req dto.ReplyQuestionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
-		return
-	}
-
-	if errs := validation.Validate(&req); errs != nil {
-		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+	req, ok := validation.Bind[dto.ReplyQuestionRequest](w, r)
+	if !ok {
 		return
 	}
 
@@ -270,14 +257,8 @@ func (h *QAHandler) ListFaqs(w http.ResponseWriter, r *http.Request) {
 func (h *QAHandler) CreateFaq(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 
-	var req dto.CreateFaqRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
-		return
-	}
-
-	if errs := validation.Validate(&req); errs != nil {
-		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+	req, ok := validation.Bind[dto.CreateFaqRequest](w, r)
+	if !ok {
 		return
 	}
 

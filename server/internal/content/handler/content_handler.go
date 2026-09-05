@@ -42,14 +42,8 @@ func (h *ContentHandler) CreateFolder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req dto.CreateFolderRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
-		return
-	}
-
-	if errs := validation.Validate(&req); errs != nil {
-		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+	req, ok := validation.Bind[dto.CreateFolderRequest](w, r)
+	if !ok {
 		return
 	}
 
@@ -262,14 +256,8 @@ func (h *ContentHandler) RenameFolder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req dto.RenameFolderRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
-		return
-	}
-
-	if errs := validation.Validate(&req); errs != nil {
-		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+	req, ok := validation.Bind[dto.RenameFolderRequest](w, r)
+	if !ok {
 		return
 	}
 
@@ -329,14 +317,8 @@ func (h *ContentHandler) BulkDeleteFolders(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	var req dto.BulkDeleteFoldersRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
-		return
-	}
-
-	if errs := validation.Validate(&req); errs != nil {
-		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+	req, ok := validation.Bind[dto.BulkDeleteFoldersRequest](w, r)
+	if !ok {
 		return
 	}
 
@@ -367,14 +349,8 @@ func (h *ContentHandler) BulkDeleteDocuments(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	var req dto.BulkDeleteDocumentsRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
-		return
-	}
-
-	if errs := validation.Validate(&req); errs != nil {
-		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+	req, ok := validation.Bind[dto.BulkDeleteDocumentsRequest](w, r)
+	if !ok {
 		return
 	}
 
@@ -427,14 +403,8 @@ func (h *ContentHandler) CompletedUpload(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	var req dto.CompleteUploadRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
-		return
-	}
-
-	if errs := validation.Validate(&req); errs != nil {
-		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+	req, ok := validation.Bind[dto.CompleteUploadRequest](w, r)
+	if !ok {
 		return
 	}
 
@@ -547,14 +517,8 @@ func (h *ContentHandler) CompletedVersionUpload(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	var req dto.CompleteVersionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
-		return
-	}
-
-	if errs := validation.Validate(&req); errs != nil {
-		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+	req, ok := validation.Bind[dto.CompleteVersionRequest](w, r)
+	if !ok {
 		return
 	}
 
@@ -787,14 +751,8 @@ func (h *ContentHandler) MoveDocument(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req dto.MoveDocumentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
-		return
-	}
-
-	if errs := validation.Validate(&req); errs != nil {
-		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+	req, ok := validation.Bind[dto.MoveDocumentRequest](w, r)
+	if !ok {
 		return
 	}
 
@@ -826,14 +784,8 @@ func (h *ContentHandler) SetFolderAccess(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	var req dto.SetFolderAccessRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
-		return
-	}
-
-	if errs := validation.Validate(&req); errs != nil {
-		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+	req, ok := validation.Bind[dto.SetFolderAccessRequest](w, r)
+	if !ok {
 		return
 	}
 
@@ -1004,14 +956,8 @@ func (h *ContentHandler) BulkCreateFolders(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	var req dto.BulkCreateFolderRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
-		return
-	}
-
-	if errs := validation.Validate(&req); errs != nil {
-		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+	req, ok := validation.Bind[dto.BulkCreateFolderRequest](w, r)
+	if !ok {
 		return
 	}
 
@@ -1053,14 +999,8 @@ func (h *ContentHandler) ApplyFolderTemplate(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	var req dto.ApplyTemplateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
-		return
-	}
-
-	if errs := validation.Validate(&req); errs != nil {
-		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+	req, ok := validation.Bind[dto.ApplyTemplateRequest](w, r)
+	if !ok {
 		return
 	}
 
@@ -1089,14 +1029,8 @@ func (h *ContentHandler) ApplyFolderTemplate(w http.ResponseWriter, r *http.Requ
 func (h *ContentHandler) InitMultipart(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 
-	var req dto.InitMultipartRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
-		return
-	}
-
-	if errs := validation.Validate(&req); errs != nil {
-		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+	req, ok := validation.Bind[dto.InitMultipartRequest](w, r)
+	if !ok {
 		return
 	}
 
@@ -1129,14 +1063,8 @@ func (h *ContentHandler) InitMultipart(w http.ResponseWriter, r *http.Request) {
 func (h *ContentHandler) MultipartPartURLs(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 
-	var req dto.MultipartPartURLsRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
-		return
-	}
-
-	if errs := validation.Validate(&req); errs != nil {
-		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+	req, ok := validation.Bind[dto.MultipartPartURLsRequest](w, r)
+	if !ok {
 		return
 	}
 
@@ -1197,14 +1125,8 @@ func (h *ContentHandler) CompleteMultipart(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	var req dto.CompleteMultipartRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
-		return
-	}
-
-	if errs := validation.Validate(&req); errs != nil {
-		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+	req, ok := validation.Bind[dto.CompleteMultipartRequest](w, r)
+	if !ok {
 		return
 	}
 
@@ -1237,14 +1159,8 @@ func (h *ContentHandler) CompleteMultipart(w http.ResponseWriter, r *http.Reques
 func (h *ContentHandler) AbortMultipart(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 
-	var req dto.AbortMultipartRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
-		return
-	}
-
-	if errs := validation.Validate(&req); errs != nil {
-		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+	req, ok := validation.Bind[dto.AbortMultipartRequest](w, r)
+	if !ok {
 		return
 	}
 

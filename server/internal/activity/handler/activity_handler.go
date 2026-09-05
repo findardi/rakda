@@ -2,7 +2,6 @@ package handler
 
 import (
 	"encoding/csv"
-	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
@@ -90,14 +89,8 @@ func (h *ActivityHandler) RecordDurations(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	var req dto.RecordDurationsRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
-		return
-	}
-
-	if errs := validation.Validate(&req); errs != nil {
-		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+	req, ok := validation.Bind[dto.RecordDurationsRequest](w, r)
+	if !ok {
 		return
 	}
 

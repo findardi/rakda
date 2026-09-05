@@ -113,14 +113,8 @@ func (h *AccessHandler) AddMember(w http.ResponseWriter, r *http.Request) {
 
 	wID := chi.URLParam(r, "workspaceID")
 
-	var req dto.CreateWorkspaceMemberRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
-		return
-	}
-
-	if errs := validation.Validate(&req); errs != nil {
-		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+	req, ok := validation.Bind[dto.CreateWorkspaceMemberRequest](w, r)
+	if !ok {
 		return
 	}
 
@@ -163,14 +157,8 @@ func (h *AccessHandler) AddMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req dto.AddMembersRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
-		return
-	}
-
-	if errs := validation.Validate(&req); errs != nil {
-		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+	req, ok := validation.Bind[dto.AddMembersRequest](w, r)
+	if !ok {
 		return
 	}
 
@@ -254,14 +242,8 @@ func (h *AccessHandler) UpdateMember(w http.ResponseWriter, r *http.Request) {
 
 	mID := chi.URLParam(r, "memberID")
 
-	var req dto.UpdateMemberRoleRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
-		return
-	}
-
-	if errs := validation.Validate(&req); errs != nil {
-		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+	req, ok := validation.Bind[dto.UpdateMemberRoleRequest](w, r)
+	if !ok {
 		return
 	}
 
@@ -410,14 +392,8 @@ func (h *AccessHandler) CreateGroup(w http.ResponseWriter, r *http.Request) {
 
 	wID := chi.URLParam(r, "workspaceID")
 
-	var req dto.CreateGroupRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
-		return
-	}
-
-	if errs := validation.Validate(&req); errs != nil {
-		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+	req, ok := validation.Bind[dto.CreateGroupRequest](w, r)
+	if !ok {
 		return
 	}
 
@@ -487,14 +463,8 @@ func (h *AccessHandler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 
 	gID := chi.URLParam(r, "groupID")
 
-	var req dto.UpdateGroupRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
-		return
-	}
-
-	if errs := validation.Validate(&req); errs != nil {
-		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+	req, ok := validation.Bind[dto.UpdateGroupRequest](w, r)
+	if !ok {
 		return
 	}
 
@@ -530,14 +500,8 @@ func (h *AccessHandler) UpdateGroupQA(w http.ResponseWriter, r *http.Request) {
 	wID := chi.URLParam(r, "workspaceID")
 	gID := chi.URLParam(r, "groupID")
 
-	var req dto.UpdateGroupQARequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
-		return
-	}
-
-	if errs := validation.Validate(&req); errs != nil {
-		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+	req, ok := validation.Bind[dto.UpdateGroupQARequest](w, r)
+	if !ok {
 		return
 	}
 
@@ -584,14 +548,8 @@ func (h *AccessHandler) AssignMember(w http.ResponseWriter, r *http.Request) {
 
 	gID := chi.URLParam(r, "groupID")
 
-	var req dto.GroupMemberRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
-		return
-	}
-
-	if errs := validation.Validate(&req); errs != nil {
-		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+	req, ok := validation.Bind[dto.GroupMemberRequest](w, r)
+	if !ok {
 		return
 	}
 
