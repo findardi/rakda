@@ -4,26 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/findardi/rakda/server/internal/platform/actor"
 
 	activityservice "github.com/findardi/rakda/server/internal/activity/service"
 	"github.com/findardi/rakda/server/internal/content/dto"
 	contentdb "github.com/findardi/rakda/server/internal/content/repository/sqlc"
-	"github.com/findardi/rakda/server/internal/platform/permission"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type Actor struct {
-	UserID     string
-	Role       string
-	Name       string
-	Email      string
-	RoomStatus string
-}
-
-func (a Actor) managesRoom() bool {
-	return a.Role == permission.RoleOwner || a.Role == permission.RoleAdmin
-}
+type Actor = actor.Actor
 
 func (s *ContentService) resolveFolderAccess(ctx context.Context, workspaceID, folderID string, actor Actor) (contentdb.ResolveFolderAccessRow, error) {
 	var wID, fID, uID pgtype.UUID
@@ -64,7 +54,7 @@ func (s *ContentService) CanUserViewFolder(ctx context.Context, workspaceID, fol
 }
 
 func (s *ContentService) requireFolderView(ctx context.Context, workspaceID, folderID string, actor Actor) error {
-	if actor.managesRoom() {
+	if actor.ManagesRoom() {
 		return nil
 	}
 

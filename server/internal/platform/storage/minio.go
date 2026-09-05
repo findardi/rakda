@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,32 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/minio/minio-go/v7/pkg/sse"
 )
+
+var ErrNotFound = errors.New("storage: object not found")
+
+type Part struct {
+	PartNumber int
+	ETag       string
+	Size       int64
+}
+type Storage interface {
+	PresignedPut(ctx context.Context, key string, expiry time.Duration) (string, error)
+	PresignedGet(ctx context.Context, key, filename string, expiry time.Duration) (string, error)
+	Stat(ctx context.Context, key string) (size int64, contentType string, err error)
+	Get(ctx context.Context, key string) (io.ReadCloser, error)
+	GetRange(ctx context.Context, key string, offset, length int64) (io.ReadCloser, error)
+	Delete(ctx context.Context, key string) error
+	Put(ctx context.Context, key string, r io.Reader, size int64, contentType string) error
+	DeletePrefix(ctx context.Context, prefix string) error
+	DeleteOlderThan(ctx context.Context, prefix string, olderThan time.Duration) (int, error)
+
+	InitMultipart(ctx context.Context, key string) (string, error)
+	PresignPart(ctx context.Context, key, uploadID string, partNumber int, expiry time.Duration) (string, error)
+	ListParts(ctx context.Context, key, uploadID string) ([]Part, error)
+	CompleteMultipart(ctx context.Context, key, uploadID, contentType string, parts []Part) error
+	AbortMultipart(ctx context.Context, key, uploadID string) error
+	AbortIncompleteUploads(ctx context.Context, olderThan time.Duration) (int, error)
+}
 
 type MinioStorage struct {
 	client *minio.Client

@@ -3,8 +3,10 @@ package app
 import (
 	"context"
 	"errors"
+	platformmw "github.com/findardi/rakda/server/internal/platform/middleware"
 	"log"
 	"net/http"
+	"net/netip"
 	"os"
 	"os/signal"
 	"sync"
@@ -37,6 +39,7 @@ import (
 	qaservice "github.com/findardi/rakda/server/internal/qa/service"
 	"github.com/findardi/rakda/server/internal/workspace"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -258,4 +261,11 @@ func (a *App) Run() error {
 	}
 
 	return err
+}
+
+func registerGlobalMiddleware(r chi.Router, trustedProxies []netip.Prefix) {
+	r.Use(middleware.RequestID)
+	r.Use(platformmw.RealIP(trustedProxies))
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
 }

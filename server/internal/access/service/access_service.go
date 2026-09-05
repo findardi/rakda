@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/findardi/rakda/server/internal/platform/actor"
 	"github.com/findardi/rakda/server/internal/platform/database"
 	"github.com/findardi/rakda/server/internal/platform/ptr"
 	"log"
@@ -102,12 +103,7 @@ func NewAccessService(repo AccessRepository, mail MailService, asvc AuthService,
 	}
 }
 
-type Actor struct {
-	UserID string
-	Name   string
-	Email  string
-	Role   string
-}
+type Actor = actor.Actor
 
 // parseAccessExpiry turns the optional expiry a manager typed into a column
 // value. Only guests may carry one, and it must lie in the future: a date

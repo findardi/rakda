@@ -167,7 +167,7 @@ func archiveScopeMetadata(row contentdb.WorkspaceArchive) map[string]any {
 }
 
 func (s *ContentService) CreateArchive(ctx context.Context, workspaceID string, actor Actor, req dto.CreateArchiveRequest) (dto.ArchiveResponse, error) {
-	if !actor.managesRoom() {
+	if !actor.ManagesRoom() {
 		return dto.ArchiveResponse{}, ErrContentForbidden
 	}
 
@@ -247,7 +247,7 @@ func (s *ContentService) CreateArchive(ctx context.Context, workspaceID string, 
 }
 
 func (s *ContentService) ListArchives(ctx context.Context, workspaceID string, actor Actor) ([]dto.ArchiveResponse, error) {
-	if !actor.managesRoom() {
+	if !actor.ManagesRoom() {
 		return nil, ErrContentForbidden
 	}
 
@@ -276,7 +276,7 @@ type ArchiveObject struct {
 }
 
 func (s *ContentService) GetArchiveObject(ctx context.Context, workspaceID, archiveID string, actor Actor) (ArchiveObject, error) {
-	if !actor.managesRoom() {
+	if !actor.ManagesRoom() {
 		return ArchiveObject{}, ErrContentForbidden
 	}
 
@@ -306,7 +306,7 @@ func (s *ContentService) OpenArchiveRange(ctx context.Context, key string, offse
 }
 
 func (s *ContentService) DeleteArchive(ctx context.Context, workspaceID, archiveID string, actor Actor) error {
-	if !actor.managesRoom() {
+	if !actor.ManagesRoom() {
 		return ErrContentForbidden
 	}
 

@@ -29,20 +29,6 @@ func NewAccessHandler(svc *service.AccessService) *AccessHandler {
 	}
 }
 
-func actorFromRequest(r *http.Request) (service.Actor, bool) {
-	claims, ok := middleware.ClaimsFromContext(r.Context())
-	if !ok {
-		return service.Actor{}, false
-	}
-
-	ms, ok := middleware.MembershipFromContext(r.Context())
-	if !ok {
-		return service.Actor{}, false
-	}
-
-	return service.Actor{UserID: claims.ID, Name: claims.Username, Email: claims.Email, Role: ms.Role}, true
-}
-
 func (h *AccessHandler) GetMyAccess(w http.ResponseWriter, r *http.Request) {
 	ms, ok := middleware.MembershipFromContext(r.Context())
 	if !ok {
@@ -151,7 +137,7 @@ func (h *AccessHandler) AddMembers(w http.ResponseWriter, r *http.Request) {
 
 	wID := chi.URLParam(r, "workspaceID")
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -247,7 +233,7 @@ func (h *AccessHandler) UpdateMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -287,7 +273,7 @@ func (h *AccessHandler) UpdateMemberExpiry(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -317,7 +303,7 @@ func (h *AccessHandler) UpdateMemberExpiry(w http.ResponseWriter, r *http.Reques
 func (h *AccessHandler) DeleteMember(w http.ResponseWriter, r *http.Request) {
 	mID := chi.URLParam(r, "memberID")
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -342,7 +328,7 @@ func (h *AccessHandler) DeleteMember(w http.ResponseWriter, r *http.Request) {
 func (h *AccessHandler) ResendInvitation(w http.ResponseWriter, r *http.Request) {
 	invID := chi.URLParam(r, "invitationID")
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -367,7 +353,7 @@ func (h *AccessHandler) ResendInvitation(w http.ResponseWriter, r *http.Request)
 func (h *AccessHandler) RevokeInvitation(w http.ResponseWriter, r *http.Request) {
 	invID := chi.URLParam(r, "invitationID")
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -397,7 +383,7 @@ func (h *AccessHandler) CreateGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -436,7 +422,7 @@ func (h *AccessHandler) GetGroups(w http.ResponseWriter, r *http.Request) {
 func (h *AccessHandler) DeleteGroup(w http.ResponseWriter, r *http.Request) {
 	gID := chi.URLParam(r, "groupID")
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -468,7 +454,7 @@ func (h *AccessHandler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -505,7 +491,7 @@ func (h *AccessHandler) UpdateGroupQA(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -553,7 +539,7 @@ func (h *AccessHandler) AssignMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -580,7 +566,7 @@ func (h *AccessHandler) UnassignMember(w http.ResponseWriter, r *http.Request) {
 	gID := chi.URLParam(r, "groupID")
 	mID := chi.URLParam(r, "memberID")
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return

@@ -47,7 +47,7 @@ func (s *QAService) ExportQuestions(ctx context.Context, req dto.ExportQuestions
 		params.CursorID = cursorID
 	}
 
-	if actor.managesRoom() {
+	if actor.ManagesRoom() {
 		if req.GroupID != "" {
 			var gID pgtype.UUID
 			if err := gID.Scan(req.GroupID); err != nil {

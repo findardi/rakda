@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"fmt"
+	"github.com/findardi/rakda/server/internal/platform/actor"
 	"strconv"
 	"strings"
 	"time"
@@ -38,16 +39,7 @@ var (
 	ErrReferenceNotFound    = errors.New("reference not found")
 )
 
-type Actor struct {
-	UserID string
-	Name   string
-	Email  string
-	Role   string
-}
-
-func (a Actor) managesRoom() bool {
-	return a.Role == permission.RoleOwner || a.Role == permission.RoleAdmin
-}
+type Actor = actor.Actor
 
 type QAService struct {
 	repo     QARepository
@@ -99,7 +91,7 @@ func parseQuestionCursor(cursor string) (pgtype.Timestamptz, pgtype.UUID, error)
 }
 
 func questionVisibleTo(q qadb.Question, actor Actor, actorGroupID pgtype.UUID) bool {
-	if actor.managesRoom() {
+	if actor.ManagesRoom() {
 		return true
 	}
 	return q.GroupID.Valid && actorGroupID.Valid && q.GroupID == actorGroupID

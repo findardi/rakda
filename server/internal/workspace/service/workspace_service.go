@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/findardi/rakda/server/internal/platform/actor"
 	"github.com/findardi/rakda/server/internal/platform/database"
 	"github.com/findardi/rakda/server/internal/platform/ptr"
 	"log"
@@ -39,11 +40,7 @@ func canTransition(from, to string) bool {
 	return slices.Contains(statusTransitions[from], to)
 }
 
-type Actor struct {
-	UserID string
-	Name   string
-	Role   string
-}
+type Actor = actor.Actor
 
 var (
 	ErrWorkspaceNameTaken    = errors.New("workspace name already taken")
