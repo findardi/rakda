@@ -1,8 +1,6 @@
 package qa
 
 import (
-	"context"
-
 	accessrepo "github.com/findardi/rakda/server/internal/access/repository"
 	auth "github.com/findardi/rakda/server/internal/auth/repository"
 	"github.com/findardi/rakda/server/internal/platform/middleware"
@@ -10,26 +8,8 @@ import (
 	"github.com/findardi/rakda/server/internal/qa/repository"
 	"github.com/findardi/rakda/server/internal/qa/service"
 	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-type userStatusReader struct {
-	repo *auth.Repository
-}
-
-func (s userStatusReader) UserStatus(ctx context.Context, userID string) (string, error) {
-	var uid pgtype.UUID
-	if err := uid.Scan(userID); err != nil {
-		return "", err
-	}
-
-	user, err := s.repo.GetUserById(ctx, uid)
-	if err != nil {
-		return "", err
-	}
-	return user.Status, nil
-}
 
 type Module struct {
 	handler    *handler.QAHandler
@@ -42,7 +22,7 @@ func NewModule(pool *pgxpool.Pool, verifier middleware.TokenVerifier, content se
 	s := service.NewQAService(r, content, activity)
 	h := handler.NewQAHandler(s)
 
-	mw := middleware.New(verifier, userStatusReader{repo: auth.New(pool)}, nil)
+	mw := middleware.New(verifier, auth.New(pool), nil)
 
 	return &Module{
 		handler:    h,

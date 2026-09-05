@@ -74,9 +74,9 @@ func (s *QAService) CreateFaq(ctx context.Context, req dto.CreateFaqRequest, act
 			return fmt.Errorf("insert faq: %w", err)
 		}
 
-		return s.activity.RecordTx(ctx, tx, s.activityEntry(req.WorkspaceID, actor,
+		return s.activity.RecordTx(ctx, tx, activityservice.NewEntry(req.WorkspaceID, actor.UserID, actor.Name, actor.Role,
 			activityservice.ActionFaqPublished, activityservice.TargetFaq,
-			uuidString(created.ID), created.QuestionText, nil))
+			created.ID.String(), created.QuestionText, nil))
 	})
 	if err != nil {
 		return dto.FaqResponse{}, err
@@ -87,7 +87,7 @@ func (s *QAService) CreateFaq(ctx context.Context, req dto.CreateFaqRequest, act
 
 func faqResponse(faq qadb.Faq) dto.FaqResponse {
 	return dto.FaqResponse{
-		ID:           uuidString(faq.ID),
+		ID:           faq.ID.String(),
 		QuestionText: faq.QuestionText,
 		AnswerText:   faq.AnswerText,
 		CreatedAt:    faq.CreatedAt.Time,

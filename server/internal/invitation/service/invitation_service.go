@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/findardi/rakda/server/internal/platform/ptr"
 	"time"
 
 	activityservice "github.com/findardi/rakda/server/internal/activity/service"
@@ -50,22 +51,6 @@ func (a Actor) entry(workspaceID, action, invitationID, email string) activityse
 	}
 }
 
-func uuidString(u pgtype.UUID) string {
-	v, err := u.Value()
-	if err != nil || v == nil {
-		return ""
-	}
-	s, _ := v.(string)
-	return s
-}
-
-func deref(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
-}
-
 func (s *InvitationService) GetListInvitations(ctx context.Context, userID string) ([]dto.GetMyInvitationsRow, error) {
 	invitations := []dto.GetMyInvitationsRow{}
 	var uID pgtype.UUID
@@ -80,10 +65,10 @@ func (s *InvitationService) GetListInvitations(ctx context.Context, userID strin
 
 	for _, inv := range invts {
 		invitations = append(invitations, dto.GetMyInvitationsRow{
-			ID:            uuidString(inv.ID),
-			WorkspaceName: deref(inv.WorkspaceName),
-			RoleName:      deref(inv.RoleName),
-			InvitedBy:     deref(inv.InvitedName),
+			ID:            inv.ID.String(),
+			WorkspaceName: ptr.Deref(inv.WorkspaceName),
+			RoleName:      ptr.Deref(inv.RoleName),
+			InvitedBy:     ptr.Deref(inv.InvitedName),
 			ExpiresAt:     inv.ExpiresAt.Time,
 			Status:        inv.Status,
 		})
@@ -110,7 +95,7 @@ func (s *InvitationService) AcceptInvitation(ctx context.Context, invitationID s
 			return fmt.Errorf("get invitation: %w", err)
 		}
 
-		if uuidString(inv.UserID) != actor.UserID {
+		if inv.UserID.String() != actor.UserID {
 			return ErrInvitationForbidden
 		}
 		if inv.Status != "pending" {
@@ -162,7 +147,7 @@ func (s *InvitationService) AcceptInvitation(ctx context.Context, invitationID s
 		}
 
 		return s.activity.RecordTx(ctx, tx,
-			actor.entry(uuidString(inv.WorkspaceID), activityservice.ActionInviteAccepted, invitationID, inv.Email))
+			actor.entry(inv.WorkspaceID.String(), activityservice.ActionInviteAccepted, invitationID, inv.Email))
 	})
 }
 
@@ -180,7 +165,7 @@ func (s *InvitationService) RejectInvitation(ctx context.Context, invitationID s
 		return fmt.Errorf("get invitation: %w", err)
 	}
 
-	if uuidString(inv.UserID) != actor.UserID {
+	if inv.UserID.String() != actor.UserID {
 		return ErrInvitationForbidden
 	}
 
@@ -192,7 +177,7 @@ func (s *InvitationService) RejectInvitation(ctx context.Context, invitationID s
 	}
 
 	s.activity.Record(ctx,
-		actor.entry(uuidString(inv.WorkspaceID), activityservice.ActionInviteRejected, invitationID, inv.Email))
+		actor.entry(inv.WorkspaceID.String(), activityservice.ActionInviteRejected, invitationID, inv.Email))
 
 	return nil
 }

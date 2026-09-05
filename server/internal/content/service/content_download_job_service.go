@@ -57,7 +57,7 @@ func (s *ContentService) startDownloadJob(ctx context.Context, workspaceID strin
 	go func() {
 		defer func() { <-s.stampAsyncSem }()
 
-		s.runDownloadJob(ctx, workspaceID, job, uuidString(version.ID), renditionKey, pageCount, mark,
+		s.runDownloadJob(ctx, workspaceID, job, version.ID.String(), renditionKey, pageCount, mark,
 			downloadJobTimeout, downloadJobStoreTimeout)
 	}()
 
@@ -183,7 +183,7 @@ func (s *ContentService) storeDownloadJobResult(ctx context.Context, workspaceID
 		return
 	}
 
-	key := downloadJobKey(workspaceID, uuidString(job.ID))
+	key := downloadJobKey(workspaceID, job.ID.String())
 	if err := s.storeDownloadArtifact(ctx, key, res.body, size); err != nil {
 		s.markDownloadJobFailed(ctx, job.ID, fmt.Errorf("store artifact: %w", err))
 		return
@@ -195,7 +195,7 @@ func (s *ContentService) storeDownloadJobResult(ctx context.Context, workspaceID
 		SizeBytes: size,
 		Ttl:       pgInterval(downloadJobTTL),
 	}); err != nil {
-		log.Printf("download job %s: mark ready: %v", uuidString(job.ID), err)
+		log.Printf("download job %s: mark ready: %v", job.ID.String(), err)
 		s.discardDownloadArtifact(ctx, key)
 	}
 }
@@ -232,7 +232,7 @@ func (s *ContentService) markDownloadJobLost(ctx context.Context, jobID pgtype.U
 		ID:    jobID,
 		Error: "artefak unduhan sudah tidak tersedia, minta unduhan baru",
 	}); err != nil {
-		log.Printf("download job %s: mark lost: %v", uuidString(jobID), err)
+		log.Printf("download job %s: mark lost: %v", jobID.String(), err)
 	}
 }
 
@@ -241,7 +241,7 @@ func (s *ContentService) markDownloadJobFailed(ctx context.Context, jobID pgtype
 		ID:    jobID,
 		Error: cause.Error(),
 	}); err != nil {
-		log.Printf("download job %s: mark failed: %v", uuidString(jobID), err)
+		log.Printf("download job %s: mark failed: %v", jobID.String(), err)
 	}
 }
 
@@ -260,7 +260,7 @@ func (s *ContentService) getDownloadJobScoped(ctx context.Context, workspaceID, 
 		return contentdb.DocumentDownloadJob{}, fmt.Errorf("get download job: %w", err)
 	}
 
-	if uuidString(job.WorkspaceID) != workspaceID || uuidString(job.RequestedBy) != actor.UserID {
+	if job.WorkspaceID.String() != workspaceID || job.RequestedBy.String() != actor.UserID {
 		return contentdb.DocumentDownloadJob{}, ErrDownloadJobNotFound
 	}
 
@@ -317,12 +317,12 @@ func (s *ContentService) GetDownloadJobObject(ctx context.Context, workspaceID, 
 		return DownloadJobObject{}, ErrDownloadJobNotReady
 	}
 
-	doc, err := s.getDocumentScoped(ctx, workspaceID, uuidString(job.DocumentID))
+	doc, err := s.getDocumentScoped(ctx, workspaceID, job.DocumentID.String())
 	if err != nil {
 		return DownloadJobObject{}, err
 	}
 
-	access, err := s.resolveViewAccess(ctx, workspaceID, uuidString(doc.FolderID), actor)
+	access, err := s.resolveViewAccess(ctx, workspaceID, doc.FolderID.String(), actor)
 	if err != nil {
 		return DownloadJobObject{}, err
 	}
@@ -355,9 +355,9 @@ func (s *ContentService) RecordDownloadJobDelivery(ctx context.Context, workspac
 		return
 	}
 
-	s.activity.Record(ctx, s.activityEntry(workspaceID, actor,
+	s.activity.Record(ctx, activityservice.NewEntry(workspaceID, actor.UserID, actor.Name, actor.Role,
 		activityservice.ActionDocumentDownloaded, activityservice.TargetDocument,
-		uuidString(job.DocumentID), job.DocumentName,
+		job.DocumentID.String(), job.DocumentName,
 		map[string]any{"version_no": job.VersionNo, "variant": "watermarked", "async": true}))
 }
 
@@ -386,9 +386,9 @@ func (s *ContentService) OpenDownloadJobRange(ctx context.Context, obj DownloadJ
 
 func downloadJobResponse(job contentdb.DocumentDownloadJob) dto.DownloadJobResponse {
 	res := dto.DownloadJobResponse{
-		ID:           uuidString(job.ID),
-		DocumentID:   uuidString(job.DocumentID),
-		VersionID:    uuidString(job.VersionID),
+		ID:           job.ID.String(),
+		DocumentID:   job.DocumentID.String(),
+		VersionID:    job.VersionID.String(),
 		DocumentName: job.DocumentName,
 		FileName:     downloadName(job.DocumentName),
 		VersionNo:    job.VersionNo,
@@ -466,7 +466,7 @@ func (s *ContentService) sweepDownloadJobsOnce(ctx context.Context, ttl time.Dur
 		}
 
 		if err := s.repo.DeleteDownloadJob(ctx, job.ID); err != nil {
-			log.Printf("download job sweep: delete row %s: %v", uuidString(job.ID), err)
+			log.Printf("download job sweep: delete row %s: %v", job.ID.String(), err)
 		}
 	}
 }

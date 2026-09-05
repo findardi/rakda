@@ -58,8 +58,8 @@ func TestUpdateGroupQA(t *testing.T) {
 		}, actor)
 		require.NoError(t, err)
 
-		assert.Equal(t, uuidTarget, uuidString(captured.ID))
-		assert.Equal(t, uuidWS, uuidString(captured.WorkspaceID))
+		assert.Equal(t, uuidTarget, captured.ID.String())
+		assert.Equal(t, uuidWS, captured.WorkspaceID.String())
 		assert.True(t, res.QAEnabled)
 		require.NotNil(t, res.QAQuestionLimit)
 		assert.EqualValues(t, 25, *res.QAQuestionLimit)

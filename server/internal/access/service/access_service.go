@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/findardi/rakda/server/internal/platform/database"
+	"github.com/findardi/rakda/server/internal/platform/ptr"
 	"log"
 	"strings"
 	"time"
@@ -14,7 +16,6 @@ import (
 	"github.com/findardi/rakda/server/internal/platform/permission"
 	"github.com/findardi/rakda/server/internal/platform/sender"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -108,36 +109,6 @@ type Actor struct {
 	Role   string
 }
 
-func (s *AccessService) activityEntry(workspaceID string, actor Actor, action, targetType, targetID, targetName string, metadata map[string]any) activityservice.Entry {
-	return activityservice.Entry{
-		WorkspaceID: workspaceID,
-		ActorID:     actor.UserID,
-		ActorName:   actor.Name,
-		ActorRole:   actor.Role,
-		Action:      action,
-		TargetType:  targetType,
-		TargetID:    targetID,
-		TargetName:  targetName,
-		Metadata:    metadata,
-	}
-}
-
-func uuidString(u pgtype.UUID) string {
-	v, err := u.Value()
-	if err != nil || v == nil {
-		return ""
-	}
-	s, _ := v.(string)
-	return s
-}
-
-func deref(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
-}
-
 // parseAccessExpiry turns the optional expiry a manager typed into a column
 // value. Only guests may carry one, and it must lie in the future: a date
 // already past would mint a member who is expired on arrival, which is a
@@ -189,14 +160,6 @@ func rfc3339OrNil(t *time.Time) any {
 		return nil
 	}
 	return t.UTC().Format(time.RFC3339)
-}
-
-func isUniqueViolation(err error, constraint string) bool {
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
-		return pgErr.Code == "23505" && pgErr.ConstraintName == constraint
-	}
-	return false
 }
 
 // guardRoleAssignment enforces who may grant which privileged system role when
@@ -295,7 +258,7 @@ func (s *AccessService) AddMember(ctx context.Context, req dto.CreateWorkspaceMe
 		RoleID:      roleID,
 		Status:      status,
 	})
-	if isUniqueViolation(err, "workspace_members_user_key") {
+	if database.IsUniqueViolation(err, "workspace_members_user_key") {
 		return dto.WorkspaceMemberResponse{}, ErrMemberAlreadyAdd
 	}
 	if err != nil {
@@ -303,10 +266,10 @@ func (s *AccessService) AddMember(ctx context.Context, req dto.CreateWorkspaceMe
 	}
 
 	return dto.WorkspaceMemberResponse{
-		ID:          uuidString(member.ID),
-		WorkspaceID: uuidString(member.WorkspaceID),
-		UserID:      uuidString(member.UserID),
-		RoleID:      uuidString(member.RoleID),
+		ID:          member.ID.String(),
+		WorkspaceID: member.WorkspaceID.String(),
+		UserID:      member.UserID.String(),
+		RoleID:      member.RoleID.String(),
 		Status:      member.Status,
 		CreatedAt:   member.CreatedAt.Time,
 		UpdatedAt:   member.UpdatedAt.Time,
@@ -362,7 +325,7 @@ func (s *AccessService) AddMembers(ctx context.Context, req dto.AddMembersReques
 		if err != nil {
 			return outcome, fmt.Errorf("get group: %w", err)
 		}
-		if uuidString(g.WorkspaceID) != req.WorkspaceId {
+		if g.WorkspaceID.String() != req.WorkspaceId {
 			return outcome, ErrGroupNotFound
 		}
 		groupName = g.Name
@@ -444,18 +407,18 @@ func (s *AccessService) AddMembers(ctx context.Context, req dto.AddMembersReques
 		})
 		if err == nil {
 			s.sendInviteEmail(email, rawToken, registered,
-				revived.WorkspaceName, deref(revived.InvitedByUsername),
+				revived.WorkspaceName, ptr.Deref(revived.InvitedByUsername),
 				revived.ExpiresAt.Time, revived.AccessExpiresAt.Time)
-			s.activity.Record(ctx, s.activityEntry(req.WorkspaceId, actor,
+			s.activity.Record(ctx, activityservice.NewEntry(req.WorkspaceId, actor.UserID, actor.Name, actor.Role,
 				activityservice.ActionInviteSent, activityservice.TargetInvitation,
-				uuidString(revived.ID), email, inviteMeta))
+				revived.ID.String(), email, inviteMeta))
 			outcome = append(outcome, dto.AddMembersResponse{
 				Email:   email,
 				Outcome: OutcomeInvited,
 			})
 			continue
 		}
-		if isUniqueViolation(err, "workspace_invitations_pending_key") {
+		if database.IsUniqueViolation(err, "workspace_invitations_pending_key") {
 			outcome = append(outcome, dto.AddMembersResponse{
 				Email:   email,
 				Outcome: OutcomeSkipped,
@@ -480,7 +443,7 @@ func (s *AccessService) AddMembers(ctx context.Context, req dto.AddMembersReques
 			ExpiresAt:       expiresAt,
 			AccessExpiresAt: accessExpiresAt,
 		})
-		if isUniqueViolation(err, "workspace_invitations_pending_key") {
+		if database.IsUniqueViolation(err, "workspace_invitations_pending_key") {
 			outcome = append(outcome, dto.AddMembersResponse{
 				Email:   email,
 				Outcome: OutcomeSkipped,
@@ -493,11 +456,11 @@ func (s *AccessService) AddMembers(ctx context.Context, req dto.AddMembersReques
 		}
 
 		s.sendInviteEmail(email, rawToken, registered,
-			fresh.WorkspaceName, deref(fresh.InvitedByUsername),
+			fresh.WorkspaceName, ptr.Deref(fresh.InvitedByUsername),
 			fresh.ExpiresAt.Time, fresh.AccessExpiresAt.Time)
-		s.activity.Record(ctx, s.activityEntry(req.WorkspaceId, actor,
+		s.activity.Record(ctx, activityservice.NewEntry(req.WorkspaceId, actor.UserID, actor.Name, actor.Role,
 			activityservice.ActionInviteSent, activityservice.TargetInvitation,
-			uuidString(fresh.ID), email, inviteMeta))
+			fresh.ID.String(), email, inviteMeta))
 		outcome = append(outcome, dto.AddMembersResponse{
 			Email:   email,
 			Outcome: OutcomeInvited,
@@ -536,16 +499,16 @@ func (s *AccessService) ListInvitations(ctx context.Context, workspaceID, status
 
 	for _, r := range rows {
 		invitations = append(invitations, dto.InvitationResponse{
-			ID:                uuidString(r.ID),
-			WorkspaceID:       uuidString(r.WorkspaceID),
+			ID:                r.ID.String(),
+			WorkspaceID:       r.WorkspaceID.String(),
 			Email:             r.Email,
-			RoleID:            uuidString(r.RoleID),
-			RoleName:          deref(r.RoleName),
-			GroupID:           uuidString(r.GroupID),
-			GroupName:         deref(r.GroupName),
-			UserID:            uuidString(r.UserID),
-			InvitedBy:         uuidString(r.InvitedBy),
-			InvitedByUsername: deref(r.InvitedByUsername),
+			RoleID:            r.RoleID.String(),
+			RoleName:          ptr.Deref(r.RoleName),
+			GroupID:           r.GroupID.String(),
+			GroupName:         ptr.Deref(r.GroupName),
+			UserID:            r.UserID.String(),
+			InvitedBy:         r.InvitedBy.String(),
+			InvitedByUsername: ptr.Deref(r.InvitedByUsername),
 			Status:            r.Status,
 			ExpiresAt:         r.ExpiresAt.Time,
 			AccessExpiresAt:   timePtr(r.AccessExpiresAt),
@@ -585,8 +548,8 @@ func (s *AccessService) GetRoles(ctx context.Context, workspaceID string) ([]dto
 
 	for _, r := range wsRoles {
 		role := dto.WorkspaceRoleResponse{
-			ID:          uuidString(r.ID),
-			WorkspaceID: uuidString(r.WorkspaceID),
+			ID:          r.ID.String(),
+			WorkspaceID: r.WorkspaceID.String(),
 			Name:        r.Name,
 			Permissions: r.Permissions,
 			IsSystem:    r.IsSystem,
@@ -615,8 +578,8 @@ func (s *AccessService) GetRole(ctx context.Context, roleId string) (dto.Workspa
 	}
 
 	return dto.WorkspaceRoleResponse{
-		ID:          uuidString(role.ID),
-		WorkspaceID: uuidString(role.WorkspaceID),
+		ID:          role.ID.String(),
+		WorkspaceID: role.WorkspaceID.String(),
 		Name:        role.Name,
 		Permissions: role.Permissions,
 		IsSystem:    role.IsSystem,
@@ -639,16 +602,16 @@ func (s *AccessService) GetMembers(ctx context.Context, workspaceID string) ([]d
 
 	for _, w := range wsMembers {
 		member := dto.GetMemberResponse{
-			ID:          uuidString(w.ID),
-			WorkspaceID: uuidString(w.WorkspaceID),
-			UserID:      uuidString(w.UserID),
-			RoleID:      uuidString(w.RoleID),
+			ID:          w.ID.String(),
+			WorkspaceID: w.WorkspaceID.String(),
+			UserID:      w.UserID.String(),
+			RoleID:      w.RoleID.String(),
 			Status:      memberStatus(w.Status, w.ExpiresAt),
 			CreatedAt:   w.CreatedAt.Time,
 			UpdatedAt:   w.UpdatedAt.Time,
-			RoleName:    deref(w.RoleName),
-			Username:    deref(w.Username),
-			Email:       deref(w.Email),
+			RoleName:    ptr.Deref(w.RoleName),
+			Username:    ptr.Deref(w.Username),
+			Email:       ptr.Deref(w.Email),
 			GroupNames:  w.GroupNames,
 			ExpiresAt:   timePtr(w.ExpiresAt),
 		}
@@ -674,16 +637,16 @@ func (s *AccessService) GetMember(ctx context.Context, memberID string) (dto.Get
 	}
 
 	return dto.GetMemberResponse{
-		ID:          uuidString(w.ID),
-		WorkspaceID: uuidString(w.WorkspaceID),
-		UserID:      uuidString(w.UserID),
-		RoleID:      uuidString(w.RoleID),
+		ID:          w.ID.String(),
+		WorkspaceID: w.WorkspaceID.String(),
+		UserID:      w.UserID.String(),
+		RoleID:      w.RoleID.String(),
 		Status:      memberStatus(w.Status, w.ExpiresAt),
 		CreatedAt:   w.CreatedAt.Time,
 		UpdatedAt:   w.UpdatedAt.Time,
-		RoleName:    deref(w.RoleName),
-		Username:    deref(w.Username),
-		Email:       deref(w.Email),
+		RoleName:    ptr.Deref(w.RoleName),
+		Username:    ptr.Deref(w.Username),
+		Email:       ptr.Deref(w.Email),
 		GroupNames:  w.GroupNames,
 		ExpiresAt:   timePtr(w.ExpiresAt),
 	}, nil
@@ -731,7 +694,7 @@ func (s *AccessService) UpdateMemberRole(ctx context.Context, req dto.UpdateMemb
 		return dto.GetMemberResponse{}, fmt.Errorf("update member role: %w", err)
 	}
 
-	s.activity.Record(ctx, s.activityEntry(target.WorkspaceID, actor,
+	s.activity.Record(ctx, activityservice.NewEntry(target.WorkspaceID, actor.UserID, actor.Name, actor.Role,
 		activityservice.ActionRoleChanged, activityservice.TargetMember,
 		req.MemberID, target.Email, map[string]any{"from": target.RoleName, "to": newRole.Name}))
 
@@ -776,7 +739,7 @@ func (s *AccessService) UpdateMemberExpiry(ctx context.Context, req dto.UpdateMe
 		return dto.GetMemberResponse{}, fmt.Errorf("update member expiry: %w", err)
 	}
 
-	s.activity.Record(ctx, s.activityEntry(target.WorkspaceID, actor,
+	s.activity.Record(ctx, activityservice.NewEntry(target.WorkspaceID, actor.UserID, actor.Name, actor.Role,
 		activityservice.ActionMemberExpiryChanged, activityservice.TargetMember,
 		req.MemberID, target.Email, map[string]any{
 			"from": rfc3339OrNil(target.ExpiresAt),
@@ -833,7 +796,7 @@ func (s *AccessService) DeleteMember(ctx context.Context, memberID string, actor
 		return fmt.Errorf("delete member: %w", err)
 	}
 
-	s.activity.Record(ctx, s.activityEntry(target.WorkspaceID, actor,
+	s.activity.Record(ctx, activityservice.NewEntry(target.WorkspaceID, actor.UserID, actor.Name, actor.Role,
 		activityservice.ActionMemberRemoved, activityservice.TargetMember,
 		memberID, target.Email, nil))
 
@@ -871,9 +834,9 @@ func (s *AccessService) ResendInvitation(ctx context.Context, invitationID strin
 	// The email must carry the renewed expiry, not the one on the row fetched
 	// before the update — for a lapsed invitation that date is in the past.
 	s.sendInviteEmail(inv.Email, rawToken, inv.UserID.Valid,
-		inv.WorkspaceName, deref(inv.InvitedByUsername),
+		inv.WorkspaceName, ptr.Deref(inv.InvitedByUsername),
 		updated.ExpiresAt.Time, updated.AccessExpiresAt.Time)
-	s.activity.Record(ctx, s.activityEntry(uuidString(inv.WorkspaceID), actor,
+	s.activity.Record(ctx, activityservice.NewEntry(inv.WorkspaceID.String(), actor.UserID, actor.Name, actor.Role,
 		activityservice.ActionInviteResent, activityservice.TargetInvitation,
 		invitationID, inv.Email, nil))
 	return nil
@@ -893,7 +856,7 @@ func (s *AccessService) RevokeInvitation(ctx context.Context, invitationID strin
 		return fmt.Errorf("revoke invitation: %w", err)
 	}
 
-	s.activity.Record(ctx, s.activityEntry(uuidString(inv.WorkspaceID), actor,
+	s.activity.Record(ctx, activityservice.NewEntry(inv.WorkspaceID.String(), actor.UserID, actor.Name, actor.Role,
 		activityservice.ActionInviteRevoked, activityservice.TargetInvitation,
 		invitationID, inv.Email, nil))
 
@@ -913,7 +876,7 @@ func (s *AccessService) CreateGroup(ctx context.Context, req dto.CreateGroupRequ
 			Name:        req.Name,
 			Description: &req.Description,
 		})
-		if isUniqueViolation(err, "workspace_groups_name_key") {
+		if database.IsUniqueViolation(err, "workspace_groups_name_key") {
 			return ErrGroupNameTaken
 		}
 		if err != nil {
@@ -928,9 +891,9 @@ func (s *AccessService) CreateGroup(ctx context.Context, req dto.CreateGroupRequ
 		}
 
 		g = created
-		return s.activity.RecordTx(ctx, tx, s.activityEntry(req.WorkspaceID, actor,
+		return s.activity.RecordTx(ctx, tx, activityservice.NewEntry(req.WorkspaceID, actor.UserID, actor.Name, actor.Role,
 			activityservice.ActionGroupCreated, activityservice.TargetGroup,
-			uuidString(created.ID), created.Name, nil))
+			created.ID.String(), created.Name, nil))
 	})
 	if err != nil {
 		return dto.GroupResponse{}, err
@@ -941,10 +904,10 @@ func (s *AccessService) CreateGroup(ctx context.Context, req dto.CreateGroupRequ
 
 func groupResponse(g accessdb.WorkspaceGroup) dto.GroupResponse {
 	return dto.GroupResponse{
-		ID:              uuidString(g.ID),
-		WorkspaceID:     uuidString(g.WorkspaceID),
+		ID:              g.ID.String(),
+		WorkspaceID:     g.WorkspaceID.String(),
 		Name:            g.Name,
-		Description:     deref(g.Description),
+		Description:     ptr.Deref(g.Description),
 		IsDefault:       g.IsDefault,
 		QAEnabled:       g.QaEnabled,
 		QAQuestionLimit: g.QaQuestionLimit,
@@ -999,7 +962,7 @@ func (s *AccessService) DeleteGroup(ctx context.Context, groupID string, actor A
 			return fmt.Errorf("delete group: %w", err)
 		}
 
-		return s.activity.RecordTx(ctx, tx, s.activityEntry(uuidString(g.WorkspaceID), actor,
+		return s.activity.RecordTx(ctx, tx, activityservice.NewEntry(g.WorkspaceID.String(), actor.UserID, actor.Name, actor.Role,
 			activityservice.ActionGroupDeleted, activityservice.TargetGroup,
 			groupID, g.Name, nil))
 	})
@@ -1020,13 +983,13 @@ func (s *AccessService) UpdateGroup(ctx context.Context, req dto.UpdateGroupRequ
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		return dto.GroupResponse{}, ErrGroupNotFound
-	case isUniqueViolation(err, "workspace_groups_name_key"):
+	case database.IsUniqueViolation(err, "workspace_groups_name_key"):
 		return dto.GroupResponse{}, ErrGroupNameTaken
 	case err != nil:
 		return dto.GroupResponse{}, fmt.Errorf("update group: %w", err)
 	}
 
-	s.activity.Record(ctx, s.activityEntry(uuidString(g.WorkspaceID), actor,
+	s.activity.Record(ctx, activityservice.NewEntry(g.WorkspaceID.String(), actor.UserID, actor.Name, actor.Role,
 		activityservice.ActionGroupUpdated, activityservice.TargetGroup,
 		req.GroupID, g.Name, nil))
 
@@ -1056,7 +1019,7 @@ func (s *AccessService) UpdateGroupQA(ctx context.Context, req dto.UpdateGroupQA
 		return dto.GroupResponse{}, fmt.Errorf("update group qa: %w", err)
 	}
 
-	s.activity.Record(ctx, s.activityEntry(req.WorkspaceID, actor,
+	s.activity.Record(ctx, activityservice.NewEntry(req.WorkspaceID, actor.UserID, actor.Name, actor.Role,
 		activityservice.ActionQaSettingsChanged, activityservice.TargetGroup,
 		req.GroupID, g.Name, map[string]any{
 			"qa_enabled":     g.QaEnabled,
@@ -1080,13 +1043,13 @@ func (s *AccessService) GetGroupDetail(ctx context.Context, groupID string) ([]d
 
 	for _, m := range gm {
 		member := dto.GroupMemberResponse{
-			GroupID:   uuidString(m.GroupID),
-			MemberID:  uuidString(m.MemberID),
+			GroupID:   m.GroupID.String(),
+			MemberID:  m.MemberID.String(),
 			CreatedAt: m.CreatedAt.Time,
-			Username:  deref(m.Username),
-			Email:     deref(m.Email),
-			RoleName:  deref(m.RoleName),
-			GroupName: deref(m.GroupName),
+			Username:  ptr.Deref(m.Username),
+			Email:     ptr.Deref(m.Email),
+			RoleName:  ptr.Deref(m.RoleName),
+			GroupName: ptr.Deref(m.GroupName),
 		}
 
 		members = append(members, member)
@@ -1113,7 +1076,7 @@ func (s *AccessService) AssignToGroup(ctx context.Context, req dto.GroupMemberRe
 			return []dto.GroupMemberResponse{}, fmt.Errorf("get member: %w", err)
 		}
 
-		if deref(mem.RoleName) != "guest" {
+		if ptr.Deref(mem.RoleName) != "guest" {
 			return []dto.GroupMemberResponse{}, ErrAssignMemberRole
 		}
 
@@ -1121,16 +1084,16 @@ func (s *AccessService) AssignToGroup(ctx context.Context, req dto.GroupMemberRe
 			GroupID:  gID,
 			MemberID: mID,
 		})
-		// if isUniqueViolation(err, "workspace_group_members_pkey") {
+		// if database.IsUniqueViolation(err, "workspace_group_members_pkey") {
 		// 	continue
 		// }
 		if err != nil {
 			return []dto.GroupMemberResponse{}, fmt.Errorf("assign member to group: %w", err)
 		}
 
-		s.activity.Record(ctx, s.activityEntry(uuidString(mem.WorkspaceID), actor,
+		s.activity.Record(ctx, activityservice.NewEntry(mem.WorkspaceID.String(), actor.UserID, actor.Name, actor.Role,
 			activityservice.ActionGroupAssigned, activityservice.TargetMember,
-			m, deref(mem.Email), map[string]any{"group_id": req.GroupID}))
+			m, ptr.Deref(mem.Email), map[string]any{"group_id": req.GroupID}))
 	}
 
 	return s.GetGroupDetail(ctx, req.GroupID)
@@ -1164,9 +1127,9 @@ func (s *AccessService) UnassignFromGroup(ctx context.Context, groupID, memberID
 		}
 	}
 
-	s.activity.Record(ctx, s.activityEntry(uuidString(mem.WorkspaceID), actor,
+	s.activity.Record(ctx, activityservice.NewEntry(mem.WorkspaceID.String(), actor.UserID, actor.Name, actor.Role,
 		activityservice.ActionGroupUnassigned, activityservice.TargetMember,
-		memberID, deref(mem.Email), map[string]any{"group_id": groupID}))
+		memberID, ptr.Deref(mem.Email), map[string]any{"group_id": groupID}))
 
 	return nil
 }

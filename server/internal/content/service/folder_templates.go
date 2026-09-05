@@ -228,7 +228,7 @@ func (s *ContentService) ApplyFolderTemplate(ctx context.Context, req dto.ApplyT
 		createdCount = created
 		skippedCount = len(out) - created
 
-		return s.activity.RecordTx(ctx, tx, s.activityEntry(req.WorkspaceID, actor,
+		return s.activity.RecordTx(ctx, tx, activityservice.NewEntry(req.WorkspaceID, actor.UserID, actor.Name, actor.Role,
 			activityservice.ActionTemplateApplied, activityservice.TargetFolder,
 			"", name, map[string]any{"template": tpl.Key, "created": created, "skipped": skippedCount}))
 	})

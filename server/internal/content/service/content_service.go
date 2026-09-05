@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/findardi/rakda/server/internal/platform/database"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -17,7 +18,6 @@ import (
 	"github.com/findardi/rakda/server/internal/platform/storage"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -219,20 +219,6 @@ func pgInterval(d time.Duration) pgtype.Interval {
 	return pgtype.Interval{Microseconds: d.Microseconds(), Valid: true}
 }
 
-func (s *ContentService) activityEntry(workspaceID string, actor Actor, action, targetType, targetID, targetName string, metadata map[string]any) activityservice.Entry {
-	return activityservice.Entry{
-		WorkspaceID: workspaceID,
-		ActorID:     actor.UserID,
-		ActorName:   actor.Name,
-		ActorRole:   actor.Role,
-		Action:      action,
-		TargetType:  targetType,
-		TargetID:    targetID,
-		TargetName:  targetName,
-		Metadata:    metadata,
-	}
-}
-
 func (s *ContentService) ProvisionWorkspace(ctx context.Context, tx pgx.Tx, workspaceID, ownerID pgtype.UUID) error {
 	q := contentdb.New(tx)
 	if _, err := q.CreateDefaultFolder(ctx, contentdb.CreateDefaultFolderParams{
@@ -245,33 +231,8 @@ func (s *ContentService) ProvisionWorkspace(ctx context.Context, tx pgx.Tx, work
 	return nil
 }
 
-func uuidString(u pgtype.UUID) string {
-	v, err := u.Value()
-	if err != nil || v == nil {
-		return ""
-	}
-	s, _ := v.(string)
-	return s
-}
-
-func deref[T any](v *T) T {
-	var zero T
-	if v == nil {
-		return zero
-	}
-	return *v
-}
-
 func storageKey(workspaceID, folderID string) string {
 	return fmt.Sprintf("%s/%s/%s", workspaceID, folderID, uuid.NewString())
-}
-
-func isUniqueViolation(err error, constraint string) bool {
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
-		return pgErr.Code == "23505" && pgErr.ConstraintName == constraint
-	}
-	return false
 }
 
 func clampPosition(pos, max int32) int32 {
@@ -421,7 +382,7 @@ func (s *ContentService) CreateFolder(ctx context.Context, req dto.CreateFolderR
 			return dto.FolderResponse{}, fmt.Errorf("check parent: %w", err)
 		}
 
-		if uuidString(pFolder.WorkspaceID) != req.WorkspaceID {
+		if pFolder.WorkspaceID.String() != req.WorkspaceID {
 			return dto.FolderResponse{}, ErrParentCrossWorkspace
 		}
 
@@ -462,7 +423,7 @@ func (s *ContentService) CreateFolder(ctx context.Context, req dto.CreateFolderR
 		CreatedBy:   cID,
 	})
 
-	if isUniqueViolation(err, "folders_name_root_key") || isUniqueViolation(err, "folders_name_per_parent_key") {
+	if database.IsUniqueViolation(err, "folders_name_root_key") || database.IsUniqueViolation(err, "folders_name_per_parent_key") {
 		return dto.FolderResponse{}, ErrFolderNameTaken
 	}
 
@@ -470,18 +431,18 @@ func (s *ContentService) CreateFolder(ctx context.Context, req dto.CreateFolderR
 		return dto.FolderResponse{}, fmt.Errorf("create folder: %w", err)
 	}
 
-	s.activity.Record(ctx, s.activityEntry(req.WorkspaceID, actor,
+	s.activity.Record(ctx, activityservice.NewEntry(req.WorkspaceID, actor.UserID, actor.Name, actor.Role,
 		activityservice.ActionFolderCreated, activityservice.TargetFolder,
-		uuidString(f.ID), f.Name, nil))
+		f.ID.String(), f.Name, nil))
 
 	return dto.FolderResponse{
-		ID:          uuidString(f.ID),
-		WorkspaceID: uuidString(f.WorkspaceID),
-		ParentID:    uuidString(f.ParentID),
+		ID:          f.ID.String(),
+		WorkspaceID: f.WorkspaceID.String(),
+		ParentID:    f.ParentID.String(),
 		Name:        f.Name,
 		Position:    f.Position,
 		IsDefault:   f.IsDefault,
-		CreatedBy:   uuidString(f.CreatedBy),
+		CreatedBy:   f.CreatedBy.String(),
 		CreatedAt:   f.CreatedAt.Time,
 		UpdatedAt:   f.UpdatedAt.Time,
 	}, nil
@@ -510,7 +471,7 @@ func (s *ContentService) MoveFolder(ctx context.Context, req dto.MoveFolderReque
 			return fmt.Errorf("get folder: %w", err)
 		}
 
-		if uuidString(folder.WorkspaceID) != req.WorkspaceID {
+		if folder.WorkspaceID.String() != req.WorkspaceID {
 			return ErrFolderNotFound
 		}
 
@@ -583,7 +544,7 @@ func (s *ContentService) MoveFolder(ctx context.Context, req dto.MoveFolderReque
 			Position: pos,
 		})
 
-		if isUniqueViolation(err, "folders_name_root_key") || isUniqueViolation(err, "folders_name_per_parent_key") {
+		if database.IsUniqueViolation(err, "folders_name_root_key") || database.IsUniqueViolation(err, "folders_name_per_parent_key") {
 			return ErrFolderNameTaken
 		}
 
@@ -609,7 +570,7 @@ func (s *ContentService) MoveFolder(ctx context.Context, req dto.MoveFolderReque
 			}
 		}
 
-		return s.activity.RecordTx(ctx, tx, s.activityEntry(req.WorkspaceID, actor,
+		return s.activity.RecordTx(ctx, tx, activityservice.NewEntry(req.WorkspaceID, actor.UserID, actor.Name, actor.Role,
 			activityservice.ActionFolderMoved, activityservice.TargetFolder,
 			req.FolderID, folder.Name, map[string]any{"to_parent_id": req.ParentID}))
 	})
@@ -656,12 +617,12 @@ func (s *ContentService) GetFoldersTree(ctx context.Context, workspaceID string,
 
 	visibleIDs := make(map[string]struct{}, len(rows))
 	for _, f := range rows {
-		visibleIDs[uuidString(f.ID)] = struct{}{}
+		visibleIDs[f.ID.String()] = struct{}{}
 	}
 
 	childrenOf := make(map[string][]contentdb.Folder)
 	for _, f := range rows {
-		key := uuidString(f.ParentID)
+		key := f.ParentID.String()
 		if _, ok := visibleIDs[key]; !ok {
 			key = ""
 		}
@@ -677,7 +638,7 @@ func buildFolderTree(childrenOf map[string][]contentdb.Folder, parentKey, prefix
 
 	for i, f := range items {
 		number := prefix + strconv.Itoa(i+1)
-		id := uuidString(f.ID)
+		id := f.ID.String()
 
 		nodes = append(nodes, dto.FolderTreeNode{
 			ID:        id,
@@ -713,7 +674,7 @@ func (s *ContentService) RenameFolder(ctx context.Context, req dto.RenameFolderR
 		return dto.FolderResponse{}, fmt.Errorf("get folder: %w", err)
 	}
 
-	if uuidString(prev.WorkspaceID) != req.WorkspaceID {
+	if prev.WorkspaceID.String() != req.WorkspaceID {
 		return dto.FolderResponse{}, ErrFolderNotFound
 	}
 
@@ -722,7 +683,7 @@ func (s *ContentService) RenameFolder(ctx context.Context, req dto.RenameFolderR
 		Name: req.Name,
 	})
 
-	if isUniqueViolation(err, "folders_name_root_key") || isUniqueViolation(err, "folders_name_per_parent_key") {
+	if database.IsUniqueViolation(err, "folders_name_root_key") || database.IsUniqueViolation(err, "folders_name_per_parent_key") {
 		return dto.FolderResponse{}, ErrFolderNameTaken
 	}
 
@@ -734,18 +695,18 @@ func (s *ContentService) RenameFolder(ctx context.Context, req dto.RenameFolderR
 		return dto.FolderResponse{}, fmt.Errorf("rename folder: %w", err)
 	}
 
-	s.activity.Record(ctx, s.activityEntry(req.WorkspaceID, actor,
+	s.activity.Record(ctx, activityservice.NewEntry(req.WorkspaceID, actor.UserID, actor.Name, actor.Role,
 		activityservice.ActionFolderRenamed, activityservice.TargetFolder,
 		req.FolderID, f.Name, map[string]any{"from": prev.Name, "to": f.Name}))
 
 	return dto.FolderResponse{
-		ID:          uuidString(f.ID),
-		WorkspaceID: uuidString(f.WorkspaceID),
-		ParentID:    uuidString(f.ParentID),
+		ID:          f.ID.String(),
+		WorkspaceID: f.WorkspaceID.String(),
+		ParentID:    f.ParentID.String(),
 		Name:        f.Name,
 		Position:    f.Position,
 		IsDefault:   f.IsDefault,
-		CreatedBy:   uuidString(f.CreatedBy),
+		CreatedBy:   f.CreatedBy.String(),
 		CreatedAt:   f.CreatedAt.Time,
 		UpdatedAt:   f.UpdatedAt.Time,
 	}, nil
@@ -764,7 +725,7 @@ func (s *ContentService) DeleteFolder(ctx context.Context, folderID, workspaceID
 		return fmt.Errorf("get folder: %w", err)
 	}
 
-	if uuidString(folder.WorkspaceID) != workspaceID {
+	if folder.WorkspaceID.String() != workspaceID {
 		return ErrFolderNotFound
 	}
 
@@ -792,7 +753,7 @@ func (s *ContentService) DeleteFolder(ctx context.Context, folderID, workspaceID
 			return fmt.Errorf("soft delete documents: %w", err)
 		}
 
-		return s.activity.RecordTx(ctx, tx, s.activityEntry(workspaceID, actor,
+		return s.activity.RecordTx(ctx, tx, activityservice.NewEntry(workspaceID, actor.UserID, actor.Name, actor.Role,
 			activityservice.ActionFolderDeleted, activityservice.TargetFolder,
 			folderID, folder.Name, nil))
 	})
@@ -842,7 +803,7 @@ func (s *ContentService) ensureFolderTree(ctx context.Context, q *contentdb.Quer
 
 		*out = append(*out, dto.BulkFolderResult{
 			Path:    path,
-			ID:      uuidString(f.ID),
+			ID:      f.ID.String(),
 			Created: created,
 		})
 
@@ -931,7 +892,7 @@ func (s *ContentService) BulkCreateFolders(ctx context.Context, req dto.BulkCrea
 			return nil
 		}
 
-		return s.activity.RecordTx(ctx, tx, s.activityEntry(req.WorkspaceID, actor,
+		return s.activity.RecordTx(ctx, tx, activityservice.NewEntry(req.WorkspaceID, actor.UserID, actor.Name, actor.Role,
 			activityservice.ActionFolderCreated, activityservice.TargetFolder,
 			"", "", map[string]any{"bulk": true, "count": created}))
 	})

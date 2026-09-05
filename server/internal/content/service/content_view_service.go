@@ -150,7 +150,7 @@ func (s *ContentService) getDocumentScoped(ctx context.Context, workspaceID, doc
 		return contentdb.Document{}, fmt.Errorf("get document: %w", err)
 	}
 
-	if uuidString(doc.WorkspaceID) != workspaceID {
+	if doc.WorkspaceID.String() != workspaceID {
 		return contentdb.Document{}, ErrDocumentNotFound
 	}
 
@@ -195,7 +195,7 @@ func (s *ContentService) promoteStaged(ctx context.Context, doc contentdb.Docume
 		ID:        doc.ID,
 		VersionID: version.ID,
 	}); err != nil {
-		log.Printf("promote staged version %s: %v", uuidString(version.ID), err)
+		log.Printf("promote staged version %s: %v", version.ID.String(), err)
 	}
 }
 
@@ -215,7 +215,7 @@ func (s *ContentService) buildRendition(ctx context.Context, workspaceID string,
 		return version.StorageKey, pageCount, nil
 	}
 
-	renditionKey := renditionPDFKey(workspaceID, uuidString(version.ID))
+	renditionKey := renditionPDFKey(workspaceID, version.ID.String())
 
 	src, err := s.store.Get(ctx, version.StorageKey)
 	if err != nil {
@@ -276,7 +276,7 @@ func (s *ContentService) GetViewMeta(ctx context.Context, workspaceID, documentI
 		return dto.ViewMetaResponse{}, err
 	}
 
-	access, err := s.resolveViewAccess(ctx, workspaceID, uuidString(doc.FolderID), actor)
+	access, err := s.resolveViewAccess(ctx, workspaceID, doc.FolderID.String(), actor)
 	if err != nil {
 		return dto.ViewMetaResponse{}, err
 	}
@@ -306,16 +306,16 @@ func (s *ContentService) GetViewMeta(ctx context.Context, workspaceID, documentI
 	}
 
 	if status == dto.RenditionReady {
-		s.activity.Record(ctx, s.activityEntry(workspaceID, actor,
+		s.activity.Record(ctx, activityservice.NewEntry(workspaceID, actor.UserID, actor.Name, actor.Role,
 			activityservice.ActionDocumentViewed, activityservice.TargetDocument,
 			documentID, doc.Name, map[string]any{"version_no": version.VersionNo}))
 	}
 
 	return dto.ViewMetaResponse{
-		DocumentID:                uuidString(doc.ID),
+		DocumentID:                doc.ID.String(),
 		Name:                      doc.Name,
 		Mime:                      version.Mime,
-		VersionID:                 uuidString(version.ID),
+		VersionID:                 version.ID.String(),
 		VersionNo:                 version.VersionNo,
 		PageCount:                 pageCount,
 		RenditionStatus:           status,
@@ -331,7 +331,7 @@ func (s *ContentService) GetPageImage(ctx context.Context, req dto.ViewPageReque
 		return nil, err
 	}
 
-	access, err := s.resolveViewAccess(ctx, req.WorkspaceID, uuidString(doc.FolderID), actor)
+	access, err := s.resolveViewAccess(ctx, req.WorkspaceID, doc.FolderID.String(), actor)
 	if err != nil {
 		return nil, err
 	}
@@ -357,7 +357,7 @@ func (s *ContentService) GetPageImage(ctx context.Context, req dto.ViewPageReque
 		return nil, ErrPageOutOfRange
 	}
 
-	pageBytes, err := s.loadOrRenderPage(ctx, req.WorkspaceID, uuidString(version.ID), renditionKey, req.Page)
+	pageBytes, err := s.loadOrRenderPage(ctx, req.WorkspaceID, version.ID.String(), renditionKey, req.Page)
 	if err != nil {
 		return nil, err
 	}
@@ -365,9 +365,9 @@ func (s *ContentService) GetPageImage(ctx context.Context, req dto.ViewPageReque
 	if !actor.managesRoom() {
 		s.activity.RecordPageEvent(ctx, activityservice.PageEvent{
 			WorkspaceID:  req.WorkspaceID,
-			DocumentID:   uuidString(doc.ID),
+			DocumentID:   doc.ID.String(),
 			DocumentName: doc.Name,
-			VersionID:    uuidString(version.ID),
+			VersionID:    version.ID.String(),
 			PageNo:       int32(req.Page),
 			EventType:    activityservice.EventViewPage,
 			ActorID:      actor.UserID,

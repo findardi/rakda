@@ -1,7 +1,7 @@
 package content
 
 import (
-	"context"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"time"
 
 	accessrepo "github.com/findardi/rakda/server/internal/access/repository"
@@ -13,26 +13,7 @@ import (
 	"github.com/findardi/rakda/server/internal/platform/permission"
 	"github.com/findardi/rakda/server/internal/platform/storage"
 	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-type userStatusReader struct {
-	repo *auth.Repository
-}
-
-func (s userStatusReader) UserStatus(ctx context.Context, userID string) (string, error) {
-	var uid pgtype.UUID
-	if err := uid.Scan(userID); err != nil {
-		return "", err
-	}
-
-	user, err := s.repo.GetUserById(ctx, uid)
-	if err != nil {
-		return "", err
-	}
-	return user.Status, nil
-}
 
 type Module struct {
 	handler    *handler.ContentHandler
@@ -45,7 +26,7 @@ func NewModule(pool *pgxpool.Pool, verifier middleware.TokenVerifier, store stor
 	s := service.NewContentService(r, store, viewer, trashRetention, activity, stamp, archive, caches, rendition)
 	h := handler.NewContentHandler(s)
 
-	mw := middleware.New(verifier, userStatusReader{repo: auth.New(pool)}, nil)
+	mw := middleware.New(verifier, auth.New(pool), nil)
 
 	return &Module{
 		handler:    h,

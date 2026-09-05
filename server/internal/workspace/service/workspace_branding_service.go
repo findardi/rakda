@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/findardi/rakda/server/internal/platform/ptr"
 	"io"
 	"log"
 	"path"
@@ -313,7 +314,7 @@ func (s *WorkspaceService) SetHeroPreset(ctx context.Context, req dto.WorkspaceH
 		}
 
 		if err := s.activity.RecordTx(ctx, tx, s.brandingEntry(req.ID, actor, w.Name,
-			map[string]any{"kind": "hero", "preset": deref(preset)})); err != nil {
+			map[string]any{"kind": "hero", "preset": ptr.Deref(preset)})); err != nil {
 			return err
 		}
 

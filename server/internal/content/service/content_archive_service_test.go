@@ -208,7 +208,7 @@ func archiveTestRow(scopeIDs []pgtype.UUID, scopeNames []string) contentdb.Works
 		ID:               archiveUUID(100),
 		RequestedByName:  "Ardi",
 		Status:           ArchiveStatusPending,
-		ObjectKey:        archiveObjectKey(archiveTestWS, uuidString(archiveUUID(100))),
+		ObjectKey:        archiveObjectKey(archiveTestWS, archiveUUID(100).String()),
 		CreatedAt:        pgtype.Timestamptz{Time: archiveTestDate, Valid: true},
 		ScopeFolderIds:   scopeIDs,
 		ScopeFolderNames: scopeNames,
@@ -280,8 +280,8 @@ func TestCreateArchiveScopeUnknownFolderIsNotFound(t *testing.T) {
 		name string
 		ids  []string
 	}{
-		{name: "missing id", ids: []string{uuidString(folderUnknown)}},
-		{name: "one bad among good", ids: []string{uuidString(folderKeuangan), uuidString(folderUnknown)}},
+		{name: "missing id", ids: []string{folderUnknown.String()}},
+		{name: "one bad among good", ids: []string{folderKeuangan.String(), folderUnknown.String()}},
 		{name: "not a uuid", ids: []string{"bukan-uuid"}},
 	}
 
@@ -305,7 +305,7 @@ func TestCreateArchiveScopeDedupesAndSnapshotsNames(t *testing.T) {
 	svc := newArchiveTestService(t, repo, newArchiveTestStorage(), act)
 
 	res, err := svc.CreateArchive(context.Background(), archiveTestWS, archiveTestActor(), dto.CreateArchiveRequest{
-		FolderIDs: []string{uuidString(folderKorporasi), uuidString(folderKeuangan), uuidString(folderKorporasi)},
+		FolderIDs: []string{folderKorporasi.String(), folderKeuangan.String(), folderKorporasi.String()},
 	})
 	require.NoError(t, err)
 	recvOrFatal(t, act.ch, "build to finish")
@@ -315,7 +315,7 @@ func TestCreateArchiveScopeDedupesAndSnapshotsNames(t *testing.T) {
 	assert.Equal(t, []string{"Korporasi", "Keuangan"}, repo.created[0].ScopeFolderNames)
 
 	assert.Equal(t, dto.ArchiveScopeFolders, res.Scope)
-	assert.Equal(t, []string{uuidString(folderKorporasi), uuidString(folderKeuangan)}, res.ScopeFolderIDs)
+	assert.Equal(t, []string{folderKorporasi.String(), folderKeuangan.String()}, res.ScopeFolderIDs)
 	assert.Equal(t, []string{"Korporasi", "Keuangan"}, res.ScopeFolderNames)
 }
 
@@ -366,7 +366,7 @@ func TestCreateArchiveScopedSharesOnePendingSlot(t *testing.T) {
 	svc := newArchiveTestService(t, repo, newArchiveTestStorage(), newChannelActivity())
 
 	_, err := svc.CreateArchive(context.Background(), archiveTestWS, archiveTestActor(), dto.CreateArchiveRequest{
-		FolderIDs: []string{uuidString(folderKeuangan)},
+		FolderIDs: []string{folderKeuangan.String()},
 	})
 
 	require.ErrorIs(t, err, ErrArchiveAlreadyQueued)

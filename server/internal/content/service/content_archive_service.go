@@ -42,9 +42,9 @@ func archiveObjectKey(workspaceID, archiveID string) string {
 
 func archiveResponse(row contentdb.WorkspaceArchive) dto.ArchiveResponse {
 	res := dto.ArchiveResponse{
-		ID:              uuidString(row.ID),
+		ID:              row.ID.String(),
 		Status:          row.Status,
-		RequestedBy:     uuidString(row.RequestedBy),
+		RequestedBy:     row.RequestedBy.String(),
 		RequestedByName: row.RequestedByName,
 		SizeBytes:       row.SizeBytes,
 		ChecksumSHA256:  row.ChecksumSha256,
@@ -65,7 +65,7 @@ func archiveResponse(row contentdb.WorkspaceArchive) dto.ArchiveResponse {
 		res.Scope = dto.ArchiveScopeFolders
 		res.ScopeFolderIDs = make([]string, 0, len(row.ScopeFolderIds))
 		for _, id := range row.ScopeFolderIds {
-			res.ScopeFolderIDs = append(res.ScopeFolderIDs, uuidString(id))
+			res.ScopeFolderIDs = append(res.ScopeFolderIDs, id.String())
 		}
 		res.ScopeFolderNames = append([]string(nil), row.ScopeFolderNames...)
 	}
@@ -104,12 +104,12 @@ func (s *ContentService) resolveArchiveScope(ctx context.Context, wID pgtype.UUI
 
 	nameByID := make(map[string]string, len(folders))
 	for _, f := range folders {
-		nameByID[uuidString(f.ID)] = f.Name
+		nameByID[f.ID.String()] = f.Name
 	}
 
 	names := make([]string, 0, len(ids))
 	for _, id := range ids {
-		name, ok := nameByID[uuidString(id)]
+		name, ok := nameByID[id.String()]
 		if !ok {
 			return archiveScope{}, ErrFolderNotFound
 		}
@@ -128,7 +128,7 @@ func archiveScopeSet(ids []pgtype.UUID) map[string]struct{} {
 
 	set := make(map[string]struct{}, len(ids))
 	for _, id := range ids {
-		set[uuidString(id)] = struct{}{}
+		set[id.String()] = struct{}{}
 	}
 
 	return set
@@ -140,11 +140,11 @@ func archiveScopeSet(ids []pgtype.UUID) map[string]struct{} {
 func archiveScopeMissing(row contentdb.WorkspaceArchive, seen map[string]struct{}) []string {
 	var missing []string
 	for i, id := range row.ScopeFolderIds {
-		if _, ok := seen[uuidString(id)]; ok {
+		if _, ok := seen[id.String()]; ok {
 			continue
 		}
 
-		name := uuidString(id)
+		name := id.String()
 		if i < len(row.ScopeFolderNames) {
 			name = row.ScopeFolderNames[i]
 		}
@@ -221,7 +221,7 @@ func (s *ContentService) CreateArchive(ctx context.Context, workspaceID string, 
 		return dto.ArchiveResponse{}, fmt.Errorf("create archive: %w", err)
 	}
 
-	archiveID := uuidString(row.ID)
+	archiveID := row.ID.String()
 	key := archiveObjectKey(workspaceID, archiveID)
 
 	if err := s.repo.SetArchiveObjectKey(ctx, contentdb.SetArchiveObjectKeyParams{
@@ -384,12 +384,12 @@ func (s *ContentService) buildArchive(ctx context.Context, row contentdb.Workspa
 	}
 
 	if err != nil {
-		log.Printf("archive %s: %v", uuidString(row.ID), err)
+		log.Printf("archive %s: %v", row.ID.String(), err)
 		if markErr := s.repo.MarkArchiveFailed(ctx, contentdb.MarkArchiveFailedParams{
 			ID:    row.ID,
 			Error: truncateBytes(err.Error(), 500),
 		}); markErr != nil {
-			log.Printf("archive %s: mark failed: %v", uuidString(row.ID), markErr)
+			log.Printf("archive %s: mark failed: %v", row.ID.String(), markErr)
 		}
 		return
 	}
@@ -401,7 +401,7 @@ func (s *ContentService) buildArchive(ctx context.Context, row contentdb.Workspa
 		DocumentCount:  int32(summary.documents),
 		MissingCount:   int32(summary.missing),
 	}); err != nil {
-		log.Printf("archive %s: mark ready: %v", uuidString(row.ID), err)
+		log.Printf("archive %s: mark ready: %v", row.ID.String(), err)
 		return
 	}
 
@@ -410,9 +410,9 @@ func (s *ContentService) buildArchive(ctx context.Context, row contentdb.Workspa
 	meta["missing_count"] = summary.missing
 	meta["size_bytes"] = counter.n
 
-	s.activity.Record(ctx, s.activityEntry(workspaceID, actor,
+	s.activity.Record(ctx, activityservice.NewEntry(workspaceID, actor.UserID, actor.Name, actor.Role,
 		activityservice.ActionArchiveExported, activityservice.TargetArchive,
-		uuidString(row.ID), archiveRootName(slug, row.CreatedAt.Time, row.ScopeFolderNames), meta))
+		row.ID.String(), archiveRootName(slug, row.CreatedAt.Time, row.ScopeFolderNames), meta))
 }
 
 type archiveSummary struct {
@@ -496,10 +496,10 @@ func (s *ContentService) writeArchiveContents(
 	}
 
 	for _, f := range folders {
-		node(uuidString(f.ParentID)).folders = append(node(uuidString(f.ParentID)).folders, f)
+		node(f.ParentID.String()).folders = append(node(f.ParentID.String()).folders, f)
 	}
 	for _, d := range docs {
-		node(uuidString(d.FolderID)).docs = append(node(uuidString(d.FolderID)).docs, d)
+		node(d.FolderID.String()).docs = append(node(d.FolderID.String()).docs, d)
 	}
 
 	createdAt := row.CreatedAt.Time
@@ -533,7 +533,7 @@ func (s *ContentService) writeArchiveContents(
 			number := archiveNumber(numberPrefix, seq, siblings)
 			plain := dedupName(usedHere, sanitizeComponent(f.Name))
 
-			fid := uuidString(f.ID)
+			fid := f.ID.String()
 			childIncluded := included
 			if _, chosen := scope[fid]; chosen {
 				childIncluded = true
@@ -850,8 +850,8 @@ func (s *ContentService) writeArchiveAudit(
 
 	rows := make([][]string, 0, len(matrix))
 	for _, m := range matrix {
-		folderID := uuidString(m.FolderID)
-		source := uuidString(m.SourceFolderID)
+		folderID := m.FolderID.String()
+		source := m.SourceFolderID.String()
 		inherited := ""
 		if source != folderID {
 			inherited = folderPaths[source]
@@ -1025,7 +1025,7 @@ func (s *ContentService) sweepArchivesOnce(ctx context.Context, ttl time.Duratio
 			ID:    a.ID,
 			Error: "pembuatan arsip terhenti sebelum selesai",
 		}); err != nil {
-			log.Printf("archive sweep: mark stale %s: %v", uuidString(a.ID), err)
+			log.Printf("archive sweep: mark stale %s: %v", a.ID.String(), err)
 		}
 	}
 
@@ -1048,7 +1048,7 @@ func (s *ContentService) sweepArchivesOnce(ctx context.Context, ttl time.Duratio
 			ID:          a.ID,
 			WorkspaceID: a.WorkspaceID,
 		}); err != nil {
-			log.Printf("archive sweep: delete row %s: %v", uuidString(a.ID), err)
+			log.Printf("archive sweep: delete row %s: %v", a.ID.String(), err)
 			continue
 		}
 

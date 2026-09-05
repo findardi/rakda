@@ -1,8 +1,6 @@
 package activity
 
 import (
-	"context"
-
 	accessrepo "github.com/findardi/rakda/server/internal/access/repository"
 	"github.com/findardi/rakda/server/internal/activity/handler"
 	activitydb "github.com/findardi/rakda/server/internal/activity/repository/sqlc"
@@ -10,26 +8,8 @@ import (
 	auth "github.com/findardi/rakda/server/internal/auth/repository"
 	"github.com/findardi/rakda/server/internal/platform/middleware"
 	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-type userStatusReader struct {
-	repo *auth.Repository
-}
-
-func (s userStatusReader) UserStatus(ctx context.Context, userID string) (string, error) {
-	var uid pgtype.UUID
-	if err := uid.Scan(userID); err != nil {
-		return "", err
-	}
-
-	user, err := s.repo.GetUserById(ctx, uid)
-	if err != nil {
-		return "", err
-	}
-	return user.Status, nil
-}
 
 type Module struct {
 	handler    *handler.ActivityHandler
@@ -41,7 +21,7 @@ func NewModule(pool *pgxpool.Pool, verifier middleware.TokenVerifier) *Module {
 	s := service.NewActivityService(activitydb.New(pool))
 	h := handler.NewActivityHandler(s)
 
-	mw := middleware.New(verifier, userStatusReader{repo: auth.New(pool)}, nil)
+	mw := middleware.New(verifier, auth.New(pool), nil)
 
 	return &Module{
 		handler:    h,

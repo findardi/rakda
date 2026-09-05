@@ -2,10 +2,12 @@ package database
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/findardi/rakda/server/internal/platform/config"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -36,4 +38,10 @@ func New(ctx context.Context, cfg config.DatabaseConfig) (*pgxpool.Pool, error) 
 	}
 
 	return pool, nil
+}
+
+// IsUniqueViolation reports whether err is a Postgres 23505 on the named constraint.
+func IsUniqueViolation(err error, constraint string) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == constraint
 }

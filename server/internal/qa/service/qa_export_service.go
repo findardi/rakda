@@ -115,7 +115,7 @@ func (s *QAService) ExportQuestions(ctx context.Context, req dto.ExportQuestions
 
 	if len(rows) == limit {
 		last := rows[len(rows)-1]
-		page.NextCursor = questionCursor(last.CreatedAt.Time, uuidString(last.ID))
+		page.NextCursor = questionCursor(last.CreatedAt.Time, last.ID.String())
 	}
 
 	return page, nil

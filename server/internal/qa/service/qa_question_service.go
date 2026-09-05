@@ -93,9 +93,9 @@ func (s *QAService) SubmitQuestion(ctx context.Context, req dto.SubmitQuestionRe
 			return fmt.Errorf("insert question: %w", err)
 		}
 
-		return s.activity.RecordTx(ctx, tx, s.activityEntry(req.WorkspaceID, actor,
+		return s.activity.RecordTx(ctx, tx, activityservice.NewEntry(req.WorkspaceID, actor.UserID, actor.Name, actor.Role,
 			activityservice.ActionQuestionSubmitted, activityservice.TargetQuestion,
-			uuidString(created.ID), created.Subject,
+			created.ID.String(), created.Subject,
 			map[string]any{"group_name": lock.Name, "number": stats.NextNumber}))
 	})
 	if err != nil {
@@ -105,14 +105,14 @@ func (s *QAService) SubmitQuestion(ctx context.Context, req dto.SubmitQuestionRe
 	res := threadResponse(created, nil)
 	if docRef != nil {
 		res.DocumentRef = &dto.ReferenceChip{
-			ID:       uuidString(docRef.id),
-			FolderID: uuidString(docRef.folderID),
+			ID:       docRef.id.String(),
+			FolderID: docRef.folderID.String(),
 			Name:     docRef.name,
 		}
 	}
 	if folderRef != nil {
 		res.FolderRef = &dto.ReferenceChip{
-			ID:   uuidString(folderRef.id),
+			ID:   folderRef.id.String(),
 			Name: folderRef.name,
 		}
 	}
@@ -134,10 +134,10 @@ func (s *QAService) resolveSubmitRefs(ctx context.Context, req dto.SubmitQuestio
 		if err != nil {
 			return nil, nil, fmt.Errorf("get document ref: %w", err)
 		}
-		if uuidString(d.WorkspaceID) != req.WorkspaceID {
+		if d.WorkspaceID.String() != req.WorkspaceID {
 			return nil, nil, ErrReferenceNotFound
 		}
-		ok, err := s.content.CanUserViewFolder(ctx, req.WorkspaceID, uuidString(d.FolderID), actor.UserID)
+		ok, err := s.content.CanUserViewFolder(ctx, req.WorkspaceID, d.FolderID.String(), actor.UserID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("check document ref access: %w", err)
 		}
@@ -159,7 +159,7 @@ func (s *QAService) resolveSubmitRefs(ctx context.Context, req dto.SubmitQuestio
 		if err != nil {
 			return nil, nil, fmt.Errorf("get folder ref: %w", err)
 		}
-		if uuidString(f.WorkspaceID) != req.WorkspaceID {
+		if f.WorkspaceID.String() != req.WorkspaceID {
 			return nil, nil, ErrReferenceNotFound
 		}
 		ok, err := s.content.CanUserViewFolder(ctx, req.WorkspaceID, req.FolderID, actor.UserID)
@@ -254,13 +254,13 @@ func (s *QAService) ListQuestions(ctx context.Context, req dto.ListQuestionsRequ
 	}
 	for _, row := range rows {
 		res.Items = append(res.Items, dto.QuestionListItem{
-			ID:         uuidString(row.ID),
+			ID:         row.ID.String(),
 			Number:     row.Number,
 			Subject:    row.Subject,
 			Status:     row.Status,
-			GroupID:    uuidString(row.GroupID),
+			GroupID:    row.GroupID.String(),
 			GroupName:  row.GroupName,
-			AuthorID:   uuidString(row.AuthorID),
+			AuthorID:   row.AuthorID.String(),
 			AuthorName: row.AuthorName,
 			ReplyCount: row.ReplyCount,
 			CreatedAt:  row.CreatedAt.Time,
@@ -268,7 +268,7 @@ func (s *QAService) ListQuestions(ctx context.Context, req dto.ListQuestionsRequ
 	}
 	if len(rows) == limit {
 		last := rows[len(rows)-1]
-		res.NextCursor = questionCursor(last.CreatedAt.Time, uuidString(last.ID))
+		res.NextCursor = questionCursor(last.CreatedAt.Time, last.ID.String())
 	}
 
 	total, err := s.repo.CountQuestions(ctx, qadb.CountQuestionsParams{WorkspaceID: wID, GroupID: scopeGroup})
@@ -382,9 +382,9 @@ func (s *QAService) ReplyQuestion(ctx context.Context, req dto.ReplyQuestionRequ
 		if actor.managesRoom() {
 			action = activityservice.ActionQuestionAnswered
 		}
-		return s.activity.RecordTx(ctx, tx, s.activityEntry(req.WorkspaceID, actor,
+		return s.activity.RecordTx(ctx, tx, activityservice.NewEntry(req.WorkspaceID, actor.UserID, actor.Name, actor.Role,
 			action, activityservice.TargetQuestion,
-			uuidString(question.ID), question.Subject, nil))
+			question.ID.String(), question.Subject, nil))
 	})
 	if err != nil {
 		return dto.ReplyResult{}, err
@@ -398,7 +398,7 @@ func (s *QAService) CloseQuestion(ctx context.Context, workspaceID, questionID s
 	if err != nil {
 		return err
 	}
-	if !actor.managesRoom() && uuidString(question.AuthorID) != actor.UserID {
+	if !actor.managesRoom() && question.AuthorID.String() != actor.UserID {
 		return ErrCloseNotAllowed
 	}
 
@@ -418,9 +418,9 @@ func (s *QAService) CloseQuestion(ctx context.Context, workspaceID, questionID s
 			return fmt.Errorf("update question status: %w", err)
 		}
 
-		return s.activity.RecordTx(ctx, tx, s.activityEntry(workspaceID, actor,
+		return s.activity.RecordTx(ctx, tx, activityservice.NewEntry(workspaceID, actor.UserID, actor.Name, actor.Role,
 			activityservice.ActionQuestionClosed, activityservice.TargetQuestion,
-			uuidString(question.ID), question.Subject, nil))
+			question.ID.String(), question.Subject, nil))
 	})
 }
 
@@ -450,9 +450,9 @@ func (s *QAService) ReopenQuestion(ctx context.Context, workspaceID, questionID 
 			return fmt.Errorf("update question status: %w", err)
 		}
 
-		return s.activity.RecordTx(ctx, tx, s.activityEntry(workspaceID, actor,
+		return s.activity.RecordTx(ctx, tx, activityservice.NewEntry(workspaceID, actor.UserID, actor.Name, actor.Role,
 			activityservice.ActionQuestionReopened, activityservice.TargetQuestion,
-			uuidString(question.ID), question.Subject, nil))
+			question.ID.String(), question.Subject, nil))
 	})
 }
 
@@ -505,7 +505,7 @@ func (s *QAService) attachRefs(ctx context.Context, res *dto.QuestionThreadRespo
 		default:
 			show := actor.managesRoom()
 			if !show {
-				ok, err := s.content.CanUserViewFolder(ctx, uuidString(question.WorkspaceID), uuidString(doc.FolderID), actor.UserID)
+				ok, err := s.content.CanUserViewFolder(ctx, question.WorkspaceID.String(), doc.FolderID.String(), actor.UserID)
 				if err != nil {
 					return fmt.Errorf("check document ref access: %w", err)
 				}
@@ -513,8 +513,8 @@ func (s *QAService) attachRefs(ctx context.Context, res *dto.QuestionThreadRespo
 			}
 			if show {
 				res.DocumentRef = &dto.ReferenceChip{
-					ID:       uuidString(doc.ID),
-					FolderID: uuidString(doc.FolderID),
+					ID:       doc.ID.String(),
+					FolderID: doc.FolderID.String(),
 					Name:     doc.Name,
 				}
 			}
@@ -530,7 +530,7 @@ func (s *QAService) attachRefs(ctx context.Context, res *dto.QuestionThreadRespo
 		default:
 			show := actor.managesRoom()
 			if !show {
-				ok, err := s.content.CanUserViewFolder(ctx, uuidString(question.WorkspaceID), uuidString(folder.ID), actor.UserID)
+				ok, err := s.content.CanUserViewFolder(ctx, question.WorkspaceID.String(), folder.ID.String(), actor.UserID)
 				if err != nil {
 					return fmt.Errorf("check folder ref access: %w", err)
 				}
@@ -538,7 +538,7 @@ func (s *QAService) attachRefs(ctx context.Context, res *dto.QuestionThreadRespo
 			}
 			if show {
 				res.FolderRef = &dto.ReferenceChip{
-					ID:   uuidString(folder.ID),
+					ID:   folder.ID.String(),
 					Name: folder.Name,
 				}
 			}
@@ -550,14 +550,14 @@ func (s *QAService) attachRefs(ctx context.Context, res *dto.QuestionThreadRespo
 
 func threadResponse(question qadb.Question, replies []qadb.QuestionReply) dto.QuestionThreadResponse {
 	res := dto.QuestionThreadResponse{
-		ID:         uuidString(question.ID),
+		ID:         question.ID.String(),
 		Number:     question.Number,
 		Subject:    question.Subject,
 		Body:       question.Body,
 		Status:     question.Status,
-		GroupID:    uuidString(question.GroupID),
+		GroupID:    question.GroupID.String(),
 		GroupName:  question.GroupName,
-		AuthorID:   uuidString(question.AuthorID),
+		AuthorID:   question.AuthorID.String(),
 		AuthorName: question.AuthorName,
 		CreatedAt:  question.CreatedAt.Time,
 		Replies:    []dto.ReplyResponse{},
@@ -570,8 +570,8 @@ func threadResponse(question qadb.Question, replies []qadb.QuestionReply) dto.Qu
 
 func replyResponse(reply qadb.QuestionReply) dto.ReplyResponse {
 	return dto.ReplyResponse{
-		ID:         uuidString(reply.ID),
-		AuthorID:   uuidString(reply.AuthorID),
+		ID:         reply.ID.String(),
+		AuthorID:   reply.AuthorID.String(),
 		AuthorName: reply.AuthorName,
 		AuthorRole: reply.AuthorRole,
 		Body:       reply.Body,

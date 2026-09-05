@@ -90,6 +90,22 @@ type Entry struct {
 	Metadata    map[string]any
 }
 
+// NewEntry builds an Entry for one actor acting on one target. Every domain
+// service records through it so the actor snapshot is shaped the same way.
+func NewEntry(workspaceID, actorID, actorName, actorRole, action, targetType, targetID, targetName string, metadata map[string]any) Entry {
+	return Entry{
+		WorkspaceID: workspaceID,
+		ActorID:     actorID,
+		ActorName:   actorName,
+		ActorRole:   actorRole,
+		Action:      action,
+		TargetType:  targetType,
+		TargetID:    targetID,
+		TargetName:  targetName,
+		Metadata:    metadata,
+	}
+}
+
 type PageEvent struct {
 	WorkspaceID  string
 	DocumentID   string

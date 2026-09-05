@@ -81,7 +81,7 @@ func (s *ContentService) BulkDeleteFolders(ctx context.Context, req dto.BulkDele
 			}
 		}
 
-		return s.activity.RecordTx(ctx, tx, s.activityEntry(req.WorkspaceID, actor,
+		return s.activity.RecordTx(ctx, tx, activityservice.NewEntry(req.WorkspaceID, actor.UserID, actor.Name, actor.Role,
 			activityservice.ActionFolderDeleted, activityservice.TargetFolder,
 			"", "", map[string]any{"bulk": true, "count": len(ids)}))
 	})
@@ -124,7 +124,7 @@ func (s *ContentService) BulkDeleteDocuments(ctx context.Context, req dto.BulkDe
 			}
 		}
 
-		return s.activity.RecordTx(ctx, tx, s.activityEntry(req.WorkspaceID, actor,
+		return s.activity.RecordTx(ctx, tx, activityservice.NewEntry(req.WorkspaceID, actor.UserID, actor.Name, actor.Role,
 			activityservice.ActionDocumentDeleted, activityservice.TargetDocument,
 			"", "", map[string]any{"bulk": true, "count": len(ids)}))
 	})

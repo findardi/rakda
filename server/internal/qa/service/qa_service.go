@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	activityservice "github.com/findardi/rakda/server/internal/activity/service"
 	"github.com/findardi/rakda/server/internal/platform/permission"
 	qadb "github.com/findardi/rakda/server/internal/qa/repository/sqlc"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -64,20 +63,6 @@ func NewQAService(repo QARepository, content ContentAccessChecker, activity Acti
 	}
 }
 
-func (s *QAService) activityEntry(workspaceID string, actor Actor, action, targetType, targetID, targetName string, metadata map[string]any) activityservice.Entry {
-	return activityservice.Entry{
-		WorkspaceID: workspaceID,
-		ActorID:     actor.UserID,
-		ActorName:   actor.Name,
-		ActorRole:   actor.Role,
-		Action:      action,
-		TargetType:  targetType,
-		TargetID:    targetID,
-		TargetName:  targetName,
-		Metadata:    metadata,
-	}
-}
-
 func nextStatusAfterReply(authorRole string) string {
 	if authorRole == permission.RoleGuest {
 		return StatusWaiting
@@ -118,13 +103,4 @@ func questionVisibleTo(q qadb.Question, actor Actor, actorGroupID pgtype.UUID) b
 		return true
 	}
 	return q.GroupID.Valid && actorGroupID.Valid && q.GroupID == actorGroupID
-}
-
-func uuidString(u pgtype.UUID) string {
-	v, err := u.Value()
-	if err != nil || v == nil {
-		return ""
-	}
-	s, _ := v.(string)
-	return s
 }

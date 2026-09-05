@@ -54,7 +54,7 @@ func (s *ActivityService) RecordPageDurations(ctx context.Context, req dto.Recor
 		return fmt.Errorf("get document: %w", err)
 	}
 
-	if uuidString(doc.WorkspaceID) != req.WorkspaceID {
+	if doc.WorkspaceID.String() != req.WorkspaceID {
 		return ErrDocumentNotFound
 	}
 
@@ -114,7 +114,7 @@ func (s *ActivityService) resolveEngagementScope(ctx context.Context, workspaceI
 		return engagementScope{}, fmt.Errorf("get document: %w", err)
 	}
 
-	if uuidString(doc.WorkspaceID) != workspaceID {
+	if doc.WorkspaceID.String() != workspaceID {
 		return engagementScope{}, ErrDocumentNotFound
 	}
 
@@ -149,10 +149,10 @@ func (s *ActivityService) GetDocumentReaders(ctx context.Context, workspaceID, d
 
 	for _, r := range rows {
 		res.Readers = append(res.Readers, dto.ReaderEngagement{
-			ActorID:    uuidString(r.ActorID),
+			ActorID:    r.ActorID.String(),
 			ActorName:  r.ActorName,
 			ActorEmail: r.ActorEmail,
-			GroupID:    uuidString(r.GroupID),
+			GroupID:    r.GroupID.String(),
 			GroupName:  r.GroupName,
 			Opens:      r.Opens,
 			PagesSeen:  r.PagesSeen,
@@ -238,7 +238,7 @@ func (s *ActivityService) GetEngagementBreakdown(ctx context.Context, workspaceI
 		}
 
 		out.Rows = append(out.Rows, dto.EngagementBreakdownRow{
-			ActorID:    uuidString(r.ActorID),
+			ActorID:    r.ActorID.String(),
 			ActorName:  r.ActorName,
 			ActorEmail: r.ActorEmail,
 			GroupName:  r.GroupName,

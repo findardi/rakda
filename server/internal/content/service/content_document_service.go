@@ -43,7 +43,7 @@ func (s *ContentService) RequestUploadURL(ctx context.Context, workspaceID, fold
 		return dto.UploadURLResponse{}, fmt.Errorf("get folder: %w", err)
 	}
 
-	if uuidString(folder.WorkspaceID) != workspaceID {
+	if folder.WorkspaceID.String() != workspaceID {
 		return dto.UploadURLResponse{}, ErrFolderNotFound
 	}
 
@@ -158,9 +158,9 @@ func (s *ContentService) CompletedUpload(ctx context.Context, req dto.CompleteUp
 			return err
 		}
 
-		return s.activity.RecordTx(ctx, tx, s.activityEntry(req.WorkspaceID, actor,
+		return s.activity.RecordTx(ctx, tx, activityservice.NewEntry(req.WorkspaceID, actor.UserID, actor.Name, actor.Role,
 			activityservice.ActionDocumentUploaded, activityservice.TargetDocument,
-			uuidString(doc.ID), doc.Name, nil))
+			doc.ID.String(), doc.Name, nil))
 	})
 
 	if err != nil {
@@ -171,11 +171,11 @@ func (s *ContentService) CompletedUpload(ctx context.Context, req dto.CompleteUp
 	s.wakeRenditionWorker()
 
 	return dto.DocumentResponse{
-		ID:               uuidString(doc.ID),
-		FolderID:         uuidString(doc.FolderID),
+		ID:               doc.ID.String(),
+		FolderID:         doc.FolderID.String(),
 		Name:             doc.Name,
 		VersionNo:        ver.VersionNo,
-		CurrentVersionID: uuidString(ver.ID),
+		CurrentVersionID: ver.ID.String(),
 		Mime:             ver.Mime,
 		Size:             ver.Size,
 		RenditionStatus:  renditionStatus(ver.RenditionKey, ver.RenditionFailedAt),
@@ -200,11 +200,11 @@ func (s *ContentService) RequestVersionUpload(ctx context.Context, workspaceID, 
 		return dto.UploadURLResponse{}, fmt.Errorf("get document: %w", err)
 	}
 
-	if uuidString(doc.WorkspaceID) != workspaceID {
+	if doc.WorkspaceID.String() != workspaceID {
 		return dto.UploadURLResponse{}, ErrDocumentNotFound
 	}
 
-	key := storageKey(uuidString(doc.WorkspaceID), uuidString(doc.FolderID))
+	key := storageKey(doc.WorkspaceID.String(), doc.FolderID.String())
 	url, err := s.store.PresignedPut(ctx, key, uploadURLTTL)
 	if err != nil {
 		return dto.UploadURLResponse{}, fmt.Errorf("presign put: %w", err)
@@ -235,7 +235,7 @@ func (s *ContentService) CompletedVersion(ctx context.Context, req dto.CompleteV
 		return dto.DocumentResponse{}, fmt.Errorf("get document: %w", err)
 	}
 
-	if uuidString(doc.WorkspaceID) != req.WorkspaceID {
+	if doc.WorkspaceID.String() != req.WorkspaceID {
 		return dto.DocumentResponse{}, ErrDocumentNotFound
 	}
 
@@ -284,9 +284,9 @@ func (s *ContentService) CompletedVersion(ctx context.Context, req dto.CompleteV
 			return err
 		}
 
-		return s.activity.RecordTx(ctx, tx, s.activityEntry(req.WorkspaceID, actor,
+		return s.activity.RecordTx(ctx, tx, activityservice.NewEntry(req.WorkspaceID, actor.UserID, actor.Name, actor.Role,
 			activityservice.ActionVersionUploaded, activityservice.TargetVersion,
-			uuidString(ver.ID), doc.Name, map[string]any{"version_no": ver.VersionNo}))
+			ver.ID.String(), doc.Name, map[string]any{"version_no": ver.VersionNo}))
 	})
 
 	if err != nil {
@@ -302,16 +302,16 @@ func (s *ContentService) CompletedVersion(ctx context.Context, req dto.CompleteV
 	}
 
 	return dto.DocumentResponse{
-		ID:                    uuidString(doc.ID),
-		FolderID:              uuidString(doc.FolderID),
+		ID:                    doc.ID.String(),
+		FolderID:              doc.FolderID.String(),
 		Name:                  doc.Name,
 		VersionNo:             cur.VersionNo,
-		CurrentVersionID:      uuidString(cur.ID),
+		CurrentVersionID:      cur.ID.String(),
 		Mime:                  cur.Mime,
 		Size:                  cur.Size,
 		RenditionStatus:       renditionStatus(cur.RenditionKey, cur.RenditionFailedAt),
 		VersionCount:          ver.VersionNo,
-		StagedVersionID:       uuidString(ver.ID),
+		StagedVersionID:       ver.ID.String(),
 		StagedVersionNo:       &ver.VersionNo,
 		StagedRenditionStatus: dto.RenditionPending,
 		CreatedAt:             doc.CreatedAt.Time,
@@ -334,7 +334,7 @@ func (s *ContentService) ListDocuments(ctx context.Context, workspaceID, folderI
 		return []dto.DocumentResponse{}, fmt.Errorf("get folder: %w", err)
 	}
 
-	if uuidString(folder.WorkspaceID) != workspaceID {
+	if folder.WorkspaceID.String() != workspaceID {
 		return []dto.DocumentResponse{}, ErrFolderNotFound
 	}
 
@@ -350,11 +350,11 @@ func (s *ContentService) ListDocuments(ctx context.Context, workspaceID, folderI
 	docs := make([]dto.DocumentResponse, 0, len(rows))
 	for _, r := range rows {
 		d := dto.DocumentResponse{
-			ID:               uuidString(r.ID),
-			FolderID:         uuidString(r.FolderID),
+			ID:               r.ID.String(),
+			FolderID:         r.FolderID.String(),
 			Name:             r.Name,
 			VersionNo:        r.VersionNo,
-			CurrentVersionID: uuidString(r.CurrentVersionID),
+			CurrentVersionID: r.CurrentVersionID.String(),
 			Mime:             r.Mime,
 			Size:             r.Size,
 			RenditionStatus:  renditionStatus(r.RenditionKey, r.RenditionFailedAt),
@@ -366,7 +366,7 @@ func (s *ContentService) ListDocuments(ctx context.Context, workspaceID, folderI
 		// Staged state is manager knowledge, like the history it belongs to:
 		// a guest only ever knows the served version.
 		if actor.managesRoom() && r.StagedVersionID.Valid {
-			d.StagedVersionID = uuidString(r.StagedVersionID)
+			d.StagedVersionID = r.StagedVersionID.String()
 			d.StagedVersionNo = r.StagedVersionNo
 			d.StagedRenditionStatus = renditionStatus(r.StagedRenditionKey, r.StagedRenditionFailedAt)
 		}
@@ -395,11 +395,11 @@ func (s *ContentService) ListVersions(ctx context.Context, workspaceID, document
 	vers := make([]dto.VersionResponse, 0, len(rows))
 	for _, r := range rows {
 		vers = append(vers, dto.VersionResponse{
-			ID:              uuidString(r.ID),
+			ID:              r.ID.String(),
 			VersionNo:       r.VersionNo,
 			Mime:            r.Mime,
 			Size:            r.Size,
-			UploadedBy:      uuidString(r.UploadedBy),
+			UploadedBy:      r.UploadedBy.String(),
 			UploadedByName:  r.UploadedByName,
 			IsCurrent:       r.IsCurrent,
 			IsStaged:        r.IsStaged,
@@ -423,7 +423,7 @@ func (s *ContentService) DownloadDocument(ctx context.Context, workspaceID, docu
 		return DownloadResult{}, err
 	}
 
-	access, err := s.resolveViewAccess(ctx, workspaceID, uuidString(doc.FolderID), actor)
+	access, err := s.resolveViewAccess(ctx, workspaceID, doc.FolderID.String(), actor)
 	if err != nil {
 		return DownloadResult{}, err
 	}
@@ -464,7 +464,7 @@ func (s *ContentService) DownloadDocument(ctx context.Context, workspaceID, docu
 			return DownloadResult{}, err
 		}
 
-		return DownloadResult{JobID: uuidString(job.ID)}, nil
+		return DownloadResult{JobID: job.ID.String()}, nil
 	}
 
 	select {
@@ -481,7 +481,7 @@ func (s *ContentService) DownloadDocument(ctx context.Context, workspaceID, docu
 	// mendorong lebih banyak permintaan lewat anggaran itu ke eskalasi. Job
 	// eskalasi ikut di kolam ini karena Document-nya sudah terbuka di sini.
 	go func() {
-		body, err := s.rasterWatermarkPDF(stampCtx, s.viewer.Renderer, workspaceID, uuidString(version.ID), renditionKey, pageCount, mark)
+		body, err := s.rasterWatermarkPDF(stampCtx, s.viewer.Renderer, workspaceID, version.ID.String(), renditionKey, pageCount, mark)
 		result <- stampResult{body: body, err: err}
 	}()
 
@@ -507,15 +507,15 @@ func (s *ContentService) DownloadDocument(ctx context.Context, workspaceID, docu
 			return DownloadResult{}, err
 		}
 
-		return DownloadResult{JobID: uuidString(job.ID)}, nil
+		return DownloadResult{JobID: job.ID.String()}, nil
 	}
 }
 
 func (s *ContentService) recordDownload(ctx context.Context, workspaceID string, doc contentdb.Document,
 	version contentdb.DocumentVersion, actor Actor, variant string) {
-	s.activity.Record(ctx, s.activityEntry(workspaceID, actor,
+	s.activity.Record(ctx, activityservice.NewEntry(workspaceID, actor.UserID, actor.Name, actor.Role,
 		activityservice.ActionDocumentDownloaded, activityservice.TargetDocument,
-		uuidString(doc.ID), doc.Name, map[string]any{"version_no": version.VersionNo, "variant": variant}))
+		doc.ID.String(), doc.Name, map[string]any{"version_no": version.VersionNo, "variant": variant}))
 }
 
 func (s *ContentService) RetryRendition(ctx context.Context, workspaceID, documentID, versionID string, actor Actor) error {
@@ -546,7 +546,7 @@ func (s *ContentService) RetryRendition(ctx context.Context, workspaceID, docume
 	// made the row claimable and this wake spares it the wait for the next tick.
 	s.wakeRenditionWorker()
 
-	s.activity.Record(ctx, s.activityEntry(workspaceID, actor,
+	s.activity.Record(ctx, activityservice.NewEntry(workspaceID, actor.UserID, actor.Name, actor.Role,
 		activityservice.ActionRenditionRetried, activityservice.TargetVersion,
 		versionID, doc.Name, map[string]any{"version_no": version.VersionNo}))
 
@@ -841,7 +841,7 @@ func (s *ContentService) DeleteDocument(ctx context.Context, workspaceID, docume
 		return fmt.Errorf("get document: %w", err)
 	}
 
-	if uuidString(doc.WorkspaceID) != workspaceID {
+	if doc.WorkspaceID.String() != workspaceID {
 		return ErrDocumentNotFound
 	}
 
@@ -857,7 +857,7 @@ func (s *ContentService) DeleteDocument(ctx context.Context, workspaceID, docume
 		return fmt.Errorf("soft delete document: %w", err)
 	}
 
-	s.activity.Record(ctx, s.activityEntry(workspaceID, actor,
+	s.activity.Record(ctx, activityservice.NewEntry(workspaceID, actor.UserID, actor.Name, actor.Role,
 		activityservice.ActionDocumentDeleted, activityservice.TargetDocument,
 		documentID, doc.Name, nil))
 
@@ -881,7 +881,7 @@ func (s *ContentService) MoveDocument(ctx context.Context, req dto.MoveDocumentR
 		if err != nil {
 			return fmt.Errorf("get document: %w", err)
 		}
-		if uuidString(doc.WorkspaceID) != req.WorkspaceID {
+		if doc.WorkspaceID.String() != req.WorkspaceID {
 			return ErrDocumentNotFound
 		}
 
@@ -896,7 +896,7 @@ func (s *ContentService) MoveDocument(ctx context.Context, req dto.MoveDocumentR
 		if err != nil {
 			return fmt.Errorf("get target folder: %w", err)
 		}
-		if uuidString(folder.WorkspaceID) != req.WorkspaceID {
+		if folder.WorkspaceID.String() != req.WorkspaceID {
 			return ErrParentCrossWorkspace
 		}
 
@@ -936,7 +936,7 @@ func (s *ContentService) MoveDocument(ctx context.Context, req dto.MoveDocumentR
 			}
 		}
 
-		return s.activity.RecordTx(ctx, tx, s.activityEntry(req.WorkspaceID, actor,
+		return s.activity.RecordTx(ctx, tx, activityservice.NewEntry(req.WorkspaceID, actor.UserID, actor.Name, actor.Role,
 			activityservice.ActionDocumentMoved, activityservice.TargetDocument,
 			req.DocumentID, doc.Name, map[string]any{"to_folder_id": req.FolderID}))
 	})
@@ -988,7 +988,7 @@ func (s *ContentService) assertFolderInWorkspace(ctx context.Context, workspaceI
 		return fmt.Errorf("get filder: %w", err)
 	}
 
-	if uuidString(folder.WorkspaceID) != workspaceID {
+	if folder.WorkspaceID.String() != workspaceID {
 		return ErrFolderNotFound
 	}
 
@@ -1166,7 +1166,7 @@ func (s *ContentService) RestoreVersion(ctx context.Context, workspaceID, docume
 			return err
 		}
 
-		return s.activity.RecordTx(ctx, tx, s.activityEntry(workspaceID, actor,
+		return s.activity.RecordTx(ctx, tx, activityservice.NewEntry(workspaceID, actor.UserID, actor.Name, actor.Role,
 			activityservice.ActionVersionRestored, activityservice.TargetVersion,
 			versionID, doc.Name, map[string]any{"version_no": src.VersionNo}))
 	})
@@ -1193,11 +1193,11 @@ func (s *ContentService) RestoreVersion(ctx context.Context, workspaceID, docume
 	}
 
 	return dto.DocumentResponse{
-		ID:               uuidString(fresh.ID),
-		FolderID:         uuidString(fresh.FolderID),
+		ID:               fresh.ID.String(),
+		FolderID:         fresh.FolderID.String(),
 		Name:             fresh.Name,
 		VersionNo:        target.VersionNo,
-		CurrentVersionID: uuidString(target.ID),
+		CurrentVersionID: target.ID.String(),
 		Mime:             target.Mime,
 		Size:             target.Size,
 		RenditionStatus:  renditionStatus(target.RenditionKey, target.RenditionFailedAt),

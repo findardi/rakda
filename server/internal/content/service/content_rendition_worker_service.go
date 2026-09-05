@@ -90,7 +90,7 @@ func (s *ContentService) runRenditionJob(ctx context.Context, version contentdb.
 	}
 
 	workCtx, cancelWork := context.WithTimeout(ctx, jobTimeout)
-	key, pages, err := s.buildRendition(workCtx, uuidString(doc.WorkspaceID), doc, version)
+	key, pages, err := s.buildRendition(workCtx, doc.WorkspaceID.String(), doc, version)
 	cancelWork()
 
 	if err == nil {
@@ -125,7 +125,7 @@ func classifyRenditionError(ctx context.Context, err error) renditionOutcome {
 }
 
 func (s *ContentService) finishRendition(ctx context.Context, doc contentdb.Document, version contentdb.DocumentVersion, key string, pages int) {
-	versionID := uuidString(version.ID)
+	versionID := version.ID.String()
 	pc := int32(pages)
 
 	if err := s.repo.SetVersionRendition(ctx, contentdb.SetVersionRenditionParams{
@@ -148,13 +148,13 @@ func (s *ContentService) finishRendition(ctx context.Context, doc contentdb.Docu
 
 func (s *ContentService) failRendition(ctx context.Context, versionID pgtype.UUID, cause error) {
 	msg := cause.Error()
-	log.Printf("rendition worker: version %s failed permanently: %s", uuidString(versionID), msg)
+	log.Printf("rendition worker: version %s failed permanently: %s", versionID.String(), msg)
 
 	if err := s.repo.SetVersionRenditionFailure(ctx, contentdb.SetVersionRenditionFailureParams{
 		RenditionError: &msg,
 		ID:             versionID,
 	}); err != nil {
-		log.Printf("rendition worker: version %s: record failure: %v", uuidString(versionID), err)
+		log.Printf("rendition worker: version %s: record failure: %v", versionID.String(), err)
 	}
 }
 
@@ -167,21 +167,21 @@ func (s *ContentService) postponeRendition(ctx context.Context, version contentd
 
 	wait := renditionBackoff[min(attempt-1, len(renditionBackoff)-1)]
 	msg := cause.Error()
-	log.Printf("rendition worker: version %s attempt %d failed, retry in %s: %s", uuidString(version.ID), attempt, wait, msg)
+	log.Printf("rendition worker: version %s attempt %d failed, retry in %s: %s", version.ID.String(), attempt, wait, msg)
 
 	if err := s.repo.SetVersionRenditionTransientFailure(ctx, contentdb.SetVersionRenditionTransientFailureParams{
 		Backoff:        pgInterval(wait),
 		RenditionError: &msg,
 		ID:             version.ID,
 	}); err != nil {
-		log.Printf("rendition worker: version %s: record transient failure: %v", uuidString(version.ID), err)
+		log.Printf("rendition worker: version %s: record transient failure: %v", version.ID.String(), err)
 	}
 }
 
 func (s *ContentService) releaseRendition(ctx context.Context, versionID pgtype.UUID, cause error) {
-	log.Printf("rendition worker: version %s released: %v", uuidString(versionID), cause)
+	log.Printf("rendition worker: version %s released: %v", versionID.String(), cause)
 
 	if err := s.repo.ReleaseRenditionClaim(ctx, versionID); err != nil {
-		log.Printf("rendition worker: version %s: release claim: %v", uuidString(versionID), err)
+		log.Printf("rendition worker: version %s: release claim: %v", versionID.String(), err)
 	}
 }

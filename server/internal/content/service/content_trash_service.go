@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/findardi/rakda/server/internal/platform/ptr"
 	"strconv"
 
 	activityservice "github.com/findardi/rakda/server/internal/activity/service"
@@ -78,7 +79,7 @@ func (s *ContentService) ListTrash(ctx context.Context, workspaceID string, acto
 
 	for _, f := range folders {
 		res.Folders = append(res.Folders, dto.TrashFolderItem{
-			ID:            uuidString(f.ID),
+			ID:            f.ID.String(),
 			Name:          f.Name,
 			DeletedByName: f.DeletedByName,
 			DeletedAt:     f.DeletedAt.Time,
@@ -92,13 +93,13 @@ func (s *ContentService) ListTrash(ctx context.Context, workspaceID string, acto
 
 	for _, d := range documents {
 		res.Documents = append(res.Documents, dto.TrashDocumentItem{
-			ID:            uuidString(d.ID),
+			ID:            d.ID.String(),
 			Name:          d.Name,
 			DeletedByName: d.DeletedByName,
 			DeletedAt:     d.DeletedAt.Time,
 			PurgeAfter:    d.DeletedAt.Time.Add(s.trashRetention),
-			Mime:          deref(d.Mime),
-			Size:          deref(d.Size),
+			Mime:          ptr.Deref(d.Mime),
+			Size:          ptr.Deref(d.Size),
 			FolderName:    d.FolderName,
 			FolderGone:    d.FolderGone,
 		})
@@ -134,7 +135,7 @@ func (s *ContentService) RestoreFolders(ctx context.Context, workspaceID, folder
 			return fmt.Errorf("get trash folder: %w", err)
 		}
 
-		if uuidString(folder.WorkspaceID) != workspaceID {
+		if folder.WorkspaceID.String() != workspaceID {
 			return ErrNotInTrash
 		}
 
@@ -190,11 +191,11 @@ func (s *ContentService) RestoreFolders(ctx context.Context, workspaceID, folder
 			ID:         folderID,
 			Name:       name,
 			Renamed:    name != folder.Name,
-			FolderID:   uuidString(parentID),
+			FolderID:   parentID.String(),
 			FolderName: parentName,
 		}
 
-		return s.activity.RecordTx(ctx, tx, s.activityEntry(workspaceID, actor,
+		return s.activity.RecordTx(ctx, tx, activityservice.NewEntry(workspaceID, actor.UserID, actor.Name, actor.Role,
 			activityservice.ActionFolderRestored, activityservice.TargetFolder,
 			folderID, name, nil))
 	})
@@ -232,7 +233,7 @@ func (s *ContentService) RestoreDocument(ctx context.Context, workspaceID, docum
 			return fmt.Errorf("get trashed document: %w", err)
 		}
 
-		if uuidString(doc.WorkspaceID) != workspaceID {
+		if doc.WorkspaceID.String() != workspaceID {
 			return ErrNotInTrash
 		}
 
@@ -279,11 +280,11 @@ func (s *ContentService) RestoreDocument(ctx context.Context, workspaceID, docum
 			ID:         documentID,
 			Name:       name,
 			Renamed:    name != doc.Name,
-			FolderID:   uuidString(folderID),
+			FolderID:   folderID.String(),
 			FolderName: folderName,
 		}
 
-		return s.activity.RecordTx(ctx, tx, s.activityEntry(workspaceID, actor,
+		return s.activity.RecordTx(ctx, tx, activityservice.NewEntry(workspaceID, actor.UserID, actor.Name, actor.Role,
 			activityservice.ActionDocumentRestored, activityservice.TargetDocument,
 			documentID, name, nil))
 	})
