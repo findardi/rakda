@@ -107,23 +107,11 @@ func main() {
 	// di sini adalah api sendiri, bukan host.
 	log.Printf("viewer: gotenberg %s (convert timeout %s)", viewerCfg.GotenbergURL, viewerCfg.ConvertTimeout)
 
-	ocrDPI, err := config.GetEnvInt("OCR_DPI", viewerCfg.DPI)
-	if err != nil {
-		log.Printf("invalid OCR_DPI, fallback to viewer DPI: %v", err)
-		ocrDPI = viewerCfg.DPI
-	}
+	ocrDPI := config.EnvIntOr("OCR_DPI", viewerCfg.DPI)
 
-	ocrConcurrency, err := config.GetEnvInt("OCR_CONCURRENCY", 1)
-	if err != nil {
-		log.Printf("invalid OCR_CONCURRENCY, fallback to 1: %v", err)
-		ocrConcurrency = 1
-	}
+	ocrConcurrency := config.EnvIntOr("OCR_CONCURRENCY", 1)
 
-	ocrNice, err := config.GetEnvInt("OCR_NICE", 10)
-	if err != nil {
-		log.Printf("invalid OCR_NICE, fallback to 10: %v", err)
-		ocrNice = 10
-	}
+	ocrNice := config.EnvIntOr("OCR_NICE", 10)
 
 	ocr, err := render.NewTesseract(ocrDPI, viewerCfg.RenderTimeout, ocrConcurrency, ocrNice)
 	if err != nil {

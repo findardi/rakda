@@ -70,121 +70,45 @@ func New(pool *pgxpool.Pool, otpSecret, addr, jwtSecret string, store storage.St
 	}
 
 	webURL := config.GetEnv("WEB_URL", "http://localhost:5173")
-	trashRetention, err := config.GetEnvDuration("TRASH_RETENTION", defaultTrashRetention)
-	if err != nil {
-		log.Printf("invalid TRASH_RETENTION, fallback to %s: %v", defaultTrashRetention, err)
-		trashRetention = defaultTrashRetention
-	}
+	trashRetention := config.EnvDurationOr("TRASH_RETENTION", defaultTrashRetention)
 
-	reaperInterval, err := config.GetEnvDuration("REAPER_INTERVAL", time.Hour)
-	if err != nil {
-		log.Printf("invalid REAPER_INTERVAL, fallback to 1h: %v", err)
-		reaperInterval = time.Hour
-	}
+	reaperInterval := config.EnvDurationOr("REAPER_INTERVAL", time.Hour)
 
-	textSweepInterval, err := config.GetEnvDuration("TEXT_SWEEP_INTERVAL", time.Minute)
-	if err != nil {
-		log.Printf("invalid TEXT_SWEEP_INTERVAL, fallback to 1m: %v", err)
-		textSweepInterval = time.Minute
-	}
+	textSweepInterval := config.EnvDurationOr("TEXT_SWEEP_INTERVAL", time.Minute)
 
-	textSweepBatch, err := config.GetEnvInt("TEXT_SWEEP_BATCH", 10)
-	if err != nil {
-		log.Printf("invalid TEXT_SWEEP_BATCH, fallback to 10: %v", err)
-		textSweepBatch = 10
-	}
+	textSweepBatch := config.EnvIntOr("TEXT_SWEEP_BATCH", 10)
 
-	renditionWorkers, err := config.GetEnvInt("RENDITION_WORKERS", 1)
-	if err != nil {
-		log.Printf("invalid RENDITION_WORKERS, fallback to 1: %v", err)
-		renditionWorkers = 1
-	}
+	renditionWorkers := config.EnvIntOr("RENDITION_WORKERS", 1)
 
-	renditionSweepInterval, err := config.GetEnvDuration("RENDITION_SWEEP_INTERVAL", 30*time.Second)
-	if err != nil {
-		log.Printf("invalid RENDITION_SWEEP_INTERVAL, fallback to 30s: %v", err)
-		renditionSweepInterval = 30 * time.Second
-	}
+	renditionSweepInterval := config.EnvDurationOr("RENDITION_SWEEP_INTERVAL", 30*time.Second)
 
-	ocrSweepInterval, err := config.GetEnvDuration("OCR_SWEEP_INTERVAL", time.Minute)
-	if err != nil {
-		log.Printf("invalid OCR_SWEEP_INTERVAL, fallback to 1m: %v", err)
-		ocrSweepInterval = time.Minute
-	}
+	ocrSweepInterval := config.EnvDurationOr("OCR_SWEEP_INTERVAL", time.Minute)
 
-	ocrSweepBatch, err := config.GetEnvInt("OCR_SWEEP_BATCH", 10)
-	if err != nil {
-		log.Printf("invalid OCR_SWEEP_BATCH, fallback to 10: %v", err)
-		ocrSweepBatch = 10
-	}
+	ocrSweepBatch := config.EnvIntOr("OCR_SWEEP_BATCH", 10)
 
-	bboxSweepInterval, err := config.GetEnvDuration("BBOX_SWEEP_INTERVAL", time.Minute)
-	if err != nil {
-		log.Printf("invalid BBOX_SWEEP_INTERVAL, fallback to 1m: %v", err)
-		bboxSweepInterval = time.Minute
-	}
+	bboxSweepInterval := config.EnvDurationOr("BBOX_SWEEP_INTERVAL", time.Minute)
 
-	bboxSweepBatch, err := config.GetEnvInt("BBOX_SWEEP_BATCH", 10)
-	if err != nil {
-		log.Printf("invalid BBOX_SWEEP_BATCH, fallback to 10: %v", err)
-		bboxSweepBatch = 10
-	}
+	bboxSweepBatch := config.EnvIntOr("BBOX_SWEEP_BATCH", 10)
 
-	pageCacheTTL, err := config.GetEnvDuration("PAGE_CACHE_TTL", 7*24*time.Hour)
-	if err != nil {
-		log.Printf("invalid PAGE_CACHE_TTL, fallback to 168h: %v", err)
-		pageCacheTTL = 7 * 24 * time.Hour
-	}
+	pageCacheTTL := config.EnvDurationOr("PAGE_CACHE_TTL", 7*24*time.Hour)
 
-	pageCacheSweepInterval, err := config.GetEnvDuration("PAGE_CACHE_SWEEP_INTERVAL", time.Hour)
-	if err != nil {
-		log.Printf("invalid PAGE_CACHE_SWEEP_INTERVAL, fallback to 1h: %v", err)
-		pageCacheSweepInterval = time.Hour
-	}
+	pageCacheSweepInterval := config.EnvDurationOr("PAGE_CACHE_SWEEP_INTERVAL", time.Hour)
 
-	downloadStampAsyncConcurrency, err := config.GetEnvInt("DOWNLOAD_STAMP_ASYNC_CONCURRENCY", 2)
-	if err != nil {
-		log.Printf("invalid DOWNLOAD_STAMP_ASYNC_CONCURRENCY, fallback to 2: %v", err)
-		downloadStampAsyncConcurrency = 2
-	}
+	downloadStampAsyncConcurrency := config.EnvIntOr("DOWNLOAD_STAMP_ASYNC_CONCURRENCY", 2)
 
-	downloadStampConcurrency, err := config.GetEnvInt("DOWNLOAD_STAMP_CONCURRENCY", 1)
-	if err != nil {
-		log.Printf("invalid DOWNLOAD_STAMP_CONCURRENCY, fallback to 1: %v", err)
-		downloadStampConcurrency = 1
-	}
+	downloadStampConcurrency := config.EnvIntOr("DOWNLOAD_STAMP_CONCURRENCY", 1)
 
 	// Pengali bandwidth dan koneksi storage, bukan RAM — bentuknya mirip
 	// DOWNLOAD_STAMP_CONCURRENCY tapi membatasi hal yang berbeda.
-	archiveConcurrency, err := config.GetEnvInt("ARCHIVE_CONCURRENCY", 1)
-	if err != nil {
-		log.Printf("invalid ARCHIVE_CONCURRENCY, fallback to 1: %v", err)
-		archiveConcurrency = 1
-	}
+	archiveConcurrency := config.EnvIntOr("ARCHIVE_CONCURRENCY", 1)
 
-	archiveTTL, err := config.GetEnvDuration("ARCHIVE_TTL", 30*24*time.Hour)
-	if err != nil {
-		log.Printf("invalid ARCHIVE_TTL, fallback to 720h: %v", err)
-		archiveTTL = 30 * 24 * time.Hour
-	}
+	archiveTTL := config.EnvDurationOr("ARCHIVE_TTL", 30*24*time.Hour)
 
-	archiveSweepInterval, err := config.GetEnvDuration("ARCHIVE_SWEEP_INTERVAL", time.Hour)
-	if err != nil {
-		log.Printf("invalid ARCHIVE_SWEEP_INTERVAL, fallback to 1h: %v", err)
-		archiveSweepInterval = time.Hour
-	}
+	archiveSweepInterval := config.EnvDurationOr("ARCHIVE_SWEEP_INTERVAL", time.Hour)
 
-	downloadJobSweepInterval, err := config.GetEnvDuration("DOWNLOAD_JOB_SWEEP_INTERVAL", 5*time.Minute)
-	if err != nil {
-		log.Printf("invalid DOWNLOAD_JOB_SWEEP_INTERVAL, fallback to 5m: %v", err)
-		downloadJobSweepInterval = 5 * time.Minute
-	}
+	downloadJobSweepInterval := config.EnvDurationOr("DOWNLOAD_JOB_SWEEP_INTERVAL", 5*time.Minute)
 
-	shutdownTimeout, err := config.GetEnvDuration("SHUTDOWN_TIMEOUT", 60*time.Second)
-	if err != nil {
-		log.Printf("invalid SHUTDOWN_TIMEOUT, fallback to 60s: %v", err)
-		shutdownTimeout = 60 * time.Second
-	}
+	shutdownTimeout := config.EnvDurationOr("SHUTDOWN_TIMEOUT", 60*time.Second)
 
 	// Kosong = XFF tidak pernah dipercaya (perilaku aman: IP proxy, bukan IP
 	// yang bisa dipalsukan). Diisi CIDR subnet docker saat stack Traefik ditulis.
