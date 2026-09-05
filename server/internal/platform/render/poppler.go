@@ -63,11 +63,12 @@ func (p *PopplerRenderer) PageCount(ctx context.Context, pdf io.Reader) (int, er
 	sc := bufio.NewScanner(bytes.NewReader(out))
 	for sc.Scan() {
 		line := sc.Text()
-		if !strings.HasPrefix(line, "Pages:") {
+		rest, ok := strings.CutPrefix(line, "Pages:")
+		if !ok {
 			continue
 		}
 
-		n, err := strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(line, "Pages:")))
+		n, err := strconv.Atoi(strings.TrimSpace(rest))
 		if err != nil || n <= 0 {
 			return 0, fmt.Errorf("%w: bad page count %q", ErrRenderFailed, line)
 		}

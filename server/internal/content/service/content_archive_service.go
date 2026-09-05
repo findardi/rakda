@@ -785,7 +785,7 @@ func writeArchiveIndexHTML(w io.Writer, root string, index []archiveIndexRow, at
 		}
 		b.WriteString(`</td><td class="num">` + strconv.FormatInt(int64(e.versionNo), 10) + `</td>`)
 		b.WriteString(`<td>` + htmlEscape(e.uploadedBy) + `</td>`)
-		b.WriteString(`<td class="num">` + htmlEscape(e.uploadedAt.Format("2006-01-02")) + `</td>`)
+		b.WriteString(`<td class="num">` + htmlEscape(e.uploadedAt.Format(time.DateOnly)) + `</td>`)
 		b.WriteString(`<td class="num">` + strconv.FormatInt(int64(e.pageCount), 10) + `</td>`)
 		b.WriteString(`<td class="size">` + strconv.FormatInt(e.size, 10) + `</td>`)
 		b.WriteString(`<td class="hash">` + htmlEscape(e.sha256) + `</td>`)

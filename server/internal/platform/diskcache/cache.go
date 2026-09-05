@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -554,9 +553,7 @@ func (c *Cache) evictLocked(target int64) []entry {
 		all = append(all, keyed{key: key, entry: e})
 	}
 
-	sort.Slice(all, func(i, j int) bool {
-		return all[i].lastUsed.Before(all[j].lastUsed)
-	})
+	slices.SortFunc(all, func(a, b keyed) int { return a.lastUsed.Compare(b.lastUsed) })
 
 	var victims []entry
 	for _, k := range all {

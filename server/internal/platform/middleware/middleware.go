@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -88,15 +89,13 @@ func New(verifier TokenVerifier, status StatusReader, limiter RateStore) *Middle
 
 func (m *Middleware) RequireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		header := r.Header.Get("Authorization")
-		parts := strings.SplitN(header, " ", 2)
-
-		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+		scheme, raw, ok := strings.Cut(r.Header.Get("Authorization"), " ")
+		if !ok || !strings.EqualFold(scheme, "Bearer") {
 			response.Error(w, http.StatusUnauthorized, "missing or invalid authorization", nil)
 			return
 		}
 
-		claims, err := m.verifier.VerifyToken(parts[1])
+		claims, err := m.verifier.VerifyToken(raw)
 		if err != nil {
 			response.Error(w, http.StatusUnauthorized, "invalid or expired token", nil)
 			return
@@ -380,12 +379,7 @@ func isTrustedProxy(ip string, trusted []netip.Prefix) bool {
 	// IPv4-mapped-IPv6 tidak pernah cocok dengan prefix IPv4 tanpa Unmap.
 	addr = addr.Unmap()
 
-	for _, p := range trusted {
-		if p.Contains(addr) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(trusted, func(p netip.Prefix) bool { return p.Contains(addr) })
 }
 
 func peerIP(r *http.Request) string {
