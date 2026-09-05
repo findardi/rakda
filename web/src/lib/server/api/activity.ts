@@ -28,18 +28,17 @@ export function listActivity(
 
 // Dwell ingest. Open to every member — a guest's reading is the signal worth
 // having — so this is the one activity endpoint a guest may write to.
-export function recordPageDurations(
+export const recordPageDurations = (
 	token: string,
 	workspaceId: string,
 	documentId: string,
 	payload: RecordDurationsPayload
-): Promise<ApiResult<null>> {
-	return post<null>(
+) =>
+	post<null>(
 		`/activity/workspaces/${workspaceId}/documents/${documentId}/duration`,
 		payload,
 		token
 	);
-}
 
 // --- exports ---
 // These two answer with a CSV stream, not the JSON envelope every other endpoint
@@ -63,37 +62,26 @@ export function fetchActivityExport(
 	});
 }
 
-export function fetchEngagementExport(
-	token: string,
-	workspaceId: string,
-	documentId: string
-): Promise<Response> {
-	return fetch(
+export const fetchEngagementExport = (token: string, workspaceId: string, documentId: string) =>
+	fetch(
 		`${API_URL}/activity/workspaces/${workspaceId}/documents/${documentId}/engagement/export?format=csv`,
 		{ headers: { authorization: `Bearer ${token}` } }
 	);
-}
 
 // Owner/admin only upstream; a guest earns a 403 and never sees the control.
-export function getDocumentReaders(
-	token: string,
-	workspaceId: string,
-	documentId: string
-): Promise<ApiResult<DocumentReaders>> {
-	return get<DocumentReaders>(
+export const getDocumentReaders = (token: string, workspaceId: string, documentId: string) =>
+	get<DocumentReaders>(
 		`/activity/workspaces/${workspaceId}/documents/${documentId}/engagement`,
 		token
 	);
-}
 
-export function getReaderPages(
+export const getReaderPages = (
 	token: string,
 	workspaceId: string,
 	documentId: string,
 	actorId: string
-): Promise<ApiResult<ReaderPages>> {
-	return get<ReaderPages>(
+) =>
+	get<ReaderPages>(
 		`/activity/workspaces/${workspaceId}/documents/${documentId}/engagement/readers/${actorId}`,
 		token
 	);
-}

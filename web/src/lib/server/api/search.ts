@@ -1,46 +1,33 @@
-import type { ApiResult } from '$lib/types';
 import type { SearchBoxesData, SearchContentPagesData, SearchData } from '$lib/types/content';
 import { get, post } from './client';
 
-export function searchContent(
-	token: string,
-	workspaceId: string,
-	query: string
-): Promise<ApiResult<SearchData>> {
-	return get<SearchData>(
+export const searchContent = (token: string, workspaceId: string, query: string) =>
+	get<SearchData>(
 		`/content/workspaces/${workspaceId}/search?q=${encodeURIComponent(query)}`,
 		token
 	);
-}
 
-export function searchWordBoxes(
+export const searchWordBoxes = (
 	token: string,
 	workspaceId: string,
 	documentId: string,
 	query: string
-): Promise<ApiResult<SearchBoxesData>> {
-	return get<SearchBoxesData>(
+) =>
+	get<SearchBoxesData>(
 		`/content/workspaces/${workspaceId}/documents/${encodeURIComponent(documentId)}/search-boxes?q=${encodeURIComponent(query)}`,
 		token
 	);
-}
 
-export function searchContentPages(
+export const searchContentPages = (
 	token: string,
 	workspaceId: string,
 	documentId: string,
 	query: string
-): Promise<ApiResult<SearchContentPagesData>> {
-	return get<SearchContentPagesData>(
+) =>
+	get<SearchContentPagesData>(
 		`/content/workspaces/${workspaceId}/search/content/pages?documentId=${encodeURIComponent(documentId)}&q=${encodeURIComponent(query)}`,
 		token
 	);
-}
 
-export function logSearch(
-	token: string,
-	workspaceId: string,
-	query: string
-): Promise<ApiResult<null>> {
-	return post<null>(`/content/workspaces/${workspaceId}/search/log`, { query }, token);
-}
+export const logSearch = (token: string, workspaceId: string, query: string) =>
+	post<null>(`/content/workspaces/${workspaceId}/search/log`, { query }, token);

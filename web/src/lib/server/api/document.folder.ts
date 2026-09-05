@@ -1,4 +1,3 @@
-import type { ApiResult } from '$lib/types';
 import type {
 	ApplyTemplateData,
 	BulkCreateFolderData,
@@ -14,81 +13,48 @@ import { del, get, patch, post, put } from './client';
 
 const foldersBase = (workspaceId: string) => `/content/workspaces/${workspaceId}/folders`;
 
-export function getFoldersTree(
-	token: string,
-	workspaceId: string
-): Promise<ApiResult<FolderTreeNode[]>> {
-	return get<FolderTreeNode[]>(foldersBase(workspaceId), token);
-}
+export const getFoldersTree = (token: string, workspaceId: string) =>
+	get<FolderTreeNode[]>(foldersBase(workspaceId), token);
 
-export function createFolder(
-	token: string,
-	workspaceId: string,
-	p: CreateFolderPayload
-): Promise<ApiResult<FolderData>> {
-	return post<FolderData>(foldersBase(workspaceId), p, token);
-}
+export const createFolder = (token: string, workspaceId: string, p: CreateFolderPayload) =>
+	post<FolderData>(foldersBase(workspaceId), p, token);
 
-export function bulkCreateFolders(
-	token: string,
-	workspaceId: string,
-	p: BulkCreateFolderPayload
-): Promise<ApiResult<BulkCreateFolderData>> {
-	return post<BulkCreateFolderData>(`${foldersBase(workspaceId)}/bulk`, p, token);
-}
+export const bulkCreateFolders = (token: string, workspaceId: string, p: BulkCreateFolderPayload) =>
+	post<BulkCreateFolderData>(`${foldersBase(workspaceId)}/bulk`, p, token);
 
 // Atomic: one unknown/foreign id fails the whole batch with a 404 — nothing
 // is half-deleted. Soft-delete to trash, same as the single delete.
-export function bulkDeleteFolders(
-	token: string,
-	workspaceId: string,
-	folderIds: string[]
-): Promise<ApiResult<null>> {
-	return post<null>(`${foldersBase(workspaceId)}/bulk-delete`, { folder_ids: folderIds }, token);
-}
+export const bulkDeleteFolders = (token: string, workspaceId: string, folderIds: string[]) =>
+	post<null>(`${foldersBase(workspaceId)}/bulk-delete`, { folder_ids: folderIds }, token);
 
-export function listFolderTemplates(
-	token: string,
-	workspaceId: string
-): Promise<ApiResult<FolderTemplateData[]>> {
-	return get<FolderTemplateData[]>(`/content/workspaces/${workspaceId}/folder-templates`, token);
-}
+export const listFolderTemplates = (token: string, workspaceId: string) =>
+	get<FolderTemplateData[]>(`/content/workspaces/${workspaceId}/folder-templates`, token);
 
-export function applyFolderTemplate(
+export const applyFolderTemplate = (
 	token: string,
 	workspaceId: string,
 	templateKey: string,
 	locale: string
-): Promise<ApiResult<ApplyTemplateData>> {
-	return post<ApplyTemplateData>(
+) =>
+	post<ApplyTemplateData>(
 		`/content/workspaces/${workspaceId}/folder-templates/${templateKey}/apply`,
 		{ locale },
 		token
 	);
-}
 
-export function renameFolder(
+export const renameFolder = (
 	token: string,
 	workspaceId: string,
 	folderId: string,
 	p: RenameFolderPayload
-): Promise<ApiResult<FolderData>> {
-	return put<FolderData>(`${foldersBase(workspaceId)}/${folderId}`, p, token);
-}
+) => put<FolderData>(`${foldersBase(workspaceId)}/${folderId}`, p, token);
 
-export function moveFolder(
+export const moveFolder = (
 	token: string,
 	workspaceId: string,
 	folderId: string,
 	p: MoveFolderPayload
-): Promise<ApiResult<null>> {
-	return patch<null>(`${foldersBase(workspaceId)}/${folderId}/move`, p, token);
-}
+) => patch<null>(`${foldersBase(workspaceId)}/${folderId}/move`, p, token);
 
-export function deleteFolder(
-	token: string,
-	workspaceId: string,
-	folderId: string
-): Promise<ApiResult<null>> {
-	return del<null>(`${foldersBase(workspaceId)}/${folderId}`, token);
-}
+export const deleteFolder = (token: string, workspaceId: string, folderId: string) =>
+	del<null>(`${foldersBase(workspaceId)}/${folderId}`, token);
