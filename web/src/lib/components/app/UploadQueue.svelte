@@ -8,6 +8,11 @@
 	const total = $derived(items.length);
 	const done = $derived(items.filter((i) => i.status === 'done').length);
 	const idle = $derived(busy === 0);
+	// «Bersihkan» drops finished rows only; a stalled row keeps its resume handle
+	// and goes through its own ×. No finished row = no button to lie with.
+	const clearable = $derived(
+		items.some((i) => i.status === 'done' || i.status === 'error' || i.status === 'canceled')
+	);
 
 	// One shared picker, retargeted per row: a stalled upload needs its File
 	// handed back before it can continue, and only a user gesture can supply it.
@@ -37,6 +42,28 @@
 	aria-hidden="true"
 />
 
+{#snippet removeButton(item: (typeof items)[number])}
+	<button
+		type="button"
+		onclick={() => uploadQueue.remove(item.id)}
+		aria-label={t('doc.upload.remove', { name: item.name })}
+		class="grid h-5 w-5 flex-none place-items-center rounded-field text-muted transition-colors hover:bg-base-content/5 hover:text-base-content"
+	>
+		<svg
+			class="h-3.5 w-3.5"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="2"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+			aria-hidden="true"
+		>
+			<path d="M18 6 6 18M6 6l12 12" />
+		</svg>
+	</button>
+{/snippet}
+
 {#if total > 0}
 	<section
 		class="fixed inset-x-4 bottom-20 z-panel sm:inset-x-auto sm:right-4 sm:bottom-4 sm:w-96"
@@ -56,7 +83,7 @@
 					{/if}
 				</h2>
 
-				{#if idle}
+				{#if idle && clearable}
 					<button
 						type="button"
 						onclick={() => uploadQueue.clearFinished()}
@@ -133,6 +160,7 @@
 									>
 										{t('doc.upload.repick')}
 									</button>
+									{@render removeButton(item)}
 								{:else if item.status === 'error' && !item.terminal}
 									<button
 										type="button"
@@ -142,25 +170,7 @@
 										{t('doc.upload.retry')}
 									</button>
 								{:else}
-									<button
-										type="button"
-										onclick={() => uploadQueue.remove(item.id)}
-										aria-label={t('doc.upload.remove', { name: item.name })}
-										class="grid h-5 w-5 flex-none place-items-center rounded-field text-muted transition-colors hover:bg-base-content/5 hover:text-base-content"
-									>
-										<svg
-											class="h-3.5 w-3.5"
-											viewBox="0 0 24 24"
-											fill="none"
-											stroke="currentColor"
-											stroke-width="2"
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											aria-hidden="true"
-										>
-											<path d="M18 6 6 18M6 6l12 12" />
-										</svg>
-									</button>
+									{@render removeButton(item)}
 								{/if}
 							</div>
 
