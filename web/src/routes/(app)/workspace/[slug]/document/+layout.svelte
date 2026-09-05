@@ -13,7 +13,6 @@
 		Alert,
 		Button,
 		Field,
-		Toaster,
 		showToast,
 		type MenuItem
 	} from '$lib/components/common';
@@ -25,7 +24,7 @@
 		hasDirectory,
 		readTree
 	} from '$lib/dnd';
-	import { canManageAccess, roomWritableFrom } from '$lib/access/roles';
+	import { isManager, roomWritableFrom } from '$lib/access/roles';
 	import { t } from '$lib/i18n';
 	import { findNode } from '$lib/tree';
 	import type { FolderTreeNode } from '$lib/types/content';
@@ -69,7 +68,7 @@
 	// POST /archives is a RequireRoomWritable exception on the server, because an
 	// archived room is exactly where a package is most needed.
 	const role = $derived((page.data as { access?: MyAccessWorkspace }).access?.role ?? '');
-	const managesRoom = $derived(canManageAccess(role));
+	const managesRoom = $derived(isManager(role));
 	const overviewHref = $derived(resolve('/(app)/workspace/[slug]', { slug }));
 
 	const ICON_BTN =
@@ -1713,8 +1712,6 @@
 		<button aria-label={t('doc.cancel')}></button>
 	</form>
 </dialog>
-
-<Toaster />
 
 <style>
 	.rakda-caret {

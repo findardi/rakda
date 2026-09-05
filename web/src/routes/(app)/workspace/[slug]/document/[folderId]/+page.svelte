@@ -16,7 +16,7 @@
 	import { findNode } from '$lib/tree';
 	import type { DocumentData, FolderTreeNode } from '$lib/types/content';
 	import type { MyAccessWorkspace } from '$lib/types/workspace';
-	import { uploadQueue } from '$lib/upload/queue.svelte';
+	import { messageOf, uploadQueue } from '$lib/upload/queue.svelte';
 	import { uploadTree } from '$lib/upload/tree';
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { PageProps } from './$types';
@@ -164,8 +164,7 @@
 				})
 			});
 			if (!res.ok) {
-				const body = (await res.json().catch(() => null)) as { message?: string } | null;
-				showToast(body?.message || t('err.generic'), 'error');
+				showToast(await messageOf(res), 'error');
 				return;
 			}
 			showToast(t('doc.docs.rendition.retried', { name: doc.name }), 'success');

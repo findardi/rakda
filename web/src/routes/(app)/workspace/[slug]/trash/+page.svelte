@@ -5,7 +5,7 @@
 	import { page } from '$app/state';
 	import { tick } from 'svelte';
 	import type { SubmitFunction } from '@sveltejs/kit';
-	import { Toaster, showToast } from '$lib/components/common';
+	import { showToast } from '$lib/components/common';
 	import { formatBytes, formatDateTime } from '$lib/format';
 	import { t } from '$lib/i18n';
 	import type { RestoreData, TrashFolder, TrashItem } from '$lib/types/content';
@@ -305,5 +305,3 @@
 		{/if}
 	{/if}
 </div>
-
-<Toaster />

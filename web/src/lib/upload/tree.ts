@@ -1,7 +1,7 @@
 import { maxDepthOf, toBulkNodes, type DroppedTree } from '$lib/dnd';
 import { t } from '$lib/i18n';
 import type { BulkCreateFolderData, BulkFolderNode } from '$lib/types/content';
-import { uploadQueue } from './queue.svelte';
+import { messageOf, uploadQueue } from './queue.svelte';
 
 // Mirrors the server's own limits so the drop is refused before anything is
 // created, rather than half-built and then rejected.
@@ -22,11 +22,6 @@ export interface TreeDestination {
 	// Where files sitting at the top of the drop go. Null when the room has no
 	// default folder — then loose files have nowhere legal to land.
 	loose: DropTarget | null;
-}
-
-async function messageOf(res: Response): Promise<string> {
-	const body = (await res.json().catch(() => null)) as { message?: string } | null;
-	return body?.message || t('err.generic');
 }
 
 // Creates the folder structure in one transaction, then hands each file to the

@@ -4,12 +4,11 @@
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import type { ActionResult, SubmitFunction } from '@sveltejs/kit';
-	import { Alert, Button, Field, TextareaField, Toaster, showToast } from '$lib/components/common';
+	import { Alert, Button, Field, TextareaField, showToast } from '$lib/components/common';
 	import { ArchiveScopeDialog, WorkspaceStatusBadge } from '$lib/components/app';
 	import {
-		canDeleteWorkspace,
-		canEditWorkspace,
-		canManageAccess,
+		isOwner,
+		isManager,
 		canTransitionRoom,
 		isRoomOpenTo,
 		isRoomReadOnly
@@ -34,8 +33,8 @@
 
 	// Edit, status, and delete are all RequireOwner on the backend — owner only.
 	const role = $derived((data as { access?: MyAccessWorkspace }).access?.role ?? '');
-	const canEdit = $derived(canEditWorkspace(role));
-	const canDelete = $derived(canDeleteWorkspace(role));
+	const canEdit = $derived(isOwner(role));
+	const canDelete = $derived(isOwner(role));
 
 	// One source for the gate: `roomStatus` comes from the same membership query
 	// the server guards read, so the UI can never offer what the API refuses.
@@ -46,7 +45,7 @@
 
 	// Summary, activity strip, and archive exports are manager-only on the
 	// backend; mirror that here.
-	const managesRoom = $derived(canManageAccess(role));
+	const managesRoom = $derived(isManager(role));
 	const summary = $derived((data as { summary?: WorkspaceSummaryData | null }).summary ?? null);
 	const recentActivity = $derived(
 		(data as { recentActivity?: ActivityItem[] }).recentActivity ?? []
@@ -1089,5 +1088,3 @@
 		onqueued={() => showToast(t('archive.queued'), 'success')}
 	/>
 {/if}
-
-<Toaster />

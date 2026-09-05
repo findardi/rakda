@@ -17,37 +17,13 @@ export function normalizeRole(role: string): WorkspaceRole {
 
 const MANAGER: WorkspaceRole[] = ['owner', 'admin'];
 
-/** May open the access-management area (members / roles / groups). */
-export function canManageAccess(role: string): boolean {
+/** Owner or admin: runs the room — access management, members, groups, Q&A answers. */
+export function isManager(role: string): boolean {
 	return MANAGER.includes(normalizeRole(role));
 }
 
-/** May invite, change role, or remove members. */
-export function canManageMembers(role: string): boolean {
-	return MANAGER.includes(normalizeRole(role));
-}
-
-/** May create, edit, or delete workspace roles. */
-export function canManageRoles(role: string): boolean {
-	return MANAGER.includes(normalizeRole(role));
-}
-
-/** May create, edit, or delete groups. */
-export function canManageGroups(role: string): boolean {
-	return MANAGER.includes(normalizeRole(role));
-}
-
-// Workspace-level mutations (edit details, change status, delete) are all
-// guarded by `RequireOwner` on the backend (workspace/module.go) — owner only,
-// NOT admin. Keep these two split in case the backend later relaxes edit/status.
-
-/** Owner-only: edit workspace details and change its status. */
-export function canEditWorkspace(role: string): boolean {
-	return normalizeRole(role) === 'owner';
-}
-
-/** Owner-only: delete the workspace itself. */
-export function canDeleteWorkspace(role: string): boolean {
+/** Owner only: workspace details, status, deletion (`RequireOwner` on the backend). */
+export function isOwner(role: string): boolean {
 	return normalizeRole(role) === 'owner';
 }
 

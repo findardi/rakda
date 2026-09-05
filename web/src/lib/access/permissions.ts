@@ -77,13 +77,7 @@ function actionLabel(action: string): string {
 
 /** Group a flat catalog (e.g. `["document:view", ...]`) by resource, ordered. */
 export function groupPermissions(all: string[]): PermissionGroup[] {
-	const byResource = new Map<string, string[]>();
-	for (const p of all) {
-		const resource = p.split(':')[0] ?? p;
-		const bucket = byResource.get(resource);
-		if (bucket) bucket.push(p);
-		else byResource.set(resource, [p]);
-	}
+	const byResource = Map.groupBy(all, (p) => p.split(':')[0] ?? p);
 
 	return [...byResource.entries()]
 		.sort(([a], [b]) => rank(RESOURCE_ORDER, a) - rank(RESOURCE_ORDER, b))

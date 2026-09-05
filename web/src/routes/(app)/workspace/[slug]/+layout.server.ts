@@ -1,5 +1,5 @@
 import { error, redirect } from '@sveltejs/kit';
-import { canManageAccess, isRoomOpenTo } from '$lib/access/roles';
+import { isManager, isRoomOpenTo } from '$lib/access/roles';
 import {
 	countWaitingQuestions,
 	getMyAccessWorkspace,
@@ -46,7 +46,7 @@ export const load: LayoutServerLoad = async ({ locals, params, url }) => {
 	let qaWaiting = 0;
 	let qaEnabled = true;
 	if (roomOpen) {
-		if (canManageAccess(access.role)) {
+		if (isManager(access.role)) {
 			const countRes = await countWaitingQuestions(locals.session, match.id);
 			if (countRes.ok) qaWaiting = countRes.data.waiting_count;
 		} else {

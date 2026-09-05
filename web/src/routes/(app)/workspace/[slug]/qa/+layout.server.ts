@@ -1,5 +1,5 @@
 import { error, redirect } from '@sveltejs/kit';
-import { canManageAccess } from '$lib/access/roles';
+import { isManager as manages } from '$lib/access/roles';
 import { listQuestions } from '$lib/server/api';
 import { t } from '$lib/i18n';
 import type { QaFilters, QaListData } from '$lib/types/qa';
@@ -13,7 +13,7 @@ export const load: LayoutServerLoad = async ({ locals, params, parent, url }) =>
 	if (!locals.session) redirect(303, '/login');
 
 	const { access, workspace } = await parent();
-	const isManager = !!access && canManageAccess(access.role);
+	const isManager = !!access && manages(access.role);
 
 	const filters: QaFilters = {
 		status: url.searchParams.get('status') ?? '',

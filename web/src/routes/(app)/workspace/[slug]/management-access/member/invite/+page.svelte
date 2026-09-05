@@ -6,6 +6,7 @@
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { Alert, Button, showToast } from '$lib/components/common';
 	import { roleDisplayName } from '$lib/access/permissions';
+	import { formatDateLocal } from '$lib/format';
 	import { t } from '$lib/i18n';
 	import type { InvitationData } from '$lib/types/workspace';
 	import type { PageProps } from './$types';
@@ -16,13 +17,6 @@
 	const invite = getContext<{ open: () => void }>('member-invite');
 
 	const initial = (inv: InvitationData) => (inv.email || '?').charAt(0).toUpperCase();
-
-	const dateFmt = new Intl.DateTimeFormat('id-ID', {
-		day: '2-digit',
-		month: 'short',
-		year: 'numeric'
-	});
-	const fmtDate = (iso: string) => dateFmt.format(new Date(iso));
 
 	// Status → label + color (full class strings keep Tailwind JIT happy).
 	const statusMeta = (s: string) => {
@@ -176,13 +170,13 @@
 						<span aria-hidden="true">·</span>
 						<span>
 							{t('pending.expires')}
-							<span class="font-mono">{fmtDate(inv.expires_at)}</span>
+							<span class="font-mono">{formatDateLocal(inv.expires_at)}</span>
 						</span>
 						{#if inv.access_expires_at}
 							<span aria-hidden="true">·</span>
 							<span>
 								{t('pending.accessUntil')}
-								<span class="font-mono">{fmtDate(inv.access_expires_at)}</span>
+								<span class="font-mono">{formatDateLocal(inv.access_expires_at)}</span>
 							</span>
 						{/if}
 						{#if inv.invited_by_username}

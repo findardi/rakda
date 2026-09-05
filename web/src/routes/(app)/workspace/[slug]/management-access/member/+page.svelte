@@ -5,7 +5,7 @@
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { Alert, Button, showToast } from '$lib/components/common';
 	import { roleDisplayName } from '$lib/access/permissions';
-	import { assignableRoles, canManageMembers } from '$lib/access/roles';
+	import { assignableRoles, isManager } from '$lib/access/roles';
 	import { formatDateLocal, localDayEnd, localDayString, localTomorrowString } from '$lib/format';
 	import { t } from '$lib/i18n';
 	import type { MemberStatus, MyAccessWorkspace, WorkspaceMemberData } from '$lib/types/workspace';
@@ -14,7 +14,7 @@
 	let { data }: PageProps = $props();
 	const members = $derived(data.members);
 	const viewerRole = $derived((page.data as { access?: MyAccessWorkspace }).access?.role ?? '');
-	const canManage = $derived(canManageMembers(viewerRole));
+	const canManage = $derived(isManager(viewerRole));
 	// Roles the viewer may grant: owner → all but owner; admin → guest only.
 	const roleOptions = $derived(assignableRoles(viewerRole, data.roles));
 

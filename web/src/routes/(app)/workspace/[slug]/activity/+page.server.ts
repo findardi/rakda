@@ -1,5 +1,5 @@
 import { error, redirect } from '@sveltejs/kit';
-import { canManageAccess } from '$lib/access/roles';
+import { isManager } from '$lib/access/roles';
 import { getMembers, listActivity } from '$lib/server/api';
 import { t } from '$lib/i18n';
 import type { ActivityActor, ActivityFilters } from '$lib/types/activity';
@@ -11,7 +11,7 @@ export const load: PageServerLoad = async ({ locals, params, parent, url }) => {
 	if (!locals.session) redirect(303, '/login');
 
 	const { access, workspace } = await parent();
-	if (!access || !canManageAccess(access.role)) {
+	if (!access || !isManager(access.role)) {
 		redirect(303, `/workspace/${params.slug}`);
 	}
 

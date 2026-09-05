@@ -11,7 +11,7 @@
 	import { formatBytes, formatDateTime } from '$lib/format';
 	import { t } from '$lib/i18n';
 	import type { DocumentData, VersionData } from '$lib/types/content';
-	import { MAX_UPLOAD_BYTES } from '$lib/upload/queue.svelte';
+	import { MAX_UPLOAD_BYTES, messageOf } from '$lib/upload/queue.svelte';
 
 	type Props = {
 		workspaceId: string;
@@ -40,11 +40,6 @@
 
 	let versions = $state<VersionData[] | null>(null);
 	let loadError = $state<string | null>(null);
-
-	async function messageOf(res: Response): Promise<string> {
-		const body = (await res.json().catch(() => null)) as { message?: string } | null;
-		return body?.message || t('err.generic');
-	}
 
 	async function load(): Promise<void> {
 		loadError = null;

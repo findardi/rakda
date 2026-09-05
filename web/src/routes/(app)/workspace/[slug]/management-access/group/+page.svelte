@@ -3,8 +3,8 @@
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import type { SubmitFunction } from '@sveltejs/kit';
-	import { Alert, Button, Field, TextareaField, Toaster, showToast } from '$lib/components/common';
-	import { canManageGroups } from '$lib/access/roles';
+	import { Alert, Button, Field, TextareaField, showToast } from '$lib/components/common';
+	import { isManager } from '$lib/access/roles';
 	import { t } from '$lib/i18n';
 	import type { GroupWorkspaceData, MyAccessWorkspace } from '$lib/types/workspace';
 	import type { PageProps } from './$types';
@@ -12,7 +12,7 @@
 	let { data }: PageProps = $props();
 	const groups = $derived(data.groups);
 	const canManage = $derived(
-		canManageGroups((page.data as { access?: MyAccessWorkspace }).access?.role ?? '')
+		isManager((page.data as { access?: MyAccessWorkspace }).access?.role ?? '')
 	);
 
 	const base = $derived(`/workspace/${page.params.slug}/management-access/group`);
@@ -322,5 +322,3 @@
 		<button aria-label={t('group.cancel')}></button>
 	</form>
 </dialog>
-
-<Toaster />
