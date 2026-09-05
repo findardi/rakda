@@ -36,7 +36,7 @@ func NewContentHandler(svc *service.ContentService) *ContentHandler {
 func (h *ContentHandler) CreateFolder(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -73,7 +73,7 @@ func (h *ContentHandler) CreateFolder(w http.ResponseWriter, r *http.Request) {
 func (h *ContentHandler) MoveFolder(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -108,30 +108,10 @@ func (h *ContentHandler) MoveFolder(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, http.StatusOK, "move folder success", nil)
 }
 
-func actorFromRequest(r *http.Request) (service.Actor, bool) {
-	claims, ok := middleware.ClaimsFromContext(r.Context())
-	if !ok {
-		return service.Actor{}, false
-	}
-
-	ms, ok := middleware.MembershipFromContext(r.Context())
-	if !ok {
-		return service.Actor{}, false
-	}
-
-	return service.Actor{
-		UserID:     claims.ID,
-		Role:       ms.Role,
-		Name:       claims.Username,
-		Email:      claims.Email,
-		RoomStatus: ms.WorkspaceStatus,
-	}, true
-}
-
 func (h *ContentHandler) GetFoldersTree(w http.ResponseWriter, r *http.Request) {
 	wID := chi.URLParam(r, "workspaceID")
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -155,7 +135,7 @@ func (h *ContentHandler) GetFoldersTree(w http.ResponseWriter, r *http.Request) 
 func (h *ContentHandler) SearchContent(w http.ResponseWriter, r *http.Request) {
 	wID := chi.URLParam(r, "workspaceID")
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -179,7 +159,7 @@ func (h *ContentHandler) SearchContent(w http.ResponseWriter, r *http.Request) {
 func (h *ContentHandler) SearchContentPages(w http.ResponseWriter, r *http.Request) {
 	wID := chi.URLParam(r, "workspaceID")
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -203,7 +183,7 @@ func (h *ContentHandler) SearchContentPages(w http.ResponseWriter, r *http.Reque
 func (h *ContentHandler) LogSearch(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -224,7 +204,7 @@ func (h *ContentHandler) SearchBoxes(w http.ResponseWriter, r *http.Request) {
 	wID := chi.URLParam(r, "workspaceID")
 	dID := chi.URLParam(r, "documentID")
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -250,7 +230,7 @@ func (h *ContentHandler) SearchBoxes(w http.ResponseWriter, r *http.Request) {
 func (h *ContentHandler) RenameFolder(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -286,7 +266,7 @@ func (h *ContentHandler) RenameFolder(w http.ResponseWriter, r *http.Request) {
 func (h *ContentHandler) DeleteFolder(w http.ResponseWriter, r *http.Request) {
 	wID := chi.URLParam(r, "workspaceID")
 	fID := chi.URLParam(r, "folderID")
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -311,7 +291,7 @@ func (h *ContentHandler) DeleteFolder(w http.ResponseWriter, r *http.Request) {
 func (h *ContentHandler) BulkDeleteFolders(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -343,7 +323,7 @@ func (h *ContentHandler) BulkDeleteFolders(w http.ResponseWriter, r *http.Reques
 func (h *ContentHandler) BulkDeleteDocuments(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -397,7 +377,7 @@ func (h *ContentHandler) RequestUploadURL(w http.ResponseWriter, r *http.Request
 func (h *ContentHandler) CompletedUpload(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -439,7 +419,7 @@ func (h *ContentHandler) ListDocuments(w http.ResponseWriter, r *http.Request) {
 	wID := chi.URLParam(r, "workspaceID")
 	fID := chi.URLParam(r, "folderID")
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -466,7 +446,7 @@ func (h *ContentHandler) ListVersions(w http.ResponseWriter, r *http.Request) {
 	wID := chi.URLParam(r, "workspaceID")
 	dID := chi.URLParam(r, "documentID")
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -511,7 +491,7 @@ func (h *ContentHandler) RequestUploadVersion(w http.ResponseWriter, r *http.Req
 func (h *ContentHandler) CompletedVersionUpload(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -558,7 +538,7 @@ func (h *ContentHandler) GetDownloadURL(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -614,7 +594,7 @@ func (h *ContentHandler) RetryRendition(w http.ResponseWriter, r *http.Request) 
 	dID := chi.URLParam(r, "documentID")
 	vID := chi.URLParam(r, "versionID")
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -640,7 +620,7 @@ func (h *ContentHandler) DeleteDocument(w http.ResponseWriter, r *http.Request) 
 	wID := chi.URLParam(r, "workspaceID")
 	dID := chi.URLParam(r, "documentID")
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -663,7 +643,7 @@ func (h *ContentHandler) DeleteDocument(w http.ResponseWriter, r *http.Request) 
 func (h *ContentHandler) ListTrash(w http.ResponseWriter, r *http.Request) {
 	wID := chi.URLParam(r, "workspaceID")
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -688,7 +668,7 @@ func (h *ContentHandler) RestoreTrashDocument(w http.ResponseWriter, r *http.Req
 	wID := chi.URLParam(r, "workspaceID")
 	dID := chi.URLParam(r, "documentID")
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -717,7 +697,7 @@ func (h *ContentHandler) RestoreTrashFolder(w http.ResponseWriter, r *http.Reque
 	wID := chi.URLParam(r, "workspaceID")
 	fID := chi.URLParam(r, "folderID")
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -745,7 +725,7 @@ func (h *ContentHandler) RestoreTrashFolder(w http.ResponseWriter, r *http.Reque
 func (h *ContentHandler) MoveDocument(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -778,7 +758,7 @@ func (h *ContentHandler) MoveDocument(w http.ResponseWriter, r *http.Request) {
 func (h *ContentHandler) SetFolderAccess(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -814,7 +794,7 @@ func (h *ContentHandler) RemoveFolderAccess(w http.ResponseWriter, r *http.Reque
 	FolderID := chi.URLParam(r, "folderID")
 	groupID := chi.URLParam(r, "groupID")
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -841,7 +821,7 @@ func (h *ContentHandler) GetViewMeta(w http.ResponseWriter, r *http.Request) {
 	dID := chi.URLParam(r, "documentID")
 	versionID := r.URL.Query().Get("version")
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -883,7 +863,7 @@ func (h *ContentHandler) GetViewPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -950,7 +930,7 @@ func (h *ContentHandler) ListFolderAccess(w http.ResponseWriter, r *http.Request
 func (h *ContentHandler) BulkCreateFolders(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -993,7 +973,7 @@ func (h *ContentHandler) ListFolderTemplates(w http.ResponseWriter, r *http.Requ
 func (h *ContentHandler) ApplyFolderTemplate(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -1119,7 +1099,7 @@ func (h *ContentHandler) MultipartParts(w http.ResponseWriter, r *http.Request) 
 func (h *ContentHandler) CompleteMultipart(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -1186,7 +1166,7 @@ func (h *ContentHandler) RestoreVersion(w http.ResponseWriter, r *http.Request) 
 	dID := chi.URLParam(r, "documentID")
 	vID := chi.URLParam(r, "versionID")
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return

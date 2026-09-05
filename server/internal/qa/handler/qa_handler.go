@@ -27,18 +27,6 @@ func NewQAHandler(svc *service.QAService) *QAHandler {
 	return &QAHandler{svc: svc}
 }
 
-func actorFromRequest(r *http.Request) (service.Actor, bool) {
-	claims, ok := middleware.ClaimsFromContext(r.Context())
-	if !ok {
-		return service.Actor{}, false
-	}
-	ms, ok := middleware.MembershipFromContext(r.Context())
-	if !ok {
-		return service.Actor{}, false
-	}
-	return service.Actor{UserID: claims.ID, Name: claims.Username, Email: claims.Email, Role: ms.Role}, true
-}
-
 func (h *QAHandler) qaError(w http.ResponseWriter, err error, op string) {
 	switch {
 	case errors.Is(err, service.ErrQuestionNotFound):
@@ -64,7 +52,7 @@ func (h *QAHandler) qaError(w http.ResponseWriter, err error, op string) {
 }
 
 func (h *QAHandler) ListQuestions(w http.ResponseWriter, r *http.Request) {
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -101,7 +89,7 @@ func (h *QAHandler) SubmitQuestion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -119,7 +107,7 @@ func (h *QAHandler) SubmitQuestion(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *QAHandler) CountWaiting(w http.ResponseWriter, r *http.Request) {
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -135,7 +123,7 @@ func (h *QAHandler) CountWaiting(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *QAHandler) ExportQuestions(w http.ResponseWriter, r *http.Request) {
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -171,7 +159,7 @@ func (h *QAHandler) ExportQuestions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *QAHandler) GetQuestion(w http.ResponseWriter, r *http.Request) {
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -194,7 +182,7 @@ func (h *QAHandler) ReplyQuestion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -213,7 +201,7 @@ func (h *QAHandler) ReplyQuestion(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *QAHandler) CloseQuestion(w http.ResponseWriter, r *http.Request) {
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -229,7 +217,7 @@ func (h *QAHandler) CloseQuestion(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *QAHandler) ReopenQuestion(w http.ResponseWriter, r *http.Request) {
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -262,7 +250,7 @@ func (h *QAHandler) CreateFaq(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return

@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"fmt"
+	"github.com/findardi/rakda/server/internal/platform/middleware"
 	"io"
 	"log"
 	"net/http"
@@ -16,7 +17,7 @@ import (
 func (h *ContentHandler) ListDownloadJobs(w http.ResponseWriter, r *http.Request) {
 	wID := chi.URLParam(r, "workspaceID")
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -36,7 +37,7 @@ func (h *ContentHandler) GetDownloadJob(w http.ResponseWriter, r *http.Request) 
 	wID := chi.URLParam(r, "workspaceID")
 	jID := chi.URLParam(r, "jobID")
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -55,7 +56,7 @@ func (h *ContentHandler) DownloadJobArtifact(w http.ResponseWriter, r *http.Requ
 	wID := chi.URLParam(r, "workspaceID")
 	jID := chi.URLParam(r, "jobID")
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return

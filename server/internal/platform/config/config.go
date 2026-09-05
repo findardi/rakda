@@ -147,3 +147,38 @@ func GetEnvCIDRList(key string, fallback []netip.Prefix) ([]netip.Prefix, error)
 
 	return out, nil
 }
+
+type OAuthProviderConfig struct {
+	ClientID     string
+	ClientSecret string
+	RedirectURL  string
+}
+
+// LoadOAuth reads {prefix}_CLIENT_ID / _CLIENT_SECRET / _REDIRECT_URL.
+func LoadOAuth(prefix string) OAuthProviderConfig {
+	return OAuthProviderConfig{
+		ClientID:     GetEnv(prefix+"_CLIENT_ID", ""),
+		ClientSecret: GetEnv(prefix+"_CLIENT_SECRET", ""),
+		RedirectURL:  GetEnv(prefix+"_REDIRECT_URL", ""),
+	}
+}
+
+type MinioConfig struct {
+	Endpoint          string
+	AccessKey         string
+	SecretKey         string
+	BucketName        string
+	SslMode           bool
+	RequireEncryption bool
+}
+
+func LoadMinioConfig() MinioConfig {
+	return MinioConfig{
+		Endpoint:          GetEnv("MINIO_ENDPOINT", "localhost:9000"),
+		AccessKey:         GetEnv("MINIO_ACCESS_KEY", "miniouser"),
+		SecretKey:         GetEnv("MINIO_SECRET_KEY", "miniopassword"),
+		BucketName:        GetEnv("MINIO_BUCKET", "rakda-file"),
+		SslMode:           GetEnv("MINIO_SSL_MODE", "false") == "true",
+		RequireEncryption: GetEnv("MINIO_REQUIRE_ENCRYPTION", "false") == "true",
+	}
+}

@@ -563,7 +563,7 @@ func (s *ContentService) GetFoldersTree(ctx context.Context, workspaceID string,
 	}
 
 	var rows []contentdb.Folder
-	if actor.managesRoom() {
+	if actor.ManagesRoom() {
 		all, err := s.repo.GetFoldersByWorkspace(ctx, wID)
 		if err != nil {
 			return nil, fmt.Errorf("get folders: %w", err)

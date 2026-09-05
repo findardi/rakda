@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/findardi/rakda/server/internal/platform/actor"
 	"io"
 	"log"
 	"math"
@@ -251,6 +252,26 @@ func (m *Middleware) RequireRoomWritable(next http.Handler) http.Handler {
 func ClaimsFromContext(ctx context.Context) (*token.JwtClaims, bool) {
 	claims, ok := ctx.Value(claimsKey).(*token.JwtClaims)
 	return claims, ok
+}
+
+// ActorFromRequest joins the JWT claims and the room membership that
+// RequireAuth and RequireMember stored on the context.
+func ActorFromRequest(r *http.Request) (actor.Actor, bool) {
+	claims, ok := ClaimsFromContext(r.Context())
+	if !ok {
+		return actor.Actor{}, false
+	}
+	ms, ok := MembershipFromContext(r.Context())
+	if !ok {
+		return actor.Actor{}, false
+	}
+	return actor.Actor{
+		UserID:     claims.ID,
+		Name:       claims.Username,
+		Email:      claims.Email,
+		Role:       ms.Role,
+		RoomStatus: ms.WorkspaceStatus,
+	}, true
 }
 
 func MembershipFromContext(ctx context.Context) (*Membership, bool) {

@@ -52,7 +52,7 @@ func resolveDocumentRestoreName(ctx context.Context, q *contentdb.Queries, folde
 }
 
 func (s *ContentService) ListTrash(ctx context.Context, workspaceID string, actor Actor) (dto.TrashListResponse, error) {
-	if !actor.managesRoom() {
+	if !actor.ManagesRoom() {
 		return dto.TrashListResponse{}, ErrContentForbidden
 	}
 
@@ -109,7 +109,7 @@ func (s *ContentService) ListTrash(ctx context.Context, workspaceID string, acto
 }
 
 func (s *ContentService) RestoreFolders(ctx context.Context, workspaceID, folderID string, actor Actor) (dto.RestoreResponse, error) {
-	if !actor.managesRoom() {
+	if !actor.ManagesRoom() {
 		return dto.RestoreResponse{}, ErrContentForbidden
 	}
 
@@ -207,7 +207,7 @@ func (s *ContentService) RestoreFolders(ctx context.Context, workspaceID, folder
 }
 
 func (s *ContentService) RestoreDocument(ctx context.Context, workspaceID, documentID string, actor Actor) (dto.RestoreResponse, error) {
-	if !actor.managesRoom() {
+	if !actor.ManagesRoom() {
 		return dto.RestoreResponse{}, ErrContentForbidden
 	}
 

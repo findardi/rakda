@@ -7,41 +7,14 @@ import (
 	"net/http"
 	"strconv"
 
-	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
 )
 
-type Github struct {
-	cfg *oauth2.Config
+func NewGithub(clientID, clientSecret, redirectURL string) Provider {
+	return newProvider("github", github.Endpoint, []string{"read:user", "user:email"}, clientID, clientSecret, redirectURL, githubIdentity)
 }
 
-func NewGithub(clientID, clientSecret, redirectURL string) *Github {
-	return &Github{
-		cfg: &oauth2.Config{
-			ClientID:     clientID,
-			ClientSecret: clientSecret,
-			RedirectURL:  redirectURL,
-			Endpoint:     github.Endpoint,
-			Scopes:       []string{"read:user", "user:email"},
-		},
-	}
-}
-
-func (g *Github) Name() string {
-	return "github"
-}
-
-func (g *Github) AuthCodeURL(state string) string {
-	return g.cfg.AuthCodeURL(state)
-}
-
-func (g *Github) Identity(ctx context.Context, code string) (Identity, error) {
-	tok, err := g.cfg.Exchange(ctx, code)
-	if err != nil {
-		return Identity{}, fmt.Errorf("exchange code :%w", err)
-	}
-	client := g.cfg.Client(ctx, tok)
-
+func githubIdentity(ctx context.Context, client *http.Client) (Identity, error) {
 	var profile struct {
 		ID    int64  `json:"id"`
 		Login string `json:"login"`

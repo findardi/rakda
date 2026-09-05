@@ -216,7 +216,7 @@ func (s *QAService) ListQuestions(ctx context.Context, req dto.ListQuestionsRequ
 	}
 	var scopeGroup pgtype.UUID
 
-	if actor.managesRoom() {
+	if actor.ManagesRoom() {
 		if req.GroupID != "" {
 			var gID pgtype.UUID
 			if err := gID.Scan(req.GroupID); err != nil {
@@ -276,7 +276,7 @@ func (s *QAService) ListQuestions(ctx context.Context, req dto.ListQuestionsRequ
 		return dto.ListQuestionsResponse{}, fmt.Errorf("count questions: %w", err)
 	}
 	res.QuestionCount = total
-	if !actor.managesRoom() && res.QuestionLimit != nil {
+	if !actor.ManagesRoom() && res.QuestionLimit != nil {
 		remaining := int32(0)
 		if d := int64(*res.QuestionLimit) - total; d > 0 {
 			remaining = int32(d)
@@ -294,7 +294,7 @@ func (s *QAService) ListQuestions(ctx context.Context, req dto.ListQuestionsRequ
 }
 
 func (s *QAService) CountWaiting(ctx context.Context, workspaceID string, actor Actor) (dto.WaitingCountResponse, error) {
-	if !actor.managesRoom() {
+	if !actor.ManagesRoom() {
 		return dto.WaitingCountResponse{}, ErrQAForbidden
 	}
 
@@ -338,7 +338,7 @@ func (s *QAService) ReplyQuestion(ctx context.Context, req dto.ReplyQuestionRequ
 	if question.Status == StatusClosed {
 		return dto.ReplyResult{}, ErrQuestionClosed
 	}
-	if !actor.managesRoom() && !grp.QaEnabled {
+	if !actor.ManagesRoom() && !grp.QaEnabled {
 		return dto.ReplyResult{}, ErrQADisabled
 	}
 
@@ -379,7 +379,7 @@ func (s *QAService) ReplyQuestion(ctx context.Context, req dto.ReplyQuestionRequ
 		}
 
 		action := activityservice.ActionQuestionReplied
-		if actor.managesRoom() {
+		if actor.ManagesRoom() {
 			action = activityservice.ActionQuestionAnswered
 		}
 		return s.activity.RecordTx(ctx, tx, activityservice.NewEntry(req.WorkspaceID, actor.UserID, actor.Name, actor.Role,
@@ -398,7 +398,7 @@ func (s *QAService) CloseQuestion(ctx context.Context, workspaceID, questionID s
 	if err != nil {
 		return err
 	}
-	if !actor.managesRoom() && question.AuthorID.String() != actor.UserID {
+	if !actor.ManagesRoom() && question.AuthorID.String() != actor.UserID {
 		return ErrCloseNotAllowed
 	}
 
@@ -425,7 +425,7 @@ func (s *QAService) CloseQuestion(ctx context.Context, workspaceID, questionID s
 }
 
 func (s *QAService) ReopenQuestion(ctx context.Context, workspaceID, questionID string, actor Actor) error {
-	if !actor.managesRoom() {
+	if !actor.ManagesRoom() {
 		return ErrReopenNotAllowed
 	}
 
@@ -475,7 +475,7 @@ func (s *QAService) loadVisibleQuestion(ctx context.Context, workspaceID, questi
 		return qadb.Question{}, grp, fmt.Errorf("get question: %w", err)
 	}
 
-	if !actor.managesRoom() {
+	if !actor.ManagesRoom() {
 		var uID pgtype.UUID
 		if err := uID.Scan(actor.UserID); err != nil {
 			return qadb.Question{}, grp, fmt.Errorf("parse user id: %w", err)
@@ -503,7 +503,7 @@ func (s *QAService) attachRefs(ctx context.Context, res *dto.QuestionThreadRespo
 		case err != nil:
 			return fmt.Errorf("resolve document ref: %w", err)
 		default:
-			show := actor.managesRoom()
+			show := actor.ManagesRoom()
 			if !show {
 				ok, err := s.content.CanUserViewFolder(ctx, question.WorkspaceID.String(), doc.FolderID.String(), actor.UserID)
 				if err != nil {
@@ -528,7 +528,7 @@ func (s *QAService) attachRefs(ctx context.Context, res *dto.QuestionThreadRespo
 		case err != nil:
 			return fmt.Errorf("resolve folder ref: %w", err)
 		default:
-			show := actor.managesRoom()
+			show := actor.ManagesRoom()
 			if !show {
 				ok, err := s.content.CanUserViewFolder(ctx, question.WorkspaceID.String(), folder.ID.String(), actor.UserID)
 				if err != nil {

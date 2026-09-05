@@ -65,7 +65,7 @@ func renditionPrefix(workspaceID, versionID string) string {
 }
 
 func (s *ContentService) resolveViewAccess(ctx context.Context, workspaceID, folderID string, actor Actor) (viewAccess, error) {
-	if actor.managesRoom() {
+	if actor.ManagesRoom() {
 		return viewAccess{
 			canView:             true,
 			canDownload:         true,
@@ -128,7 +128,7 @@ func (s *ContentService) resolveRequestVersion(ctx context.Context, doc contentd
 		return contentdb.DocumentVersion{}, ErrVersionNotFound
 	}
 
-	if v.ID != doc.CurrentVersionID && !actor.managesRoom() {
+	if v.ID != doc.CurrentVersionID && !actor.ManagesRoom() {
 		return contentdb.DocumentVersion{}, ErrContentForbidden
 	}
 
@@ -362,7 +362,7 @@ func (s *ContentService) GetPageImage(ctx context.Context, req dto.ViewPageReque
 		return nil, err
 	}
 
-	if !actor.managesRoom() {
+	if !actor.ManagesRoom() {
 		s.activity.RecordPageEvent(ctx, activityservice.PageEvent{
 			WorkspaceID:  req.WorkspaceID,
 			DocumentID:   doc.ID.String(),

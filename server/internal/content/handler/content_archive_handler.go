@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/findardi/rakda/server/internal/platform/middleware"
 	"io"
 	"log"
 	"mime"
@@ -22,7 +23,7 @@ func (h *ContentHandler) CreateArchive(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 	wID := chi.URLParam(r, "workspaceID")
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -66,7 +67,7 @@ func (h *ContentHandler) CreateArchive(w http.ResponseWriter, r *http.Request) {
 func (h *ContentHandler) ListArchives(w http.ResponseWriter, r *http.Request) {
 	wID := chi.URLParam(r, "workspaceID")
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -90,7 +91,7 @@ func (h *ContentHandler) DeleteArchive(w http.ResponseWriter, r *http.Request) {
 	wID := chi.URLParam(r, "workspaceID")
 	aID := chi.URLParam(r, "archiveID")
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
@@ -116,7 +117,7 @@ func (h *ContentHandler) DownloadArchive(w http.ResponseWriter, r *http.Request)
 	wID := chi.URLParam(r, "workspaceID")
 	aID := chi.URLParam(r, "archiveID")
 
-	actor, ok := actorFromRequest(r)
+	actor, ok := middleware.ActorFromRequest(r)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized", nil)
 		return

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/findardi/rakda/server/internal/platform/actor"
 	"github.com/findardi/rakda/server/internal/platform/ptr"
 	"time"
 
@@ -33,22 +34,10 @@ func NewInvitationService(repo InvitationRepo, activity ActivityRecorder) *Invit
 	}
 }
 
-type Actor struct {
-	UserID string
-	Name   string
-	Email  string
-}
+type Actor = actor.Actor
 
-func (a Actor) entry(workspaceID, action, invitationID, email string) activityservice.Entry {
-	return activityservice.Entry{
-		WorkspaceID: workspaceID,
-		ActorID:     a.UserID,
-		ActorName:   a.Name,
-		Action:      action,
-		TargetType:  activityservice.TargetInvitation,
-		TargetID:    invitationID,
-		TargetName:  email,
-	}
+func inviteEntry(a Actor, workspaceID, action, invitationID, email string) activityservice.Entry {
+	return activityservice.NewEntry(workspaceID, a.UserID, a.Name, "", action, activityservice.TargetInvitation, invitationID, email, nil)
 }
 
 func (s *InvitationService) GetListInvitations(ctx context.Context, userID string) ([]dto.GetMyInvitationsRow, error) {
@@ -147,7 +136,7 @@ func (s *InvitationService) AcceptInvitation(ctx context.Context, invitationID s
 		}
 
 		return s.activity.RecordTx(ctx, tx,
-			actor.entry(inv.WorkspaceID.String(), activityservice.ActionInviteAccepted, invitationID, inv.Email))
+			inviteEntry(actor, inv.WorkspaceID.String(), activityservice.ActionInviteAccepted, invitationID, inv.Email))
 	})
 }
 
@@ -177,7 +166,7 @@ func (s *InvitationService) RejectInvitation(ctx context.Context, invitationID s
 	}
 
 	s.activity.Record(ctx,
-		actor.entry(inv.WorkspaceID.String(), activityservice.ActionInviteRejected, invitationID, inv.Email))
+		inviteEntry(actor, inv.WorkspaceID.String(), activityservice.ActionInviteRejected, invitationID, inv.Email))
 
 	return nil
 }

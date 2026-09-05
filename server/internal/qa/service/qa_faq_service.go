@@ -31,7 +31,7 @@ func (s *QAService) ListFaqs(ctx context.Context, workspaceID string) ([]dto.Faq
 }
 
 func (s *QAService) CreateFaq(ctx context.Context, req dto.CreateFaqRequest, actor Actor) (dto.FaqResponse, error) {
-	if !actor.managesRoom() {
+	if !actor.ManagesRoom() {
 		return dto.FaqResponse{}, ErrQAForbidden
 	}
 
