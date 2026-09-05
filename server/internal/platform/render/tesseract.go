@@ -27,29 +27,11 @@ type TesseractOCR struct {
 	langs   string
 }
 
-type TesseractOption func(*tesseractOptions)
-
-type tesseractOptions struct {
-	concurrency int
-	nice        int
-}
-
-func WithOCRConcurrency(n int) TesseractOption {
-	return func(o *tesseractOptions) { o.concurrency = n }
-}
-
-func WithOCRNice(n int) TesseractOption {
-	return func(o *tesseractOptions) { o.nice = n }
-}
-
-func NewTesseract(dpi int, timeout time.Duration, opts ...TesseractOption) (*TesseractOCR, error) {
-	o := tesseractOptions{concurrency: 1}
-	for _, opt := range opts {
-		opt(&o)
-	}
-
+// NewTesseract builds the OCR pool. concurrency is clamped to 1..2 — one
+// tesseract already saturates a core; nice > 0 wraps every call in nice(1).
+func NewTesseract(dpi int, timeout time.Duration, concurrency, nice int) (*TesseractOCR, error) {
 	bins := []string{"tesseract", "pdftoppm"}
-	if o.nice > 0 {
+	if nice > 0 {
 		bins = append(bins, "nice")
 	}
 
@@ -64,18 +46,11 @@ func NewTesseract(dpi int, timeout time.Duration, opts ...TesseractOption) (*Tes
 		return nil, err
 	}
 
-	if o.concurrency < 1 {
-		o.concurrency = 1
-	}
-	if o.concurrency > 2 {
-		o.concurrency = 2
-	}
-
 	return &TesseractOCR{
 		dpi:     dpi,
 		timeout: timeout,
-		nice:    o.nice,
-		sem:     make(chan struct{}, o.concurrency),
+		nice:    nice,
+		sem:     make(chan struct{}, min(max(concurrency, 1), 2)),
 		langs:   langs,
 	}, nil
 }

@@ -200,7 +200,7 @@ func TestRasterWatermarkPDF_MixedSizesBatched(t *testing.T) {
 	}
 	require.Equal(t, wantSizes, pageSizes(t, srcPDF, len(layout)), "source fixture geometry")
 
-	renderer, err := render.NewPoppler(config.ViewerConfig{DPI: dpi, RenderTimeout: 30 * time.Second, RenderConcurrency: 2})
+	renderer, err := render.NewPoppler(config.ViewerConfig{DPI: dpi, RenderTimeout: 30 * time.Second}, 2, 0)
 	require.NoError(t, err)
 	wm, err := watermark.New()
 	require.NoError(t, err)

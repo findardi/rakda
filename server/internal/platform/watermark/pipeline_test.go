@@ -39,7 +39,7 @@ func TestViewerPipeline(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, raw)
 
-	renderer, err := render.NewPoppler(cfg)
+	renderer, err := render.NewPoppler(cfg, cfg.RenderConcurrency, 0)
 	require.NoError(t, err)
 
 	pages, err := renderer.PageCount(ctx, bytes.NewReader(raw))

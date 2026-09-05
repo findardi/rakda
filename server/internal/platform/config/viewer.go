@@ -63,35 +63,15 @@ func LoadViewerConfig() (ViewerConfig, error) {
 		dpi = 150
 	}
 
-	if concurrency <= 0 {
-		concurrency = 1
-	}
-
-	if sweepConcurrency <= 0 {
-		sweepConcurrency = 1
-	}
-
-	if sweepNice < 0 {
-		sweepNice = 0
-	}
-
-	if downloadConcurrency <= 0 {
-		downloadConcurrency = 1
-	}
-
-	if downloadNice < 0 {
-		downloadNice = 0
-	}
-
 	return ViewerConfig{
 		GotenbergURL:        GetEnv("GOTENBERG_URL", "http://localhost:3000"),
 		ConvertTimeout:      convertTimeout,
 		DPI:                 dpi,
 		RenderTimeout:       renderTimeout,
-		RenderConcurrency:   concurrency,
-		SweepConcurrency:    sweepConcurrency,
-		SweepNice:           sweepNice,
-		DownloadConcurrency: downloadConcurrency,
-		DownloadNice:        downloadNice,
+		RenderConcurrency:   max(concurrency, 1),
+		SweepConcurrency:    max(sweepConcurrency, 1),
+		SweepNice:           max(sweepNice, 0),
+		DownloadConcurrency: max(downloadConcurrency, 1),
+		DownloadNice:        max(downloadNice, 0),
 	}, nil
 }
