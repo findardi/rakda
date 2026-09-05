@@ -21,9 +21,10 @@ import (
 const testWorkspaceID = "11111111-1111-1111-1111-111111111111"
 
 type fakeWorkspaceRepo struct {
-	getByIDFn    func(ctx context.Context, id pgtype.UUID) (workspacedb.Workspace, error)
-	deleteCalled bool
-	execTxCalled bool
+	WorkspaceRepository // nil: any query the test did not stub panics loudly
+	getByIDFn           func(ctx context.Context, id pgtype.UUID) (workspacedb.Workspace, error)
+	deleteCalled        bool
+	execTxCalled        bool
 	// execTxErr makes the transaction fail without running its body — the
 	// branding tests use it to prove a stored object is rolled back.
 	execTxErr error

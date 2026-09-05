@@ -1,8 +1,10 @@
 package validation
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"reflect"
 	"strings"
 
@@ -22,6 +24,20 @@ func init() {
 		}
 		return name
 	})
+}
+
+// Bind decodes the JSON body into T and validates it, answering 400 itself.
+// ok is false when the handler must return without doing anything else.
+func Bind[T any](w http.ResponseWriter, r *http.Request) (req T, ok bool) {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.Error(w, http.StatusBadRequest, "invalid body request", nil)
+		return req, false
+	}
+	if errs := Validate(&req); errs != nil {
+		response.Error(w, http.StatusBadRequest, "validation failed", errs)
+		return req, false
+	}
+	return req, true
 }
 
 func Validate(s any) []response.FieldError {
