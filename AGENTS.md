@@ -44,7 +44,6 @@ bun run check        # svelte-kit sync && svelte-check (type-check .svelte files
 - Tailwind CSS **v4** via `@tailwindcss/vite` plugin (no PostCSS config)
 - DaisyUI **v5** for components
 - i18n: Indonesian (`id`) + English (`en`), default `id`. Server locale via `AsyncLocalStorage`.
-- `.npmrc` sets `engine-strict=true` — install fails if Node/bun version mismatches.
 - Lint order matters: run `bun run lint` which runs prettier first, then eslint.
 
 ## Server (`server/`)
