@@ -3,6 +3,7 @@ package config
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"net/netip"
 	"os"
 	"strconv"
@@ -83,6 +84,28 @@ func GetEnvInt(key string, fallback int) (int, error) {
 	}
 
 	return n, nil
+}
+
+// EnvIntOr and EnvDurationOr read a tuning knob. A value that does not parse
+// is logged and replaced by the fallback, never fatal: a typo in a knob must
+// not stop the boot. Config that must be right (DB, storage, viewer) keeps the
+// error-returning getters.
+func EnvIntOr(key string, fallback int) int {
+	n, err := GetEnvInt(key, fallback)
+	if err != nil {
+		log.Printf("%v, fallback to %d", err, fallback)
+		return fallback
+	}
+	return n
+}
+
+func EnvDurationOr(key string, fallback time.Duration) time.Duration {
+	d, err := GetEnvDuration(key, fallback)
+	if err != nil {
+		log.Printf("%v, fallback to %s", err, fallback)
+		return fallback
+	}
+	return d
 }
 
 func GetEnvDuration(key string, fallback time.Duration) (time.Duration, error) {
