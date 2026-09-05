@@ -19,9 +19,6 @@ export const getWorkspaces = (token: string) => get<WorkspaceListData>('/workspa
 export const createWorkspace = (token: string, p: CreateWorkspacePayload) =>
 	post<WorkspaceData>('/workspaces/', p, token);
 
-export const getWorkspace = (token: string, id: string) =>
-	get<WorkspaceData>(`/workspaces/${id}`, token);
-
 export const getWorkspaceSummary = (token: string, id: string) =>
 	get<WorkspaceSummaryData>(`/workspaces/${id}/summary`, token);
 

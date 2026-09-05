@@ -1,5 +1,5 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { canEditWorkspace, canManageAccess } from '$lib/access/roles';
+import { isManager as manages, isOwner as owns } from '$lib/access/roles';
 import {
 	createArchive,
 	deleteArchive,
@@ -30,10 +30,10 @@ export const load: PageServerLoad = async ({ locals, parent }) => {
 		return { guestCount: 0, archives: [], summary: null, recentActivity: [], heroPresets: [] };
 	}
 
-	const isManager = canManageAccess(access.role);
+	const isManager = manages(access.role);
 	// The preset picker is owner-only; everyone else renders the hero from the
 	// hue/phase the workspace record already carries.
-	const isOwner = canEditWorkspace(access.role);
+	const isOwner = owns(access.role);
 
 	const [summary, archives, activity, presets] = await Promise.all([
 		isManager ? getWorkspaceSummary(locals.session, workspace.id) : null,

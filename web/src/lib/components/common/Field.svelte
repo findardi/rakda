@@ -14,7 +14,6 @@
 		inputmode?: HTMLInputAttributes['inputmode'];
 		required?: boolean;
 		maxlength?: number;
-		mono?: boolean;
 		autofocus?: boolean;
 	};
 
@@ -31,7 +30,6 @@
 		inputmode,
 		required = false,
 		maxlength,
-		mono = false,
 		autofocus = false
 	}: Props = $props();
 
@@ -63,7 +61,6 @@
 		bind:value
 		class="input w-full text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
 		class:input-error={!!error}
-		class:font-mono={mono}
 		aria-invalid={error ? 'true' : undefined}
 		aria-describedby={describedBy}
 	/>

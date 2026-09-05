@@ -1,5 +1,5 @@
 import { error, redirect } from '@sveltejs/kit';
-import { canManageAccess } from '$lib/access/roles';
+import { isManager } from '$lib/access/roles';
 import { getDocumentReaders } from '$lib/server/api';
 import { t } from '$lib/i18n';
 import type { LayoutServerLoad } from './$types';
@@ -12,7 +12,7 @@ export const load: LayoutServerLoad = async ({ locals, params, parent }) => {
 	const { access, workspace } = await parent();
 	// Guests are recorded, never readers of the record. Upstream answers 403
 	// too; landing them on the overview beats an error page.
-	if (!access || !canManageAccess(access.role)) redirect(303, `/workspace/${params.slug}`);
+	if (!access || !isManager(access.role)) redirect(303, `/workspace/${params.slug}`);
 
 	const res = await getDocumentReaders(locals.session, workspace.id, params.documentId);
 	if (!res.ok) {

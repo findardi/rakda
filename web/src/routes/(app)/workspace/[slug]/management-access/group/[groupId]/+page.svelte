@@ -3,7 +3,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import type { SubmitFunction } from '@sveltejs/kit';
-	import { Alert, Button, Toaster, showToast } from '$lib/components/common';
+	import { Alert, Button, showToast } from '$lib/components/common';
 	import { roleDisplayName } from '$lib/access/permissions';
 	import { t } from '$lib/i18n';
 	import type { GroupMemberData, WorkspaceMemberData } from '$lib/types/workspace';
@@ -465,5 +465,3 @@
 		<button aria-label={t('group.cancel')}></button>
 	</form>
 </dialog>
-
-<Toaster />

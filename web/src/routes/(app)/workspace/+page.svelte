@@ -4,7 +4,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { WorkspaceStatusBadge } from '$lib/components/app';
-	import { Alert, Button, Field, TextareaField } from '$lib/components/common';
+	import { Alert, Button, Field, TextareaField, showToast } from '$lib/components/common';
 	import { workspaceLogoUrl } from '$lib/branding';
 	import { t } from '$lib/i18n';
 	import type { WorkspaceData } from '$lib/types/workspace';
@@ -20,10 +20,9 @@
 	let formMessage = $state<string | null>(null);
 	let fieldErrors = $state<Record<string, string>>({});
 
-	// Success feedback — transient toast + brief highlight of the new row.
-	let toast = $state<string | null>(null);
+	// Success feedback — toast + brief highlight of the new row.
 	let highlightId = $state<string | null>(null);
-	let toastTimer: ReturnType<typeof setTimeout>;
+	let highlightTimer: ReturnType<typeof setTimeout>;
 
 	// The owned-room limit applies only to rooms the user OWNS; as a guest they
 	// can be in more. Both numbers are server-computed — never derived here.
@@ -45,13 +44,10 @@
 	}
 
 	function showSuccess(created: WorkspaceData) {
-		toast = t('ws.created', { name: created.name });
+		showToast(t('ws.created', { name: created.name }));
 		highlightId = created.id;
-		clearTimeout(toastTimer);
-		toastTimer = setTimeout(() => {
-			toast = null;
-			highlightId = null;
-		}, 4500);
+		clearTimeout(highlightTimer);
+		highlightTimer = setTimeout(() => (highlightId = null), 4500);
 	}
 
 	const submitCreate: SubmitFunction = () => {
@@ -291,9 +287,3 @@
 		<button aria-label={t('ws.dialog.cancel')}></button>
 	</form>
 </dialog>
-
-{#if toast}
-	<div class="pointer-events-none fixed inset-x-0 bottom-4 z-toast flex justify-center px-4">
-		<div class="pointer-events-auto"><Alert variant="success">{toast}</Alert></div>
-	</div>
-{/if}

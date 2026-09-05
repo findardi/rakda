@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { setContext } from 'svelte';
 	import { page } from '$app/state';
-	import { Toaster, showToast } from '$lib/components/common';
+	import { showToast } from '$lib/components/common';
 	import { InviteDialog } from '$lib/components/app';
-	import { canManageMembers } from '$lib/access/roles';
+	import { isManager } from '$lib/access/roles';
 	import { t } from '$lib/i18n';
 	import type { MyAccessWorkspace } from '$lib/types/workspace';
 	import type { LayoutProps } from './$types';
@@ -11,7 +11,7 @@
 	let { data, children }: LayoutProps = $props();
 
 	const viewerRole = $derived((page.data as { access?: MyAccessWorkspace }).access?.role ?? '');
-	const canManage = $derived(canManageMembers(viewerRole));
+	const canManage = $derived(isManager(viewerRole));
 
 	const base = $derived(`/workspace/${page.params.slug}/management-access/member`);
 	const subtabs = $derived([
@@ -82,5 +82,3 @@
 	pendingHref={`${base}/invite`}
 	oncompleted={(n) => n && showToast(t('member.invite.toast', { n }), 'success')}
 />
-
-<Toaster />

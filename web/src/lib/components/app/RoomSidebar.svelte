@@ -4,7 +4,7 @@
 	import { t } from '$lib/i18n';
 	import { workspaceLogoUrl } from '$lib/branding';
 	import { formatDateLocal } from '$lib/format';
-	import { canManageAccess } from '$lib/access/roles';
+	import { isManager } from '$lib/access/roles';
 	import WorkspaceStatusBadge from './WorkspaceStatusBadge.svelte';
 	import type { MyAccessWorkspace, WorkspaceData } from '$lib/types/workspace';
 
@@ -37,7 +37,7 @@
 		page.url.pathname === href || page.url.pathname.startsWith(`${href}/`);
 	const docsActive = $derived(isSection(documentsHref) || isSection(engagementHref));
 	// Members/roles/groups admin surface — managers only (owner/admin).
-	const showAccess = $derived(!!access && canManageAccess(access.role));
+	const showAccess = $derived(!!access && isManager(access.role));
 	// Q&A off for the guest's group = section hidden entirely; managers always see it.
 	const showQa = $derived(qaEnabled || showAccess);
 	// A dated membership shows its date where the member sees the room: losing

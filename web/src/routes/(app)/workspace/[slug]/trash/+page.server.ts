@@ -1,5 +1,5 @@
 import { error, fail, redirect } from '@sveltejs/kit';
-import { canManageAccess } from '$lib/access/roles';
+import { isManager } from '$lib/access/roles';
 import {
 	getTrash,
 	resolveWorkspaceId,
@@ -13,7 +13,7 @@ export const load: PageServerLoad = async ({ locals, params, parent }) => {
 	if (!locals.session) redirect(303, '/login');
 
 	const { access, workspace } = await parent();
-	if (!access || !canManageAccess(access.role)) {
+	if (!access || !isManager(access.role)) {
 		redirect(303, `/workspace/${params.slug}`);
 	}
 

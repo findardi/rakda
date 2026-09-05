@@ -10,7 +10,7 @@
 		describeActivity,
 		type ActivityTone
 	} from '$lib/activity/describe';
-	import { Alert, Toaster, showToast } from '$lib/components/common';
+	import { Alert, showToast } from '$lib/components/common';
 	import { formatDate, formatDateTime, formatTimeUtc } from '$lib/format';
 	import { t } from '$lib/i18n';
 	import type { ActivityFilters, ActivityItem, ActivityListData } from '$lib/types/activity';
@@ -489,5 +489,3 @@
 		{/if}
 	{/if}
 </div>
-
-<Toaster />

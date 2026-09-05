@@ -1,5 +1,5 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { canManageAccess } from '$lib/access/roles';
+import { isManager } from '$lib/access/roles';
 import { createQuestion, getGroups, resolveWorkspaceId } from '$lib/server/api';
 import { t } from '$lib/i18n';
 import type { GroupWorkspaceData } from '$lib/types/workspace';
@@ -12,7 +12,7 @@ export const load: PageServerLoad = async ({ locals, parent }) => {
 
 	const { access, workspace } = await parent();
 	let groups: GroupWorkspaceData[] = [];
-	if (access && canManageAccess(access.role)) {
+	if (access && isManager(access.role)) {
 		const res = await getGroups(locals.session, workspace.id);
 		if (res.ok) groups = res.data;
 	}

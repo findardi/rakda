@@ -3,21 +3,14 @@
 
 	type Props = {
 		value?: string;
-		length?: number;
-		disabled?: boolean;
 		invalid?: boolean;
 		autofocus?: boolean;
 	};
-	let {
-		value = $bindable(''),
-		length = 6,
-		disabled = false,
-		invalid = false,
-		autofocus = false
-	}: Props = $props();
+	let { value = $bindable(''), invalid = false, autofocus = false }: Props = $props();
+
+	const length = 6;
 
 	let els: HTMLInputElement[] = [];
-	// svelte-ignore state_referenced_locally
 	let chars = $state<string[]>(Array.from({ length }, () => ''));
 
 	$effect(() => {
@@ -60,7 +53,6 @@
 		<input
 			bind:this={els[i]}
 			value={ch}
-			{disabled}
 			inputmode="numeric"
 			autocomplete={i === 0 ? 'one-time-code' : 'off'}
 			maxlength="1"

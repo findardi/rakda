@@ -4,7 +4,7 @@
 	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
 	import type { SubmitFunction } from '@sveltejs/kit';
-	import { Alert, Button, Field, TextareaField, Toaster, showToast } from '$lib/components/common';
+	import { Alert, Button, Field, TextareaField, showToast } from '$lib/components/common';
 	import { t } from '$lib/i18n';
 	import type { LayoutProps } from './$types';
 
@@ -220,5 +220,3 @@
 		<button aria-label={t('qa.ask.cancel')}></button>
 	</form>
 </dialog>
-
-<Toaster />

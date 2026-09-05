@@ -175,7 +175,9 @@ restore();
 
 // --- transport ---------------------------------------------------------
 
-async function messageOf(res: Response): Promise<string> {
+// The API envelope's `message`, or the generic fallback when the body is not
+// JSON. Shared by every browser-side fetch against our /api proxies.
+export async function messageOf(res: Response): Promise<string> {
 	const body = (await res.json().catch(() => null)) as { message?: string } | null;
 	return body?.message || t('err.generic');
 }

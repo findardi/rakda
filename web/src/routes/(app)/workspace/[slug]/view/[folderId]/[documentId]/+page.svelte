@@ -5,10 +5,10 @@
 	import { goto, invalidate } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import { canManageAccess } from '$lib/access/roles';
+	import { isManager } from '$lib/access/roles';
 	import { createDwellTracker, type DwellTracker } from '$lib/activity/dwell';
 	import { ViewerPage } from '$lib/components/app';
-	import { Toaster, showToast } from '$lib/components/common';
+	import { showToast } from '$lib/components/common';
 	import { downloadRendition } from '$lib/download';
 	import { downloadJobs } from '$lib/download/jobs.svelte';
 	import { formatDate } from '$lib/format';
@@ -38,7 +38,7 @@
 	const access = $derived((page.data as { access?: MyAccessWorkspace }).access);
 	// Owner/admin manage the room: they may read the engagement panel, and their
 	// own reading is never recorded — here or upstream.
-	const managesRoom = $derived(canManageAccess(access?.role ?? ''));
+	const managesRoom = $derived(isManager(access?.role ?? ''));
 
 	const slug = $derived(page.params.slug!);
 	const folderId = $derived(page.params.folderId!);
@@ -1209,8 +1209,6 @@
 		{/if}
 	</div>
 </div>
-
-<Toaster />
 
 <style>
 	.rakda-band {

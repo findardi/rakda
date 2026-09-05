@@ -2,6 +2,7 @@
 	import { afterNavigate } from '$app/navigation';
 	import { page } from '$app/state';
 	import { AppSidebar, AppTopbar, DownloadJobs, RoomSidebar } from '$lib/components/app';
+	import { Toaster } from '$lib/components/common';
 	import { isRoomReadOnly } from '$lib/access/roles';
 	import { t } from '$lib/i18n';
 	import type { MyAccessWorkspace, WorkspaceData } from '$lib/types/workspace';
@@ -92,3 +93,5 @@
 		</div>
 	</div>
 </div>
+
+<Toaster />

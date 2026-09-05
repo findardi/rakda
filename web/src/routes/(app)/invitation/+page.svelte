@@ -2,7 +2,7 @@
 	import { applyAction, enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import type { SubmitFunction } from '@sveltejs/kit';
-	import { Alert, Button, Toaster, showToast } from '$lib/components/common';
+	import { Alert, Button, showToast } from '$lib/components/common';
 	import { roleDisplayName } from '$lib/access/permissions';
 	import { t } from '$lib/i18n';
 	import type { MyInvitationData } from '$lib/types/invitation';
@@ -240,5 +240,3 @@
 		<button aria-label={t('inv.cancel')}></button>
 	</form>
 </dialog>
-
-<Toaster />
