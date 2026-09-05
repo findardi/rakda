@@ -319,7 +319,6 @@ export const en: Record<keyof Dict, string> = {
 	'password.hide': 'Hide password',
 
 	'otp.group': 'OTP code',
-	'otp.digit': 'Digit {n}',
 
 	// Field-level validation (client + mapped from backend)
 	'err.required': 'Required',

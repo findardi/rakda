@@ -315,7 +315,6 @@ export const id = {
 	'password.hide': 'Sembunyikan kata sandi',
 
 	'otp.group': 'Kode OTP',
-	'otp.digit': 'Digit ke-{n}',
 
 	// Field-level validation (client + mapped from backend)
 	'err.required': 'Wajib diisi',
