@@ -48,15 +48,15 @@ func (s *ContentService) reapOnce(ctx context.Context) {
 	for _, f := range folders {
 		versions, err := s.repo.ListVersionsSweptByFolder(ctx, f.ID)
 		if err != nil {
-			log.Printf("reaper: list versions for folder %s: %v", uuidString(f.ID), err)
+			log.Printf("reaper: list versions for folder %s: %v", f.ID.String(), err)
 			continue
 		}
 
 		refs := make([]blobRef, 0, len(versions))
 		for _, v := range versions {
 			refs = append(refs, blobRef{
-				workspaceID: uuidString(v.WorkspaceID),
-				versionID:   uuidString(v.ID),
+				workspaceID: v.WorkspaceID.String(),
+				versionID:   v.ID.String(),
 				storageKey:  v.StorageKey,
 			})
 		}
@@ -66,15 +66,15 @@ func (s *ContentService) reapOnce(ctx context.Context) {
 		}
 
 		if err := s.repo.PurgeFolder(ctx, f.ID); err != nil {
-			log.Printf("reaper: purge folder %s: %v", uuidString(f.ID), err)
+			log.Printf("reaper: purge folder %s: %v", f.ID.String(), err)
 			continue
 		}
 
 		s.activity.Record(ctx, activityservice.Entry{
-			WorkspaceID: uuidString(f.WorkspaceID),
+			WorkspaceID: f.WorkspaceID.String(),
 			Action:      activityservice.ActionFolderPurged,
 			TargetType:  activityservice.TargetFolder,
-			TargetID:    uuidString(f.ID),
+			TargetID:    f.ID.String(),
 			TargetName:  f.Name,
 		})
 
@@ -89,15 +89,15 @@ func (s *ContentService) reapOnce(ctx context.Context) {
 	for _, d := range documents {
 		versions, err := s.repo.ListVersionByDocument(ctx, d.ID)
 		if err != nil {
-			log.Printf("reaper: list versions for document %s: %v", uuidString(d.ID), err)
+			log.Printf("reaper: list versions for document %s: %v", d.ID.String(), err)
 			continue
 		}
 
 		refs := make([]blobRef, 0, len(versions))
 		for _, v := range versions {
 			refs = append(refs, blobRef{
-				workspaceID: uuidString(d.WorkspaceID),
-				versionID:   uuidString(v.ID),
+				workspaceID: d.WorkspaceID.String(),
+				versionID:   v.ID.String(),
 				storageKey:  v.StorageKey,
 			})
 		}
@@ -107,15 +107,15 @@ func (s *ContentService) reapOnce(ctx context.Context) {
 		}
 
 		if err := s.repo.PurgeDocument(ctx, d.ID); err != nil {
-			log.Printf("reaper: purge document %s: %v", uuidString(d.ID), err)
+			log.Printf("reaper: purge document %s: %v", d.ID.String(), err)
 			continue
 		}
 
 		s.activity.Record(ctx, activityservice.Entry{
-			WorkspaceID: uuidString(d.WorkspaceID),
+			WorkspaceID: d.WorkspaceID.String(),
 			Action:      activityservice.ActionDocumentPurged,
 			TargetType:  activityservice.TargetDocument,
-			TargetID:    uuidString(d.ID),
+			TargetID:    d.ID.String(),
 			TargetName:  d.Name,
 		})
 

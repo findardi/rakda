@@ -41,7 +41,7 @@ func (s *ContentService) sweepTextOnce(ctx context.Context, batch int) {
 	extracted, failed := 0, 0
 	for _, v := range pending {
 		if err := s.extractVersionText(ctx, v); err != nil {
-			log.Printf("text sweep: extract version %s: %v", uuidString(v.ID), err)
+			log.Printf("text sweep: extract version %s: %v", v.ID.String(), err)
 			failed++
 			continue
 		}
@@ -55,7 +55,7 @@ func (s *ContentService) sweepTextOnce(ctx context.Context, batch int) {
 
 func (s *ContentService) extractVersionText(ctx context.Context, row contentdb.ListPendingTextExtractionRow) error {
 	if row.RenditionKey == nil || row.PageCount == nil {
-		return fmt.Errorf("version %s: %w", uuidString(row.ID), ErrRenditionPending)
+		return fmt.Errorf("version %s: %w", row.ID.String(), ErrRenditionPending)
 	}
 
 	renditionKey, pageCount := *row.RenditionKey, int(*row.PageCount)
@@ -193,20 +193,20 @@ func (s *ContentService) sweepOCROnce(ctx context.Context, batch int) {
 func (s *ContentService) ocrVersion(ctx context.Context, rows []contentdb.ListPendingOCRPagesRow) (int, int) {
 	head := rows[0]
 	if head.RenditionKey == nil {
-		log.Printf("ocr sweep: version %s: no rendition", uuidString(head.VersionID))
+		log.Printf("ocr sweep: version %s: no rendition", head.VersionID.String())
 		return 0, len(rows)
 	}
 
 	pdf, err := s.renditionGet(ctx, *head.RenditionKey)
 	if err != nil {
-		log.Printf("ocr sweep: get rendition %s: %v", uuidString(head.VersionID), err)
+		log.Printf("ocr sweep: get rendition %s: %v", head.VersionID.String(), err)
 		return 0, len(rows)
 	}
 	defer pdf.Close()
 
 	doc, err := s.viewer.OCR.OpenOCR(pdf)
 	if err != nil {
-		log.Printf("ocr sweep: open rendition %s: %v", uuidString(head.VersionID), err)
+		log.Printf("ocr sweep: open rendition %s: %v", head.VersionID.String(), err)
 		return 0, len(rows)
 	}
 	defer doc.Close()
@@ -218,7 +218,7 @@ func (s *ContentService) ocrVersion(ctx context.Context, rows []contentdb.ListPe
 		}
 
 		if err := s.ocrPage(ctx, doc, row); err != nil {
-			log.Printf("ocr sweep: page %s#%d: %v", uuidString(row.VersionID), row.PageNo, err)
+			log.Printf("ocr sweep: page %s#%d: %v", row.VersionID.String(), row.PageNo, err)
 			failed++
 			continue
 		}
@@ -308,20 +308,20 @@ func (s *ContentService) sweepBBoxOnce(ctx context.Context, batch int) {
 func (s *ContentService) bboxVersion(ctx context.Context, rows []contentdb.ListPendingWordBoxesRow) (int, int) {
 	head := rows[0]
 	if head.RenditionKey == nil {
-		log.Printf("bbox sweep: version %s: no rendition", uuidString(head.VersionID))
+		log.Printf("bbox sweep: version %s: no rendition", head.VersionID.String())
 		return 0, len(rows)
 	}
 
 	pdf, err := s.renditionGet(ctx, *head.RenditionKey)
 	if err != nil {
-		log.Printf("bbox sweep: get rendition %s: %v", uuidString(head.VersionID), err)
+		log.Printf("bbox sweep: get rendition %s: %v", head.VersionID.String(), err)
 		return 0, len(rows)
 	}
 	defer pdf.Close()
 
 	doc, err := s.viewer.WordBoxes.OpenWordBoxes(pdf)
 	if err != nil {
-		log.Printf("bbox sweep: open rendition %s: %v", uuidString(head.VersionID), err)
+		log.Printf("bbox sweep: open rendition %s: %v", head.VersionID.String(), err)
 		return 0, len(rows)
 	}
 	defer doc.Close()
@@ -333,7 +333,7 @@ func (s *ContentService) bboxVersion(ctx context.Context, rows []contentdb.ListP
 		}
 
 		if err := s.bboxPage(ctx, doc, row); err != nil {
-			log.Printf("bbox sweep: page %s#%d: %v", uuidString(row.VersionID), row.PageNo, err)
+			log.Printf("bbox sweep: page %s#%d: %v", row.VersionID.String(), row.PageNo, err)
 			failed++
 			continue
 		}
@@ -369,7 +369,7 @@ func (s *ContentService) bboxPage(ctx context.Context, doc render.WordBoxDocumen
 			PageNo:    row.PageNo,
 			Words:     []byte("[]"),
 		}); werr != nil {
-			log.Printf("bbox sweep: seal page %s#%d: %v", uuidString(row.VersionID), row.PageNo, werr)
+			log.Printf("bbox sweep: seal page %s#%d: %v", row.VersionID.String(), row.PageNo, werr)
 		}
 		return s.markPageOCRFailed(ctx, row.VersionID, row.PageNo, err)
 	}

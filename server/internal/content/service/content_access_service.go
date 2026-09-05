@@ -128,7 +128,7 @@ func (s *ContentService) SetFolderAccess(ctx context.Context, req dto.SetFolderA
 		return fmt.Errorf("set folder access: %w", err)
 	}
 
-	s.activity.Record(ctx, s.activityEntry(req.WorkspaceID, actor,
+	s.activity.Record(ctx, activityservice.NewEntry(req.WorkspaceID, actor.UserID, actor.Name, actor.Role,
 		activityservice.ActionFolderAccessChanged, activityservice.TargetFolderAccess,
 		req.FolderID, folder.Name, map[string]any{
 			"group_id":              req.GroupID,
@@ -174,7 +174,7 @@ func (s *ContentService) RemoveFolderAccess(ctx context.Context, workspaceID, gr
 		return fmt.Errorf("remove folder access: %w", err)
 	}
 
-	s.activity.Record(ctx, s.activityEntry(workspaceID, actor,
+	s.activity.Record(ctx, activityservice.NewEntry(workspaceID, actor.UserID, actor.Name, actor.Role,
 		activityservice.ActionFolderAccessRemoved, activityservice.TargetFolderAccess,
 		folderID, folder.Name, map[string]any{"group_id": groupID}))
 
@@ -201,8 +201,8 @@ func (s *ContentService) ListFolderAccess(ctx context.Context, workspaceID, fold
 	res := make([]dto.FolderAccessResponse, 0, len(rows))
 	for _, r := range rows {
 		res = append(res, dto.FolderAccessResponse{
-			FolderID:            uuidString(r.FolderID),
-			GroupID:             uuidString(r.GroupID),
+			FolderID:            r.FolderID.String(),
+			GroupID:             r.GroupID.String(),
 			GroupName:           r.GroupName,
 			CanView:             r.CanView,
 			CanDownload:         r.CanDownload,

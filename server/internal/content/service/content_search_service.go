@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"github.com/findardi/rakda/server/internal/platform/ptr"
 	"strings"
 	"unicode"
 
@@ -235,7 +236,7 @@ func (s *ContentService) LogSearch(ctx context.Context, workspaceID, query, targ
 		return
 	}
 
-	s.activity.Record(ctx, s.activityEntry(workspaceID, actor,
+	s.activity.Record(ctx, activityservice.NewEntry(workspaceID, actor.UserID, actor.Name, actor.Role,
 		activityservice.ActionSearchPerformed, activityservice.TargetSearch,
 		targetID, query, nil))
 }
@@ -257,7 +258,7 @@ func (s *ContentService) SearchBoxes(ctx context.Context, workspaceID, documentI
 		return empty, err
 	}
 
-	access, err := s.resolveViewAccess(ctx, workspaceID, uuidString(doc.FolderID), actor)
+	access, err := s.resolveViewAccess(ctx, workspaceID, doc.FolderID.String(), actor)
 	if err != nil {
 		return empty, err
 	}
@@ -332,9 +333,9 @@ func toContentHits(rows []contentdb.SearchAllContentRow) []contentHitRow {
 	hits := make([]contentHitRow, 0, len(rows))
 	for _, r := range rows {
 		hits = append(hits, contentHitRow{
-			documentID:   uuidString(r.DocumentID),
+			documentID:   r.DocumentID.String(),
 			documentName: r.DocumentName,
-			folderID:     uuidString(r.FolderID),
+			folderID:     r.FolderID.String(),
 			pageCount:    r.PageCount,
 			hitCount:     r.HitCount,
 		})
@@ -346,9 +347,9 @@ func toContentHitsVisible(rows []contentdb.SearchVisibleContentRow) []contentHit
 	hits := make([]contentHitRow, 0, len(rows))
 	for _, r := range rows {
 		hits = append(hits, contentHitRow{
-			documentID:   uuidString(r.DocumentID),
+			documentID:   r.DocumentID.String(),
 			documentName: r.DocumentName,
-			folderID:     uuidString(r.FolderID),
+			folderID:     r.FolderID.String(),
 			pageCount:    r.PageCount,
 			hitCount:     r.HitCount,
 		})
@@ -485,7 +486,7 @@ func (s *ContentService) breadcrumbMap(ctx context.Context, wID pgtype.UUID, fol
 		}
 		rows = make([]breadcrumbRow, len(all))
 		for i, r := range all {
-			rows[i] = breadcrumbRow{rootID: uuidString(r.RootID), name: r.Name, visible: r.Visible}
+			rows[i] = breadcrumbRow{rootID: r.RootID.String(), name: r.Name, visible: r.Visible}
 		}
 	} else {
 		var uID pgtype.UUID
@@ -503,7 +504,7 @@ func (s *ContentService) breadcrumbMap(ctx context.Context, wID pgtype.UUID, fol
 		}
 		rows = make([]breadcrumbRow, len(visible))
 		for i, r := range visible {
-			rows[i] = breadcrumbRow{rootID: uuidString(r.RootID), name: r.Name, visible: r.Visible}
+			rows[i] = breadcrumbRow{rootID: r.RootID.String(), name: r.Name, visible: r.Visible}
 		}
 	}
 
@@ -550,9 +551,9 @@ func toFolderItems(rows []contentdb.SearchAllFoldersRow) []dto.SearchFolderItem 
 	items := make([]dto.SearchFolderItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, dto.SearchFolderItem{
-			ID:       uuidString(r.ID),
+			ID:       r.ID.String(),
 			Name:     r.Name,
-			ParentID: uuidString(r.ParentID),
+			ParentID: r.ParentID.String(),
 		})
 	}
 	return items
@@ -562,9 +563,9 @@ func toFolderItemsVisible(rows []contentdb.SearchVisibleFoldersRow) []dto.Search
 	items := make([]dto.SearchFolderItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, dto.SearchFolderItem{
-			ID:       uuidString(r.ID),
+			ID:       r.ID.String(),
 			Name:     r.Name,
-			ParentID: uuidString(r.ParentID),
+			ParentID: r.ParentID.String(),
 		})
 	}
 	return items
@@ -574,10 +575,10 @@ func toDocumentItems(rows []contentdb.SearchAllDocumentsRow) []dto.SearchDocumen
 	items := make([]dto.SearchDocumentItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, dto.SearchDocumentItem{
-			ID:       uuidString(r.ID),
+			ID:       r.ID.String(),
 			Name:     r.Name,
-			FolderID: uuidString(r.FolderID),
-			Mime:     deref(r.Mime),
+			FolderID: r.FolderID.String(),
+			Mime:     ptr.Deref(r.Mime),
 		})
 	}
 	return items
@@ -587,10 +588,10 @@ func toDocumentItemsVisible(rows []contentdb.SearchVisibleDocumentsRow) []dto.Se
 	items := make([]dto.SearchDocumentItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, dto.SearchDocumentItem{
-			ID:       uuidString(r.ID),
+			ID:       r.ID.String(),
 			Name:     r.Name,
-			FolderID: uuidString(r.FolderID),
-			Mime:     deref(r.Mime),
+			FolderID: r.FolderID.String(),
+			Mime:     ptr.Deref(r.Mime),
 		})
 	}
 	return items

@@ -94,27 +94,27 @@ func (s *ActivityService) ListActivity(ctx context.Context, req dto.ListActivity
 	items := make([]dto.ActivityLogResponse, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, dto.ActivityLogResponse{
-			ID:         uuidString(r.ID),
-			ActorID:    uuidString(r.ActorID),
+			ID:         r.ID.String(),
+			ActorID:    r.ActorID.String(),
 			ActorName:  r.ActorName,
 			ActorRole:  r.ActorRole,
 			Action:     r.Action,
 			TargetType: r.TargetType,
-			TargetID:   uuidString(r.TargetID),
+			TargetID:   r.TargetID.String(),
 			TargetName: r.TargetName,
 			Metadata:   json.RawMessage(r.Metadata),
 			CreatedAt:  r.CreatedAt.Time,
 
-			LinkDocumentID: uuidString(r.LinkDocumentID),
-			LinkFolderID:   uuidString(r.LinkFolderID),
-			LinkQuestionID: uuidString(r.LinkQuestionID),
+			LinkDocumentID: r.LinkDocumentID.String(),
+			LinkFolderID:   r.LinkFolderID.String(),
+			LinkQuestionID: r.LinkQuestionID.String(),
 		})
 	}
 
 	next := ""
 	if len(rows) == limit {
 		last := rows[len(rows)-1]
-		next = activityCursor(last.CreatedAt.Time, uuidString(last.ID))
+		next = activityCursor(last.CreatedAt.Time, last.ID.String())
 	}
 
 	return dto.ListActivityResponse{Items: items, NextCursor: next}, nil
@@ -163,13 +163,4 @@ func parseTimeFilter(raw string, endOfDay bool) (pgtype.Timestamptz, error) {
 	}
 
 	return pgtype.Timestamptz{Time: t, Valid: true}, nil
-}
-
-func uuidString(u pgtype.UUID) string {
-	v, err := u.Value()
-	if err != nil || v == nil {
-		return ""
-	}
-	s, _ := v.(string)
-	return s
 }

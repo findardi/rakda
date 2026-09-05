@@ -168,7 +168,7 @@ func TestParseQuestionCursor(t *testing.T) {
 		createdAt, id, err := parseQuestionCursor(cursor)
 		require.NoError(t, err)
 		assert.Equal(t, at.UnixMicro(), createdAt.Time.UnixMicro())
-		assert.Equal(t, uuidQuestion, uuidString(id))
+		assert.Equal(t, uuidQuestion, id.String())
 	})
 
 	for _, cursor := range []string{"abc", "12_not-a-uuid", "x_" + uuidQuestion} {
@@ -250,7 +250,7 @@ func TestListQuestionsGuestSilo(t *testing.T) {
 			return nil, nil
 		},
 		countQuestionsFn: func(ctx context.Context, arg qadb.CountQuestionsParams) (int64, error) {
-			assert.Equal(t, uuidGroup, uuidString(arg.GroupID))
+			assert.Equal(t, uuidGroup, arg.GroupID.String())
 			return 3, nil
 		},
 		countFaqsFn: func(ctx context.Context, workspaceID pgtype.UUID) (int64, error) {
@@ -262,7 +262,7 @@ func TestListQuestionsGuestSilo(t *testing.T) {
 		dto.ListQuestionsRequest{WorkspaceID: uuidWS, GroupID: uuidGroupB}, guestActor())
 	require.NoError(t, err)
 
-	assert.Equal(t, uuidGroup, uuidString(captured.GroupID))
+	assert.Equal(t, uuidGroup, captured.GroupID.String())
 	assert.True(t, res.QAEnabled)
 	require.NotNil(t, res.QuestionLimit)
 	assert.EqualValues(t, 5, *res.QuestionLimit)
@@ -320,7 +320,7 @@ func TestListQuestionsManager(t *testing.T) {
 			dto.ListQuestionsRequest{WorkspaceID: uuidWS, GroupID: uuidGroupB, Status: StatusWaiting}, managerActor())
 		require.NoError(t, err)
 
-		assert.Equal(t, uuidGroupB, uuidString(captured.GroupID))
+		assert.Equal(t, uuidGroupB, captured.GroupID.String())
 		require.NotNil(t, captured.Status)
 		assert.Equal(t, StatusWaiting, *captured.Status)
 		require.NotNil(t, res.WaitingCount)
@@ -573,7 +573,7 @@ func TestExportQuestions(t *testing.T) {
 			dto.ExportQuestionsRequest{WorkspaceID: uuidWS, GroupID: uuidGroupB}, guestActor())
 		require.NoError(t, err)
 
-		assert.Equal(t, uuidGroup, uuidString(captured.GroupID))
+		assert.Equal(t, uuidGroup, captured.GroupID.String())
 		require.Len(t, page.Rows, 2)
 		assert.Equal(t, "question", page.Rows[0].Type)
 		assert.Equal(t, "doc snapshot", page.Rows[0].Document)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/findardi/rakda/server/internal/platform/ptr"
 	"log"
 	"math/rand/v2"
 	"strings"
@@ -68,9 +69,9 @@ func (s *AuthService) UserExists(ctx context.Context, email string) (dto.UserRes
 	}
 
 	return dto.UserResponse{
-		ID:            uuidString(user.ID),
+		ID:            user.ID.String(),
 		Email:         user.Email,
-		Username:      deref(user.Username),
+		Username:      ptr.Deref(user.Username),
 		Status:        user.Status,
 		EmailVerified: user.EmailVerifiedAt.Valid,
 	}, nil
@@ -135,8 +136,8 @@ func (s *AuthService) RegisterUser(ctx context.Context, req dto.RegisterRequest)
 	s.sendEmailAsync(email, sender.BuildVerifyEmail(code))
 
 	return dto.RegisterResponse{
-		ID:       uuidString(user.ID),
-		Username: deref(user.Username),
+		ID:       user.ID.String(),
+		Username: ptr.Deref(user.Username),
 	}, nil
 }
 
@@ -321,8 +322,8 @@ func (s *AuthService) RefreshToken(ctx context.Context, req dto.RefreshTokenRequ
 	}
 
 	accessToken, err := s.jwt.CreateToken(token.JwtClaims{
-		ID:       uuidString(user.ID),
-		Username: deref(user.Username),
+		ID:       user.ID.String(),
+		Username: ptr.Deref(user.Username),
 		Email:    user.Email,
 		Status:   user.Status,
 	}, token.TokenType("token_login"))
@@ -518,28 +519,12 @@ func (s *AuthService) GetMe(ctx context.Context, userID string) (dto.UserRespons
 	}
 
 	return dto.UserResponse{
-		ID:            uuidString(user.ID),
+		ID:            user.ID.String(),
 		Email:         user.Email,
-		Username:      deref(user.Username),
+		Username:      ptr.Deref(user.Username),
 		Status:        user.Status,
 		EmailVerified: user.EmailVerifiedAt.Valid,
 	}, nil
-}
-
-func uuidString(u pgtype.UUID) string {
-	v, err := u.Value()
-	if err != nil || v == nil {
-		return ""
-	}
-	s, _ := v.(string)
-	return s
-}
-
-func deref(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
 }
 
 type SSOIdentity struct {
@@ -551,8 +536,8 @@ type SSOIdentity struct {
 
 func (s *AuthService) issueToken(ctx context.Context, user authdb.User) (dto.LoginResponse, error) {
 	claims := token.JwtClaims{
-		ID:       uuidString(user.ID),
-		Username: deref(user.Username),
+		ID:       user.ID.String(),
+		Username: ptr.Deref(user.Username),
 		Email:    user.Email,
 		Status:   user.Status,
 	}
@@ -745,7 +730,7 @@ func (s *AuthService) AcceptInvitationSignup(ctx context.Context, req dto.Accept
 			return fmt.Errorf("create user: %w", err)
 		}
 
-		if err := s.invite.ConsumeInvitation(ctx, tx, req.Token, uuidString(u.ID)); err != nil {
+		if err := s.invite.ConsumeInvitation(ctx, tx, req.Token, u.ID.String()); err != nil {
 			return err
 		}
 

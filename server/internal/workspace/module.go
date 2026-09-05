@@ -17,23 +17,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type userStatusReader struct {
-	repo *auth.Repository
-}
-
-func (s userStatusReader) UserStatus(ctx context.Context, userID string) (string, error) {
-	var uid pgtype.UUID
-	if err := uid.Scan(userID); err != nil {
-		return "", err
-	}
-
-	user, err := s.repo.GetUserById(ctx, uid)
-	if err != nil {
-		return "", err
-	}
-	return user.Status, nil
-}
-
 type Module struct {
 	handler *handler.WorkspaceHandler
 	mw      *middleware.Middleware
@@ -46,7 +29,7 @@ func NewModule(pool *pgxpool.Pool, verifier middleware.TokenVerifier, access, co
 	s := service.NewWorkspaceService(r, access, content, activity, store)
 	h := handler.NewWorkspaceHandler(s)
 
-	mw := middleware.New(verifier, userStatusReader{repo: auth.New(pool)}, nil)
+	mw := middleware.New(verifier, auth.New(pool), nil)
 
 	return &Module{
 		handler: h,

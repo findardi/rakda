@@ -1,7 +1,7 @@
 package auth
 
 import (
-	"context"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"time"
 
 	"github.com/findardi/rakda/server/internal/auth/handler"
@@ -10,8 +10,6 @@ import (
 	"github.com/findardi/rakda/server/internal/platform/middleware"
 	"github.com/findardi/rakda/server/internal/platform/oauth"
 	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Module struct {
@@ -19,28 +17,11 @@ type Module struct {
 	mw      *middleware.Middleware
 }
 
-type userStatusReader struct {
-	repo *repository.Repository
-}
-
-func (s userStatusReader) UserStatus(ctx context.Context, userID string) (string, error) {
-	var uid pgtype.UUID
-	if err := uid.Scan(userID); err != nil {
-		return "", err
-	}
-
-	user, err := s.repo.GetUserById(ctx, uid)
-	if err != nil {
-		return "", err
-	}
-	return user.Status, nil
-}
-
 func NewModule(pool *pgxpool.Pool, otp service.OTPService, jwt service.JWTService, mail service.MailService, limiter middleware.RateStore, providers map[string]oauth.Provider, invite service.InvitationConsumer) *Module {
 	r := repository.New(pool)
 	s := service.NewAuthService(r, otp, jwt, mail, invite)
 	h := handler.NewAuthHandler(s, providers)
-	mw := middleware.New(jwt, userStatusReader{repo: r}, limiter)
+	mw := middleware.New(jwt, r, limiter)
 
 	return &Module{
 		handler: h,

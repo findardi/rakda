@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/findardi/rakda/server/internal/platform/database"
+	"github.com/findardi/rakda/server/internal/platform/ptr"
 	"log"
 	"regexp"
 	"strings"
@@ -15,7 +17,6 @@ import (
 	"github.com/findardi/rakda/server/internal/workspace/dto"
 	workspacedb "github.com/findardi/rakda/server/internal/workspace/repository/sqlc"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -84,11 +85,11 @@ func NewWorkspaceService(repo WorkspaceRepository, access, content Provisioner, 
 // response alike.
 func workspaceResponse(w workspacedb.Workspace) dto.WorkspaceResponse {
 	res := dto.WorkspaceResponse{
-		ID:          uuidString(w.ID),
-		OwnerID:     uuidString(w.OwnerID),
+		ID:          w.ID.String(),
+		OwnerID:     w.OwnerID.String(),
 		Name:        w.Name,
 		Slug:        w.Slug,
-		Description: deref(w.Description),
+		Description: ptr.Deref(w.Description),
 		Status:      w.Status,
 		CreatedAt:   w.CreatedAt.Time,
 		UpdatedAt:   w.UpdatedAt.Time,
@@ -109,34 +110,10 @@ func (s *WorkspaceService) slugify(name string) string {
 	return s.slugBase(name) + "-" + hex.EncodeToString(randomID)
 }
 
-func uuidString(u pgtype.UUID) string {
-	v, err := u.Value()
-	if err != nil || v == nil {
-		return ""
-	}
-	s, _ := v.(string)
-	return s
-}
-
-func deref(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
-}
-
 func isValidStatus(status string) bool {
 	switch status {
 	case StatusPrepare, StatusActive, StatusArchive:
 		return true
-	}
-	return false
-}
-
-func isUniqueViolation(err error, constraint string) bool {
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
-		return pgErr.Code == "23505" && pgErr.ConstraintName == constraint
 	}
 	return false
 }
@@ -221,11 +198,11 @@ func (s *WorkspaceService) GetWorkspaces(ctx context.Context, userID string) (dt
 
 	for _, w := range rows {
 		work := dto.WorkspaceResponse{
-			ID:          uuidString(w.ID),
-			OwnerID:     uuidString(w.OwnerID),
+			ID:          w.ID.String(),
+			OwnerID:     w.OwnerID.String(),
 			Name:        w.Name,
 			Slug:        w.Slug,
-			Description: deref(w.Description),
+			Description: ptr.Deref(w.Description),
 			Status:      w.Status,
 			CreatedAt:   w.CreatedAt.Time,
 			UpdatedAt:   w.UpdatedAt.Time,
@@ -419,7 +396,7 @@ func (s *WorkspaceService) UpdateWorkspace(ctx context.Context, req dto.Workspac
 	if req.Description != "" {
 		desc = &req.Description
 	}
-	descChanged := deref(desc) != deref(current.Description)
+	descChanged := ptr.Deref(desc) != ptr.Deref(current.Description)
 
 	if !nameChanged && !descChanged {
 		return workspaceResponse(current), nil
@@ -436,7 +413,7 @@ func (s *WorkspaceService) UpdateWorkspace(ctx context.Context, req dto.Workspac
 		switch {
 		case errors.Is(err, pgx.ErrNoRows):
 			return ErrWorkspaceNotFound
-		case isUniqueViolation(err, "workspaces_owner_slug_key"):
+		case database.IsUniqueViolation(err, "workspaces_owner_slug_key"):
 			return ErrWorkspaceNameTaken
 		case err != nil:
 			return fmt.Errorf("update workspace: %w", err)

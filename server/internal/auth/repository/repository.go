@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	authdb "github.com/findardi/rakda/server/internal/auth/repository/sqlc"
@@ -50,4 +51,19 @@ func (r *Repository) ExecTxTx(ctx context.Context, fn func(*authdb.Queries, pgx.
 	}
 
 	return tx.Commit(ctx)
+}
+
+// UserStatus satisfies middleware.StatusReader; every module's auth guard reads
+// the account status through this one method.
+func (r *Repository) UserStatus(ctx context.Context, userID string) (string, error) {
+	var uid pgtype.UUID
+	if err := uid.Scan(userID); err != nil {
+		return "", err
+	}
+
+	user, err := r.GetUserById(ctx, uid)
+	if err != nil {
+		return "", err
+	}
+	return user.Status, nil
 }
