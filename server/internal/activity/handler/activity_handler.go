@@ -249,13 +249,14 @@ func (h *ActivityHandler) ExportDocumentEngagement(w http.ResponseWriter, r *htt
 	}
 
 	cw := csv.NewWriter(w)
-	cw.Write([]string{"actor_id", "actor_name", "actor_email", "page_no", "opens", "read_ms"})
+	cw.Write([]string{"actor_id", "actor_name", "actor_email", "group_name", "page_no", "opens", "read_ms"})
 
 	for _, row := range data.Rows {
 		cw.Write([]string{
 			row.ActorID,
 			row.ActorName,
 			row.ActorEmail,
+			row.GroupName,
 			strconv.FormatInt(int64(row.PageNo), 10),
 			strconv.FormatInt(row.Opens, 10),
 			strconv.FormatInt(row.ReadMs, 10),

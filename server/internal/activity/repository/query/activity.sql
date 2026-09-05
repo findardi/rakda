@@ -39,14 +39,24 @@ order by a.created_at desc, a.id desc
 limit @page_size;
 
 -- name: GetDocumentForEvent :one
-select id, workspace_id, name from documents
-where id = $1 and deleted_at is null;
+-- page_count is the served version's; null until a rendition exists. The
+-- engagement page draws its page axis from it so it never has to call
+-- GET /view, which writes an audit row.
+select d.id, d.workspace_id, d.name, dv.page_count
+from documents d
+left join document_versions dv on dv.id = d.current_version_id
+where d.id = $1 and d.deleted_at is null;
 
 -- name: ListDocumentReaders :many
+-- The group is the reader's *current* one (content_events snapshots the
+-- actor, not the group): a reader who left the room has none. One membership
+-- per (workspace, user) and one group per member, so the joins never fan out.
 select
     ce.actor_id,
     coalesce(u.username, '')::text as actor_name,
     max(ce.actor_email)::text as actor_email,
+    g.id as group_id,
+    coalesce(g.name, '')::text as group_name,
     (count(distinct date_bin('5 minutes', ce.created_at, timestamptz 'epoch'))
         filter (where ce.event_type = 'view_page')
     )::bigint as opens,
@@ -55,9 +65,12 @@ select
     max(ce.created_at)::timestamptz as last_read_at
 from content_events ce
 left join users u on u.id = ce.actor_id
+left join workspace_members wm on wm.workspace_id = ce.workspace_id and wm.user_id = ce.actor_id
+left join workspace_group_members wgm on wgm.member_id = wm.id
+left join workspace_groups g on g.id = wgm.group_id
 where ce.workspace_id = @workspace_id
     and ce.document_id = @document_id
-group by ce.actor_id, u.username
+group by ce.actor_id, u.username, g.id, g.name
 order by read_ms desc, last_read_at desc;
 
 -- name: ListReaderPages :many
@@ -80,6 +93,7 @@ select
     ce.actor_id,
     coalesce(u.username, '')::text as actor_name,
     max(ce.actor_email)::text as actor_email,
+    coalesce(g.name, '')::text as group_name,
     ce.page_no,
     (count(distinct date_bin('5 minutes', ce.created_at, timestamptz 'epoch'))
         filter (where ce.event_type = 'view_page')
@@ -87,8 +101,11 @@ select
     coalesce(sum(ce.duration_ms) filter (where ce.event_type = 'page_duration'), 0)::bigint as read_ms
 from content_events ce
 left join users u on u.id = ce.actor_id
+left join workspace_members wm on wm.workspace_id = ce.workspace_id and wm.user_id = ce.actor_id
+left join workspace_group_members wgm on wgm.member_id = wm.id
+left join workspace_groups g on g.id = wgm.group_id
 where ce.workspace_id = @workspace_id
     and ce.document_id = @document_id
     and ce.page_no is not null
-group by ce.actor_id, u.username, ce.page_no
+group by ce.actor_id, u.username, g.name, ce.page_no
 order by actor_name, ce.actor_id, ce.page_no;

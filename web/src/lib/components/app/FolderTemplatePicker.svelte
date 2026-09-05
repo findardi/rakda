@@ -52,8 +52,8 @@
 			});
 	});
 
-	// list <-> detail; null is the list. `cameFrom` returns focus to the card
-	// that opened the detail (DocumentEngagement pattern).
+	// list <-> detail; null is the list. `cameFrom` names the card
+	// that opened the detail, so leaving it returns focus there.
 	let selected = $state<FolderTemplateData | null>(null);
 	let listEl = $state<HTMLElement>();
 	let backEl = $state<HTMLButtonElement>();

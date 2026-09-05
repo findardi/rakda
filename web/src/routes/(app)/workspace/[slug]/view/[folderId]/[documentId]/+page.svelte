@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { tick } from 'svelte';
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { fade } from 'svelte/transition';
@@ -8,7 +7,7 @@
 	import { page } from '$app/state';
 	import { canManageAccess } from '$lib/access/roles';
 	import { createDwellTracker, type DwellTracker } from '$lib/activity/dwell';
-	import { DocumentEngagement, ViewerPage } from '$lib/components/app';
+	import { ViewerPage } from '$lib/components/app';
 	import { Toaster, showToast } from '$lib/components/common';
 	import { downloadRendition } from '$lib/download';
 	import { downloadJobs } from '$lib/download/jobs.svelte';
@@ -288,17 +287,6 @@
 		};
 	});
 
-	// --- engagement panel (owner/admin only) ---
-	let panelOpen = $state(page.url.searchParams.has('readers'));
-
-	// Below `lg` the panel takes the reader's place, so a jump has to give the
-	// reader back before it can scroll to anything.
-	async function jumpFromPanel(n: number) {
-		if (!window.matchMedia('(min-width: 64rem)').matches) panelOpen = false;
-		await tick();
-		scrollToPage(n);
-	}
-
 	// --- jump-to-page input (display follows scroll unless the user is typing) ---
 	let jumpEl = $state<HTMLInputElement>();
 	let editing = $state(false);
@@ -325,14 +313,9 @@
 		}
 
 		if (e.key !== 'Escape' || editing) return;
-		// Escape unwinds one layer at a time: find first, then the panel,
-		// then the reader itself.
+		// Escape unwinds one layer at a time: find first, then the reader itself.
 		if (findOpen) {
 			closeFind();
-			return;
-		}
-		if (panelOpen) {
-			panelOpen = false;
 			return;
 		}
 		goto(backHref);
@@ -856,38 +839,6 @@
 				</a>
 			{/if}
 
-			<!-- Who read what is owner/admin knowledge. A guest is recorded, never a
-			     reader of the record, so the control does not exist for them. -->
-			{#if managesRoom}
-				<button
-					type="button"
-					onclick={() => (panelOpen = !panelOpen)}
-					aria-expanded={panelOpen}
-					title={panelOpen ? t('activity.engagement.close') : t('activity.engagement.open')}
-					class="grid h-8 w-8 flex-none place-items-center rounded-field transition-colors
-						{panelOpen
-						? 'bg-primary/10 text-primary'
-						: 'text-muted hover:bg-base-content/5 hover:text-base-content'}"
-				>
-					<svg
-						class="h-4 w-4"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="1.8"
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						aria-hidden="true"
-					>
-						<path d="M4 19h16" />
-						<path d="M7 19v-4M12 19v-7M17 19v-2" />
-					</svg>
-					<span class="sr-only">
-						{panelOpen ? t('activity.engagement.close') : t('activity.engagement.open')}
-					</span>
-				</button>
-			{/if}
-
 			{#if canDownload}
 				<button
 					type="button"
@@ -1202,12 +1153,7 @@
 		</div>
 	{:else if meta && pageCount > 0}
 		<div class="flex min-h-0 flex-1">
-			<!-- Hidden rather than unmounted below `lg`: the pages keep their decoded
-			     images, and the beacon reads the hiding as "not being read". -->
-			<div
-				bind:this={bandWrapEl}
-				class="relative min-h-0 flex-1 {panelOpen ? 'hidden lg:block' : ''}"
-			>
+			<div bind:this={bandWrapEl} class="relative min-h-0 flex-1">
 				<div bind:this={readerEl} class="h-full overflow-y-auto" aria-label={meta.name}>
 					<div class="mx-auto flex max-w-205 flex-col gap-4 px-3 py-6 sm:px-4">
 						<!-- Keyed by version too: switching must remount the pages rather than
@@ -1244,17 +1190,6 @@
 					</div>
 				{/if}
 			</div>
-
-			{#if panelOpen && managesRoom}
-				<DocumentEngagement
-					workspaceId={workspace.id}
-					{documentId}
-					{pageCount}
-					{currentPage}
-					onjump={(n) => void jumpFromPanel(n)}
-					onclose={() => (panelOpen = false)}
-				/>
-			{/if}
 		</div>
 	{:else}
 		<div class="flex flex-1 items-center justify-center overflow-y-auto px-6 py-16">

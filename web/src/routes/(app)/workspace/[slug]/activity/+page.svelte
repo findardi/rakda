@@ -120,9 +120,14 @@
 		return null;
 	}
 
+	// The reading record lives on its own page, beside the viewer, never in it.
 	const readersHref = (item: ActivityItem) =>
 		READ_ACTIONS.has(item.action) && item.link_document_id && item.link_folder_id
-			? `${viewerHref(item)}?readers=1`
+			? resolve('/(app)/workspace/[slug]/engagement/[folderId]/[documentId]', {
+					slug,
+					folderId: item.link_folder_id,
+					documentId: item.link_document_id
+				})
 			: null;
 
 	const queryString = (entries: [string, string][]) =>
@@ -262,8 +267,11 @@
 				<!-- eslint-disable svelte/no-navigation-without-resolve -- both hrefs come from resolve(); the rule cannot see through the helper -->
 				<span class="ml-1 inline-flex gap-2 text-xs whitespace-nowrap">
 					{#if openHref}
+						<!-- A document target opens the viewer, whose load writes
+						     document_viewed: a view must be a click, never a hover. -->
 						<a
 							href={openHref}
+							data-sveltekit-preload-data={item.link_document_id ? 'off' : undefined}
 							class="text-muted underline decoration-base-content/30 underline-offset-2 hover:text-base-content hover:decoration-current"
 							>{t('activity.link.open', { name: item.target_name })}</a
 						>
@@ -271,7 +279,6 @@
 					{#if readHref}
 						<a
 							href={readHref}
-							data-sveltekit-preload-data="off"
 							class="text-muted underline decoration-base-content/30 underline-offset-2 hover:text-base-content hover:decoration-current"
 							>{t('activity.link.readers')}</a
 						>

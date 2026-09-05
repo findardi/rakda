@@ -11,10 +11,16 @@ import (
 )
 
 type Querier interface {
+	// page_count is the served version's; null until a rendition exists. The
+	// engagement page draws its page axis from it so it never has to call
+	// GET /view, which writes an audit row.
 	GetDocumentForEvent(ctx context.Context, id pgtype.UUID) (GetDocumentForEventRow, error)
 	InsertActivityLog(ctx context.Context, arg InsertActivityLogParams) error
 	InsertContentEvent(ctx context.Context, arg InsertContentEventParams) error
 	ListActivityLogs(ctx context.Context, arg ListActivityLogsParams) ([]ListActivityLogsRow, error)
+	// The group is the reader's *current* one (content_events snapshots the
+	// actor, not the group): a reader who left the room has none. One membership
+	// per (workspace, user) and one group per member, so the joins never fan out.
 	ListDocumentReaders(ctx context.Context, arg ListDocumentReadersParams) ([]ListDocumentReadersRow, error)
 	ListEngagementBreakdown(ctx context.Context, arg ListEngagementBreakdownParams) ([]ListEngagementBreakdownRow, error)
 	ListReaderPages(ctx context.Context, arg ListReaderPagesParams) ([]ListReaderPagesRow, error)
