@@ -22,35 +22,27 @@ import { API_URL, del, get, patch, post, upstreamHeaders } from './client';
 const foldersBase = (workspaceId: string) => `/content/workspaces/${workspaceId}/folders`;
 const documentsBase = (workspaceId: string) => `/content/workspaces/${workspaceId}/documents`;
 
-export function listDocuments(
-	token: string,
-	workspaceId: string,
-	folderId: string
-): Promise<ApiResult<DocumentData[]>> {
-	return get<DocumentData[]>(`${foldersBase(workspaceId)}/${folderId}/documents`, token);
-}
+export const listDocuments = (token: string, workspaceId: string, folderId: string) =>
+	get<DocumentData[]>(`${foldersBase(workspaceId)}/${folderId}/documents`, token);
 
-export function requestUploadUrl(
+export const requestUploadUrl = (
 	token: string,
 	workspaceId: string,
 	folderId: string,
 	storageKey?: string
-): Promise<ApiResult<UploadUrlData>> {
-	return post<UploadUrlData>(
+) =>
+	post<UploadUrlData>(
 		`${foldersBase(workspaceId)}/${folderId}/documents/upload-url`,
 		storageKey ? { storage_key: storageKey } : undefined,
 		token
 	);
-}
 
-export function completeUpload(
+export const completeUpload = (
 	token: string,
 	workspaceId: string,
 	folderId: string,
 	p: CompleteUploadPayload
-): Promise<ApiResult<DocumentData>> {
-	return post<DocumentData>(`${foldersBase(workspaceId)}/${folderId}/documents`, p, token);
-}
+) => post<DocumentData>(`${foldersBase(workspaceId)}/${folderId}/documents`, p, token);
 
 // `?version=` is optional everywhere it appears: omitting it means the current
 // version, which is what a guest is limited to. Passing a non-current version id
@@ -63,52 +55,45 @@ const versionQuery = (versionId?: string) =>
 // (Content-Type application/pdf, Content-Disposition attachment) — watermarked
 // for `can_download`, clean for `can_download_original` — not a JSON envelope,
 // so it bypasses the typed client entirely.
-export function downloadDocument(
+export const downloadDocument = (
 	token: string,
 	workspaceId: string,
 	documentId: string,
 	versionId?: string
-): Promise<Response> {
-	return fetch(
+) =>
+	fetch(
 		`${API_URL}${documentsBase(workspaceId)}/${documentId}/download${versionQuery(versionId)}`,
 		{ headers: upstreamHeaders(token) }
 	);
-}
 
-export function getDownloadLimits(
-	token: string,
-	workspaceId: string
-): Promise<ApiResult<DownloadLimitsData>> {
-	return get<DownloadLimitsData>(`/content/workspaces/${workspaceId}/download-limits`, token);
-}
+export const getDownloadLimits = (token: string, workspaceId: string) =>
+	get<DownloadLimitsData>(`/content/workspaces/${workspaceId}/download-limits`, token);
 
-export function getViewMeta(
+export const getViewMeta = (
 	token: string,
 	workspaceId: string,
 	documentId: string,
 	versionId?: string
-): Promise<ApiResult<ViewMetaData>> {
-	return get<ViewMetaData>(
+) =>
+	get<ViewMetaData>(
 		`${documentsBase(workspaceId)}/${documentId}/view${versionQuery(versionId)}`,
 		token
 	);
-}
 
 // Raw upstream response for the page-image proxy. This endpoint streams a
 // watermarked PNG (Content-Type image/png), not a JSON envelope, so it bypasses
 // the typed client entirely — the proxy route forwards the body and status.
-export function fetchViewPage(
+export const fetchViewPage = (
 	token: string,
 	workspaceId: string,
 	documentId: string,
 	page: number | string,
 	versionId?: string
-): Promise<Response> {
-	return fetch(
+) =>
+	fetch(
 		`${API_URL}${documentsBase(workspaceId)}/${documentId}/pages/${page}${versionQuery(versionId)}`,
 		{ headers: upstreamHeaders(token) }
 	);
-}
 
 // --- versions ----------------------------------------------------------
 // Version uploads have no multipart path upstream: a new version is one
@@ -118,88 +103,66 @@ export function fetchViewPage(
 const versionsBase = (workspaceId: string, documentId: string) =>
 	`${documentsBase(workspaceId)}/${documentId}/versions`;
 
-export function listVersions(
-	token: string,
-	workspaceId: string,
-	documentId: string
-): Promise<ApiResult<VersionData[]>> {
-	return get<VersionData[]>(versionsBase(workspaceId, documentId), token);
-}
+export const listVersions = (token: string, workspaceId: string, documentId: string) =>
+	get<VersionData[]>(versionsBase(workspaceId, documentId), token);
 
-export function requestVersionUpload(
-	token: string,
-	workspaceId: string,
-	documentId: string
-): Promise<ApiResult<UploadUrlData>> {
-	return post<UploadUrlData>(
-		`${versionsBase(workspaceId, documentId)}/upload-url`,
-		undefined,
-		token
-	);
-}
+export const requestVersionUpload = (token: string, workspaceId: string, documentId: string) =>
+	post<UploadUrlData>(`${versionsBase(workspaceId, documentId)}/upload-url`, undefined, token);
 
-export function completeVersion(
+export const completeVersion = (
 	token: string,
 	workspaceId: string,
 	documentId: string,
 	p: CompleteVersionPayload
-): Promise<ApiResult<DocumentData>> {
-	return post<DocumentData>(versionsBase(workspaceId, documentId), p, token);
-}
+) => post<DocumentData>(versionsBase(workspaceId, documentId), p, token);
 
 // Restore repoints `current_version_id` at the chosen version — no row is
 // copied, nothing is overwritten, so the act is itself undoable. Restoring the
 // version that is already current is a 409.
-export function restoreVersion(
+export const restoreVersion = (
 	token: string,
 	workspaceId: string,
 	documentId: string,
 	versionId: string
-): Promise<ApiResult<DocumentData>> {
-	return post<DocumentData>(
+) =>
+	post<DocumentData>(
 		`${versionsBase(workspaceId, documentId)}/${versionId}/restore`,
 		undefined,
 		token
 	);
-}
 
 // Clears a recorded rendition failure and restarts the conversion server-side.
 // Owner/admin only upstream; the UI never offers it to guests.
-export function retryRendition(
+export const retryRendition = (
 	token: string,
 	workspaceId: string,
 	documentId: string,
 	versionId: string
-): Promise<ApiResult<null>> {
-	return post<null>(
+) =>
+	post<null>(
 		`${versionsBase(workspaceId, documentId)}/${versionId}/retry-rendition`,
 		undefined,
 		token
 	);
-}
 
 const multipartBase = (workspaceId: string, folderId: string) =>
 	`${foldersBase(workspaceId)}/${folderId}/documents/multipart`;
 
-export function initMultipart(
+export const initMultipart = (
 	token: string,
 	workspaceId: string,
 	folderId: string,
 	p: InitMultipartPayload
-): Promise<ApiResult<InitMultipartData>> {
-	return post<InitMultipartData>(`${multipartBase(workspaceId, folderId)}/init`, p, token);
-}
+) => post<InitMultipartData>(`${multipartBase(workspaceId, folderId)}/init`, p, token);
 
 // Upstream caps a batch at 100 part numbers and the presigned URLs expire in
 // 15 minutes, so callers request them in waves rather than all up front.
-export function multipartPartUrls(
+export const multipartPartUrls = (
 	token: string,
 	workspaceId: string,
 	folderId: string,
 	p: MultipartPartUrlsPayload
-): Promise<ApiResult<MultipartPartUrlsData>> {
-	return post<MultipartPartUrlsData>(`${multipartBase(workspaceId, folderId)}/part-urls`, p, token);
-}
+) => post<MultipartPartUrlsData>(`${multipartBase(workspaceId, folderId)}/part-urls`, p, token);
 
 // The resume read: which parts object storage already holds. Query string here,
 // unlike abort, which takes the same pair as a JSON body.
@@ -214,69 +177,40 @@ export function multipartParts(
 	return get<MultipartPartsData>(`${multipartBase(workspaceId, folderId)}/parts?${q}`, token);
 }
 
-export function completeMultipart(
+export const completeMultipart = (
 	token: string,
 	workspaceId: string,
 	folderId: string,
 	p: CompleteMultipartPayload
-): Promise<ApiResult<DocumentData>> {
-	return post<DocumentData>(`${multipartBase(workspaceId, folderId)}/complete`, p, token);
-}
+) => post<DocumentData>(`${multipartBase(workspaceId, folderId)}/complete`, p, token);
 
-export function abortMultipart(
+export const abortMultipart = (
 	token: string,
 	workspaceId: string,
 	folderId: string,
 	p: AbortMultipartPayload
-): Promise<ApiResult<null>> {
-	return del<null>(multipartBase(workspaceId, folderId), token, p);
-}
+) => del<null>(multipartBase(workspaceId, folderId), token, p);
 
-export function moveDocument(
+export const moveDocument = (
 	token: string,
 	workspaceId: string,
 	documentId: string,
 	p: MoveDocumentPayload
-): Promise<ApiResult<null>> {
-	return patch<null>(`${documentsBase(workspaceId)}/${documentId}/move`, p, token);
-}
+) => patch<null>(`${documentsBase(workspaceId)}/${documentId}/move`, p, token);
 
-export function deleteDocument(
-	token: string,
-	workspaceId: string,
-	documentId: string
-): Promise<ApiResult<null>> {
-	return del<null>(`${documentsBase(workspaceId)}/${documentId}`, token);
-}
+export const deleteDocument = (token: string, workspaceId: string, documentId: string) =>
+	del<null>(`${documentsBase(workspaceId)}/${documentId}`, token);
 
 // Atomic: one unknown/foreign id fails the whole batch with a 404 — nothing
 // is half-deleted. Soft-delete to trash, same as the single delete.
-export function bulkDeleteDocuments(
-	token: string,
-	workspaceId: string,
-	documentIds: string[]
-): Promise<ApiResult<null>> {
-	return post<null>(
-		`${documentsBase(workspaceId)}/bulk-delete`,
-		{ document_ids: documentIds },
-		token
-	);
-}
+export const bulkDeleteDocuments = (token: string, workspaceId: string, documentIds: string[]) =>
+	post<null>(`${documentsBase(workspaceId)}/bulk-delete`, { document_ids: documentIds }, token);
 
-export function listDownloadJobs(
-	token: string,
-	workspaceId: string
-): Promise<ApiResult<DownloadJobData[]>> {
-	return get<DownloadJobData[]>(`/content/workspaces/${workspaceId}/download-jobs`, token);
-}
+export const listDownloadJobs = (token: string, workspaceId: string) =>
+	get<DownloadJobData[]>(`/content/workspaces/${workspaceId}/download-jobs`, token);
 
-export function getDownloadJob(
-	token: string,
-	workspaceId: string,
-	jobId: string
-): Promise<ApiResult<DownloadJobData>> {
-	return get<DownloadJobData>(`/content/workspaces/${workspaceId}/download-jobs/${jobId}`, token);
-}
+export const getDownloadJob = (token: string, workspaceId: string, jobId: string) =>
+	get<DownloadJobData>(`/content/workspaces/${workspaceId}/download-jobs/${jobId}`, token);
 
 export function downloadJobArtifact(
 	token: string,

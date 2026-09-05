@@ -112,20 +112,14 @@ export async function resendOtp(token: string): Promise<{ sent: boolean; error?:
 
 // Preview an invitation by raw token. 200 → {email, workspace_name, role_name};
 // 404 (ErrInvitationInvalid) → revoked/expired/already-used.
-export async function previewInvitation(token: string): Promise<ApiResult<InvitePreviewData>> {
-	return get<InvitePreviewData>(`/auth/invitations/${token}`, undefined);
-}
+export const previewInvitation = (token: string) =>
+	get<InvitePreviewData>(`/auth/invitations/${token}`, undefined);
 
 // Create the account and auto-join the workspace in one atomic step, then
 // auto-login. 200 → {token, refresh_token}; 404 invalid token; 409 email already
 // registered / username taken.
-export async function acceptInvitationSignup(
-	token: string,
-	username: string,
-	password: string
-): Promise<ApiResult<LoginData>> {
-	return post<LoginData>(`/auth/invitations/${token}/accept`, { username, password });
-}
+export const acceptInvitationSignup = (token: string, username: string, password: string) =>
+	post<LoginData>(`/auth/invitations/${token}/accept`, { username, password });
 
 // Step 2 — validate the reset OTP (read-only check).
 export async function validateOtp(email: string, code: string): Promise<{ valid: boolean }> {

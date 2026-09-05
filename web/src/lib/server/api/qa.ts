@@ -27,57 +27,35 @@ export function listQuestions(
 	return get<QaListData>(`/qa/workspaces/${workspaceId}/questions${qs ? `?${qs}` : ''}`, token);
 }
 
-export function createQuestion(
+export const createQuestion = (
 	token: string,
 	workspaceId: string,
 	payload: CreateQuestionPayload
-): Promise<ApiResult<QaThread>> {
-	return post<QaThread>(`/qa/workspaces/${workspaceId}/questions`, payload, token);
-}
+) => post<QaThread>(`/qa/workspaces/${workspaceId}/questions`, payload, token);
 
-export function countWaitingQuestions(
-	token: string,
-	workspaceId: string
-): Promise<ApiResult<QaWaitingCount>> {
-	return get<QaWaitingCount>(`/qa/workspaces/${workspaceId}/questions/count`, token);
-}
+export const countWaitingQuestions = (token: string, workspaceId: string) =>
+	get<QaWaitingCount>(`/qa/workspaces/${workspaceId}/questions/count`, token);
 
-export function getQuestion(
-	token: string,
-	workspaceId: string,
-	questionId: string
-): Promise<ApiResult<QaThread>> {
-	return get<QaThread>(`/qa/workspaces/${workspaceId}/questions/${questionId}`, token);
-}
+export const getQuestion = (token: string, workspaceId: string, questionId: string) =>
+	get<QaThread>(`/qa/workspaces/${workspaceId}/questions/${questionId}`, token);
 
-export function replyQuestion(
+export const replyQuestion = (
 	token: string,
 	workspaceId: string,
 	questionId: string,
 	body: string
-): Promise<ApiResult<QaReplyResult>> {
-	return post<QaReplyResult>(
+) =>
+	post<QaReplyResult>(
 		`/qa/workspaces/${workspaceId}/questions/${questionId}/replies`,
 		{ body },
 		token
 	);
-}
 
-export function closeQuestion(
-	token: string,
-	workspaceId: string,
-	questionId: string
-): Promise<ApiResult<null>> {
-	return post<null>(`/qa/workspaces/${workspaceId}/questions/${questionId}/close`, {}, token);
-}
+export const closeQuestion = (token: string, workspaceId: string, questionId: string) =>
+	post<null>(`/qa/workspaces/${workspaceId}/questions/${questionId}/close`, {}, token);
 
-export function reopenQuestion(
-	token: string,
-	workspaceId: string,
-	questionId: string
-): Promise<ApiResult<null>> {
-	return post<null>(`/qa/workspaces/${workspaceId}/questions/${questionId}/reopen`, {}, token);
-}
+export const reopenQuestion = (token: string, workspaceId: string, questionId: string) =>
+	post<null>(`/qa/workspaces/${workspaceId}/questions/${questionId}/reopen`, {}, token);
 
 // Answers with a CSV stream, not the JSON envelope — hands back the raw
 // Response for the proxy to pipe through (pattern of the activity exports).
@@ -95,14 +73,8 @@ export function fetchQaExport(
 	});
 }
 
-export function listFaqs(token: string, workspaceId: string): Promise<ApiResult<QaFaqItem[]>> {
-	return get<QaFaqItem[]>(`/qa/workspaces/${workspaceId}/faqs`, token);
-}
+export const listFaqs = (token: string, workspaceId: string) =>
+	get<QaFaqItem[]>(`/qa/workspaces/${workspaceId}/faqs`, token);
 
-export function createFaq(
-	token: string,
-	workspaceId: string,
-	payload: CreateFaqPayload
-): Promise<ApiResult<QaFaqItem>> {
-	return post<QaFaqItem>(`/qa/workspaces/${workspaceId}/faqs`, payload, token);
-}
+export const createFaq = (token: string, workspaceId: string, payload: CreateFaqPayload) =>
+	post<QaFaqItem>(`/qa/workspaces/${workspaceId}/faqs`, payload, token);
